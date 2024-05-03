@@ -25,7 +25,7 @@ __hw_breakpoint:
 
 ";
 
-#[derive(Clone, Copy, PartialEq, Eq, ValueEnum)]
+#[derive(Clone, Debug, Copy, PartialEq, Eq, ValueEnum)]
 pub enum ArgArch {
     RV64I,
     RV32I,
@@ -40,6 +40,16 @@ impl Into<Arch> for ArgArch {
     }
 }
 
+impl ToString for ArgArch {
+    fn to_string(&self) -> String {
+        match self {
+            ArgArch::RV32I => "rv32i",
+            ArgArch::RV64I => "rv64i",
+        }
+        .to_string()
+    }
+}
+
 #[derive(Parser, Debug, Clone)]
 #[command(version, about, long_about = None)]
 pub struct Args {
@@ -48,7 +58,7 @@ pub struct Args {
     debug: bool,
 
     /// add debug prelude
-    #[arg(short, long, default_value_t = Arch::ArgArch)]
+    #[arg(short, long, default_value_t = ArgArch::RV64I)]
     arch: ArgArch,
 
     /// file to compile, defaults to stdin
