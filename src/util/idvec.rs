@@ -1,6 +1,7 @@
 use std::{hash::Hash, marker::PhantomData, sync::atomic::AtomicUsize};
 
-#[derive(Debug, Copy, Eq, PartialEq, Hash, Ord, PartialOrd)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub struct Id<MarkerT> {
     element_id: usize,
     token: IdVecToken<MarkerT>,
@@ -14,6 +15,7 @@ impl<Marker> Clone for Id<Marker> {
         }
     }
 }
+impl<Marker> Copy for Id<Marker> {}
 
 impl<MarkerT> Id<MarkerT> {
     pub fn inner(&self) -> usize {
@@ -21,6 +23,7 @@ impl<MarkerT> Id<MarkerT> {
     }
 }
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug)]
 pub struct IdVecToken<MarkerT> {
     container_id: usize,

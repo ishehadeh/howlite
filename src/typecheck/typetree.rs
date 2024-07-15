@@ -2,7 +2,7 @@ use std::collections::{BTreeSet, HashMap};
 
 use crate::{
     parser::{
-        ast::{self, InfixOp, Repaired, XData},
+        ast::{self, InfixOp, Repaired, SyntaxData, SyntaxNodeRef, SyntaxTree, XData},
         Ast,
     },
     util::ast::{Declarations, TyDecl},
@@ -42,9 +42,9 @@ impl TypeTreeXData {
         }
     }
 
-    pub fn new_value(declared_type: TypeInfo, value: TypeInfo) -> TypeTreeXData {
+    pub fn new_value(value: TypeInfo) -> TypeTreeXData {
         TypeTreeXData {
-            declared_type,
+            declared_type: value.clone(),
             value_type: Some(value),
             error: None,
             cond_false: Default::default(),
@@ -71,6 +71,32 @@ impl Default for TypeTreeXData {
 
 pub type TypeTree = Ast<TypeTreeXData>;
 
+pub struct TyContext {}
+
+pub trait GetTyData {
+    fn get_ty_data(
+        &self,
+        tree: &SyntaxTree,
+        ty_database: &SyntaxData<TypeTreeXData>,
+        ctx: &mut TyContext,
+    ) -> TypeTreeXData;
+}
+
+pub trait GetTyDataPure {
+    fn get_ty_data_pure(&self) -> TypeTreeXData;
+}
+
+impl<T: GetTyDataPure> GetTyData for T {
+    fn get_ty_data(
+        &self,
+        _tree: &SyntaxTree,
+        _ty_database: &SyntaxData<TypeTreeXData>,
+        _ctx: &mut TyContext,
+    ) -> TypeTreeXData {
+        self.get_ty_data_pure()
+    }
+}
+
 #[derive(Default, Clone, Debug)]
 pub struct TypeInterpreter {
     declarations: Declarations,
@@ -82,6 +108,18 @@ pub struct TypeInterpreter {
 pub struct TypeScope {
     pub variables: HashMap<String, TypeTreeXData>,
     pub tys: HashMap<String, TyDecl>,
+}
+
+impl GetTyDataPure for ast::LiteralInteger {
+    fn get_ty_data_pure(&self) -> TypeTreeXData {
+        TypeTreeXData::new(TypeInfo::integer(self.value, self.value))
+    }
+}
+
+impl GetTyDataPure for ast::LiteralBool {
+    fn get_ty_data_pure(&self) -> TypeTreeXData {
+        TypeTreeXData::new(TypeInfo::bool())
+    }
 }
 
 impl TypeInterpreter {
@@ -179,241 +217,6 @@ impl TypeInterpreter {
             Ast::ArrayAccess(a) => Ast::ArrayAccess(self.eval_array_access(a)),
             Ast::StmtWhile(w) => Ast::StmtWhile(self.eval_while(w)),
             Ast::DefExtern(e) => Ast::DefExtern(self.eval_def_extern(e)),
-        }
-    }
-
-    pub fn eval_ty(&mut self, ty: ast::Ty) -> ast::Ty<TypeTreeXData> {
-        match ty {
-            ast::Ty::NumberRange(r) => ast::Ty::NumberRange(self.eval_ty_number_range(r)),
-            ast::Ty::Unit(u) => ast::Ty::Unit(self.eval_ty_unit(u)),
-            ast::Ty::Bool(b) => ast::Ty::Bool(self.eval_ty_bool(b)),
-            ast::Ty::TyRef(r) => ast::Ty::TyRef(self.eval_ty_ty_ref(r)),
-            ast::Ty::Array(a) => ast::Ty::Array(self.eval_ty_array(a)),
-            ast::Ty::Struct(s) => ast::Ty::Struct(self.eval_ty_struct(s)),
-        }
-    }
-
-    pub fn eval_ty_number_range(
-        &mut self,
-        range: ast::TyNumberRange,
-    ) -> ast::TyNumberRange<TypeTreeXData> {
-        let xdata = TypeTreeXData::new(TypeInfo::integer(
-            range.inclusive_low.parse().unwrap(),
-            range.inclusive_high.parse().unwrap(),
-        ));
-        ast::TyNumberRange {
-            xdata,
-            span: range.span,
-            inclusive_high: range.inclusive_high,
-            inclusive_low: range.inclusive_low,
-        }
-    }
-
-    pub fn eval_ty_unit(&mut self, unit: ast::TyUnit) -> ast::TyUnit<TypeTreeXData> {
-        ast::TyUnit {
-            xdata: TypeTreeXData::new(TypeInfo::Unit),
-            span: unit.span,
-        }
-    }
-
-    pub fn eval_ty_bool(&mut self, bool: ast::TyBool) -> ast::TyBool<TypeTreeXData> {
-        ast::TyBool {
-            xdata: TypeTreeXData::new(TypeInfo::bool()),
-            span: bool.span,
-        }
-    }
-
-    pub fn eval_ty_ty_ref(&mut self, r: ast::TyRef) -> ast::TyRef<TypeTreeXData> {
-        let params: Vec<_> = r.parameters.into_iter().map(|x| self.eval_ty(x)).collect();
-
-        ast::TyRef {
-            xdata: TypeTreeXData::new(TypeInfo::TyRef(TyRef {
-                parameters: params
-                    .iter()
-                    .map(|x| x.xdata().current_type())
-                    .cloned()
-                    .collect(),
-                name: r.name.clone(),
-            })),
-            span: r.span,
-            name: r.name,
-            parameters: params,
-        }
-    }
-
-    pub fn eval_struct_member(&mut self, r: ast::StructMember) -> ast::StructMember<TypeTreeXData> {
-        let ty = self.eval_ty(r.ty);
-        ast::StructMember {
-            span: r.span,
-            xdata: TypeTreeXData::new(ty.xdata().current_type().clone()),
-            mutable: r.mutable,
-            name: r.name,
-            ty,
-        }
-    }
-
-    pub fn eval_ty_struct(&mut self, r: ast::TyStruct) -> ast::TyStruct<TypeTreeXData> {
-        let members: Vec<_> = r
-            .members
-            .into_iter()
-            .map(|x| self.eval_struct_member(x))
-            .collect();
-        let mut fields = BTreeSet::new();
-        let mut offset = 0;
-        for ast_ty in &members {
-            // use xdata member here since this isn't an ADT ast type
-            let type_info = ast_ty.xdata.current_type();
-            let size = type_info.get_size();
-            fields.insert(RecordCell {
-                name: ast_ty.name.clone(),
-                offset,
-                length: size,
-                type_info: type_info.clone(),
-            });
-            offset += size
-        }
-        ast::TyStruct {
-            span: r.span,
-            xdata: TypeTreeXData::new(TypeInfo::record(fields)),
-            members,
-        }
-    }
-
-    pub fn eval_ty_array(&mut self, array: ast::TyArray) -> ast::TyArray<TypeTreeXData> {
-        let element_ty_node = self.eval_ty(*array.element_ty);
-        let ty = TypeInfo::Array(ArrayType {
-            length: array.length,
-            element_ty: Box::new(element_ty_node.xdata().current_type().clone()),
-        });
-        ast::TyArray {
-            span: array.span,
-            xdata: TypeTreeXData::new(ty),
-            element_ty: Box::new(element_ty_node),
-            length: array.length,
-        }
-    }
-
-    pub fn eval_program(&mut self, p: ast::Program) -> ast::Program<TypeTreeXData> {
-        ast::Program {
-            span: p.span,
-            xdata: Default::default(),
-            definitions: p
-                .definitions
-                .into_iter()
-                .map(|a| self.eval_ast(a))
-                .collect(),
-        }
-    }
-
-    pub fn eval_struct_literal(
-        &mut self,
-        s: ast::StructLiteral,
-    ) -> ast::StructLiteral<TypeTreeXData> {
-        let members: Vec<_> = s
-            .members
-            .into_iter()
-            .map(|x| self.eval_struct_literal_member(x))
-            .collect();
-        let struct_ty = TypeInfo::Record(RecordType {
-            fields: members
-                .iter()
-                .map(|x| RecordCell {
-                    name: x.field.symbol.clone(),
-                    offset: 0, // TODO calc offset and length
-                    length: 0,
-                    type_info: x.xdata().current_type().clone(),
-                })
-                .collect(),
-        });
-
-        ast::StructLiteral {
-            span: s.span,
-            xdata: TypeTreeXData {
-                declared_type: struct_ty,
-                value_type: None,
-                error: None,
-                cond_false: Default::default(),
-                cond_true: Default::default(),
-            },
-            members,
-        }
-    }
-
-    pub fn eval_struct_literal_member(
-        &mut self,
-        m: ast::StructLiteralMember,
-    ) -> ast::StructLiteralMember<TypeTreeXData> {
-        let value = self.eval_ast(*m.value);
-        ast::StructLiteralMember {
-            span: m.span,
-            xdata: value.xdata().clone(),
-            field: m.field,
-            value: Box::new(value),
-        }
-    }
-    pub fn eval_field_access(&mut self, f: ast::FieldAccess) -> ast::FieldAccess<TypeTreeXData> {
-        let object = self.eval_ast(*f.object);
-        let field_ty = object.xdata().current_type().access(&f.field.symbol);
-        ast::FieldAccess {
-            object: Box::new(object),
-            span: f.span,
-            xdata: TypeTreeXData {
-                declared_type: field_ty.clone().unwrap_or(TypeInfo::Unit),
-                value_type: None,
-                error: field_ty.err(),
-                cond_true: Default::default(),
-                cond_false: Default::default(),
-            },
-            field: f.field,
-        }
-    }
-
-    pub fn eval_literal_integer(i: ast::LiteralInteger) -> ast::LiteralInteger<TypeTreeXData> {
-        let ty = TypeInfo::integer(i.value, i.value);
-
-        ast::LiteralInteger {
-            span: i.span,
-            xdata: TypeTreeXData::new_value(ty.clone(), ty),
-            value: i.value,
-        }
-    }
-
-    pub fn eval_literal_bool(i: ast::LiteralBool) -> ast::LiteralBool<TypeTreeXData> {
-        let ty = TypeInfo::bool_valued(i.value);
-        ast::LiteralBool {
-            span: i.span,
-            xdata: TypeTreeXData::new_value(ty.clone(), ty),
-            value: i.value,
-        }
-    }
-
-    pub fn eval_param(&mut self, p: ast::Param) -> ast::Param<TypeTreeXData> {
-        let ty = self.eval_ty(p.typ);
-        ast::Param {
-            span: p.span,
-            xdata: TypeTreeXData::new(ty.xdata().current_type().clone()),
-            name: p.name,
-            typ: ty,
-        }
-    }
-
-    pub fn eval_def_extern(&mut self, f: ast::DefExtern) -> ast::DefExtern<TypeTreeXData> {
-        self.push_scope();
-
-        let mut params: Vec<_> = Vec::new();
-        for p in f.params {
-            let ty_param = self.eval_param(p);
-            self.set_var(&ty_param.name, ty_param.xdata().clone());
-            params.push(ty_param);
-        }
-
-        let return_ty = self.eval_ty(f.return_ty);
-        ast::DefExtern {
-            span: f.span,
-            xdata: TypeTreeXData::new(return_ty.xdata().current_type().clone()),
-            name: f.name,
-            params,
-            return_ty,
         }
     }
 

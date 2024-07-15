@@ -1,8 +1,8 @@
-use crate::parser::{ParseError, ast::{Ast, Param, Ty, StructMember, InfixOp, self}};
+use crate::parser::{ParseError, ast::{Ast, SyntaxNodeRef, Param, Ty, SyntaxTreeBuffer, StructMember, InfixOp, self}};
 use lalrpop_util::ErrorRecovery;
 use crate::parser::lexer::Token;
 
-grammar<'input, 'err>(errors: &'err mut Vec<ErrorRecovery<usize, Token<'input>, ParseError>>);
+grammar<'input, 'err, 'tree>(tree: &'tree mut SyntaxTreeBuffer, errors: &'err mut Vec<ErrorRecovery<usize, Token<'input>, ParseError>>);
 
 extern {
     // Set the error type for the parse result.
@@ -64,7 +64,7 @@ extern {
 OneOrMore<T>: Vec<T> = {
     <e:T> => vec![e],
     <mut v: OneOrMore<T>> "," " "? <e:T> => {
-        v.push(e);
+        v.push(tree.add(e));
         v
     }
 };
@@ -80,21 +80,22 @@ pub Param: Param = {
     }
 };
 
-pub DefParams: Vec<Param> = {
+pub DefParams: Vec<SyntaxNodeRef> = {
     "(" " "? ")" => vec![],
-    "(" " "?<params: OneOrMore<Param>> ")" => params
+    "(" " "?<params: OneOrMore<Param>> ")" => 
 };
 
 
 // START: Type Expressions
+//{
 
-pub Ty: ast::Ty = {
-    <t:TyStruct> => ast::Ty::Struct(t),
-    <t:TyArray> => ast::Ty::Array(t),
-    <t:TyNumberRange> => ast::Ty::NumberRange(t),
-    <t:TyBool> => ast::Ty::Bool(t),
-    <t:TyUnit> => ast::Ty::Unit(t),
-    <t:TyRef> => ast::Ty::TyRef(t),
+pub Ty: Ast = {
+    <t:TyStruct> => Ast::TyStruct(t),
+    <t:TyArray> => Ast::TyArray(t),
+    <t:TyNumberRange> => Ast::TyNumberRange(t),
+    <t:TyBool> => Ast::TyBool(t),
+    <t:TyUnit> => Ast::TyUnit(t),
+    <t:TyRef> => Ast::TyTyRef(t),
 }
 
 pub TyRef: ast::TyRef = {
@@ -173,28 +174,28 @@ pub TyStruct: ast::TyStruct = {
 }
 
 pub DefFunction: ast::DefFunction = {
-    <l: @L> "func" " " <name:"ident"> <params:DefParams> " "? ":" " "? <typ:Ty> " "? <block: Block> <r: @R> => {
+    <l: @L> "func" " " <name:"ident"> <params:DefParams> " "? ":" " "? <ty:Ty> " "? <block: Block> <r: @R> => {
         ast::DefFunction {
             span: (l, r).into(),
             xdata: (),
 
             name: name.to_string(),
             params,
-            return_ty: typ,
-            body: Box::new(Ast::Block(block))
+            return_ty: tree.add(ty),
+            body: tree.add(block)
         }
     }
 };
 
 pub DefExtern: ast::DefExtern = {
-    <l: @L> "func" " " <name:"ident"> <params:DefParams> " "? ":" " "? <typ:Ty> " "? ";" " "? <r: @R> => {
+    <l: @L> "func" " " <name:"ident"> <params:DefParams> " "? ":" " "? <ty:Ty> " "? ";" " "? <r: @R> => {
         ast::DefExtern {
             span: (l, r).into(),
             xdata: (),
 
             name: name.to_string(),
             params,
-            return_ty: typ,
+            return_ty: tree.add(ty),
         }
     }
 };
@@ -206,7 +207,7 @@ pub DefStructMember: StructMember = {
             xdata: (),
 
             name: name.to_string(),
-            ty,
+            ty: tree.add(ty),
             mutable: true,
         }
     },
@@ -217,13 +218,13 @@ pub DefStructMember: StructMember = {
             xdata: (),
 
             name: name.to_string(),
-            ty,
+            ty: tree.add(ty),
             mutable: false,
         }
     },
 };
 
-pub TyParams: Vec<Ty> = {
+pub TyParams: Vec<SyntaxNodeRef> = {
     "<{" " "? "}>" => vec![], // TODO: make this an error
     "<{" " "? <ty_params: OneOrMore<Ty>> "}>" => ty_params
 };
@@ -234,7 +235,7 @@ pub TyParam: ast::TyParam = {
         xdata: (),
 
         name: name.to_string(),
-        super_ty,
+        super_ty: tree.add(super_ty),
         default_ty: None,
     },
 
@@ -243,13 +244,17 @@ pub TyParam: ast::TyParam = {
         xdata: (),
 
         name: name.to_string(),
-        super_ty,
-        default_ty: Some(default_ty),
+        super_ty: tree.add(super_ty),
+        default_ty: Some(tree.add(default_ty)),
     }
 }
 
+//}
 // END: Type Expressions
 
+
+// START Definitions
+//{
 
 pub DefType: ast::DefType = {
     <l: @L> "type" " " <name:"ident"> " "? "=" " "? <ty:Ty> " "? ";"  <r: @R> => {
@@ -258,7 +263,7 @@ pub DefType: ast::DefType = {
             xdata: (),
 
             name: name.to_string(),
-            ty,
+            ty: tree.add(ty),
             ty_params: vec![]
         }
     },
@@ -269,24 +274,29 @@ pub DefType: ast::DefType = {
             xdata: (),
 
             name: name.to_string(),
-            ty,
+            ty: tree.add(ty),
             ty_params,
         }
     }
 }
 
-pub DefTyParams: Vec<ast::TyParam> = {
+pub DefTyParams: Vec<SyntaxNodeRef> = {
     "<{" " "? "}>" => vec![], // TODO: make this an error
     "<{" " "? <ty_params: OneOrMore<TyParam>> "}>" => ty_params
 };
+
+// TODO: move other defs here
+
+//}
+// END: Defintions
 
 pub StmtIf: ast::StmtIf = {
     <l: @L> "if" " " <condition:Expr> <body:Block> <r: @R> => ast::StmtIf {
         span: (l, r).into(),
         xdata: (),
 
-        condition: Box::new(condition),
-        body: Box::new(Ast::Block(body)),
+        condition: tree.add(condition),
+        body: tree.add(body),
         else_: None,
     },
 
@@ -294,9 +304,9 @@ pub StmtIf: ast::StmtIf = {
         span: (l, r).into(),
         xdata: (),
 
-        condition: Box::new(condition),
-        body: Box::new(Ast::Block(body)),
-        else_: Some(Box::new(Ast::Block(else_))),
+        condition: tree.add(condition),
+        body: tree.add(body),
+        else_: Some(tree.add(else_)),
     }
 
     // TODO: else if
@@ -308,8 +318,8 @@ pub StmtWhile: ast::StmtWhile = {
         span: (l, r).into(),
         xdata: (),
 
-        condition: Box::new(condition),
-        body: Box::new(Ast::Block(body)),
+        condition: tree.add(condition),
+        body: tree.add(body),
     },
 
 }
@@ -340,33 +350,33 @@ pub Expr: Ast = {
         span: (l, r).into(),
         xdata: (),
 
-        lhs: Box::new(lhs),
+        lhs: tree.add(lhs),
         op,
-        rhs: Box::new(rhs) 
+        rhs: tree.add(rhs) 
     }),
     AtomicExpr
 };
 
 
 pub StmtLet: ast::StmtLet = {
-    <l: @L> "let" " " "mut" " " <name:"ident"> " "? ":" " "? <typ:Ty> " "? "=" " "? <value:Expr> <r: @R> => ast::StmtLet {
+    <l: @L> "let" " " "mut" " " <name:"ident"> " "? ":" " "? <ty:Ty> " "? "=" " "? <value:Expr> <r: @R> => ast::StmtLet {
         span: (l, r).into(),
         xdata: (),
 
         mutable: true,
         name: name.to_string(),
-        ty: typ,
-        value: Box::new(value),
+        ty: tree.add(ty),
+        value: tree.add(value),
     },
 
-    <l: @L> "let" " " <name:"ident"> " "? ":" " "? <typ:Ty> " "? "=" " "? <value:Expr> <r: @R> => ast::StmtLet {
+    <l: @L> "let" " " <name:"ident"> " "? ":" " "? <ty:Ty> " "? "=" " "? <value:Expr> <r: @R> => ast::StmtLet {
         span: (l, r).into(),
         xdata: (),
 
         mutable: false,
         name: name.to_string(),
-        ty: typ,
-        value: Box::new(value),
+        ty: tree.add(ty),
+        value: tree.add(value),
     }
 }
 
@@ -376,8 +386,8 @@ pub StructLiteralMember: ast::StructLiteralMember = {
             xdata: (),
             span: (l, r).into(),
 
-            field,
-            value: Box::new(value)
+            field: tree.add(field),
+            value: tree.add(value)
         }
     },
 }
@@ -398,24 +408,32 @@ pub Stmt: Ast = {
     <a:Expr> => a,
 }
 
-pub StmtList: Vec<Ast> = {
-    <e:Stmt> => vec![e],
+pub StmtList: Vec<SyntaxNodeRef> = {
+    <e:Stmt> => vec![tree.add(e)],
     <mut v: StmtList> ";" " "? <e:Stmt> => {
-        v.push(e);
+        v.push(tree.add(e));
         v
     }
 }
 
 pub Block: ast::Block = {
-    <l: @L> "{" " "? "}" <r: @R> " "? => ast::Block { span: (l, r).into(),
+    <l: @L> "{" " "? "}" <r: @R> " "? => ast::Block {
+        span: (l, r).into(),
         xdata: (),
- returns: false, statements: vec![]  },
-    <l: @L> "{" " "? <statements: StmtList> "}" <r: @R> " "? => ast::Block { span: (l, r).into(),
+        returns: false, statements: vec![]
+    },
+    <l: @L> "{" " "? <statements: StmtList> "}" <r: @R> " "? => ast::Block {
+        span: (l, r).into(),
         xdata: (),
- returns: true, statements },
-    <l: @L> "{" " "? <statements: StmtList>  ";" " "? "}"  <r: @R> " "? => ast::Block { span: (l, r).into(),
+        returns: true,
+        statements
+    },
+    <l: @L> "{" " "? <statements: StmtList>  ";" " "? "}"  <r: @R> " "? => ast::Block {
+        span: (l, r).into(),
         xdata: (),
- returns: false, statements },
+        returns: false,
+        statements
+    },
 }
 
 pub ErrNoExplicitExprGrouping: Ast = {
@@ -426,17 +444,15 @@ pub ErrNoExplicitExprGrouping: Ast = {
                 xdata: (),
                 span: (l, r).into(),
 
-                tree: Some(Box::new(
-                    Ast::Expr(
-                        ast::Expr {
-                            span: (l, r).into(),
-                            xdata: (),
+                tree: Some(tree.add(
+                    ast::Expr {
+                        span: (l, r).into(),
+                        xdata: (),
 
-                            lhs: Box::new(lhs),
-                            op,
-                            rhs:Box::new(rhs),
-                        }
-                    )
+                        lhs: tree.add(lhs),
+                        op,
+                        rhs: tree.add(rhs),
+                    }
                 ))
             }
         )
@@ -468,7 +484,7 @@ pub FieldAccess: ast::FieldAccess = {
         ast::FieldAccess {
             xdata: (),
             span: (l, r).into(),
-            object: Box::new(object),
+            object: tree.add(object),
             field: i,
         }
     }
@@ -480,8 +496,8 @@ pub ArrayAccess: ast::ArrayAccess = {
         ast::ArrayAccess {
             xdata: (),
             span: (l, r).into(),
-            index: Box::new(index),
-            object: Box::new(object),
+            index: tree.add(index),
+            object: tree.add(object),
         }
     }
 }
@@ -553,9 +569,9 @@ TopLevel: Ast = {
 };
 
 TopLevelList: Vec<Ast> = {
-    <e:TopLevel> => vec![e],
+    <e:TopLevel> => vec![tree.add(e)],
     <mut v: TopLevelList> <e:TopLevel> => {
-        v.push(e);
+        v.push(tree.add(e));
         v
     }
 }
@@ -565,8 +581,7 @@ pub Program: Ast = {
     <l: @L> " "? <definitions:TopLevelList> <r: @R> => {
         Ast::Program(ast::Program {
             span: (l, r).into(),
-        xdata: (),
-
+            xdata: (),
 
             definitions,
         })

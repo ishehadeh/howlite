@@ -1,14 +1,14 @@
 use std::collections::BTreeSet;
 
+pub mod tcimpl;
 pub mod typetree;
 
 mod errors;
 pub mod types;
 pub use errors::*;
 
-use types::{IntegerType, RecordCell, RecordType};
+use types::{ArrayType, FuncType, IntegerType, RecordCell, RecordType, TyRef};
 
-use self::types::{ArrayType, TyRef};
 pub use self::typetree::TypeTree;
 pub struct TypeContext {}
 pub trait IntoTypedNode<T> {
@@ -91,6 +91,7 @@ pub enum TypeInfo {
 
     /// A reference to another type or type parameter
     TyRef(TyRef),
+    Func(FuncType),
 }
 
 impl TypeInfo {
@@ -109,6 +110,13 @@ impl TypeInfo {
     pub fn union(types: impl Into<Vec<TypeInfo>>) -> TypeInfo {
         TypeInfo::Union(UnionType {
             types: types.into(),
+        })
+    }
+
+    pub fn func(params: impl Into<Vec<TypeInfo>>, result: TypeInfo) -> TypeInfo {
+        TypeInfo::Func(FuncType {
+            return_ty: Box::new(result),
+            param_ty: params.into(),
         })
     }
 
@@ -131,6 +139,7 @@ impl TypeInfo {
     }
 
     pub fn get_size(&self) -> usize {
+        // TODO: adjustable pointer size!!
         match self {
             TypeInfo::Scalar(ScalarType::Integer(_)) => 4,
             TypeInfo::Scalar(ScalarType::Boolean(_)) => 1,
@@ -140,17 +149,20 @@ impl TypeInfo {
             TypeInfo::Record(r) => r.fields.iter().map(|x| x.length).sum::<usize>(),
             TypeInfo::Array(a) => a.element_ty.get_size() * a.length as usize,
             TypeInfo::TyRef(_) => panic!("type references cannot be sized before being resolved"),
+            TypeInfo::Func(_) => 4,
         }
     }
 
     pub fn access<S: AsRef<str>>(&self, symbol: S) -> Result<TypeInfo, TypeError> {
         match self {
-            TypeInfo::Scalar(_) | TypeInfo::Array(_) | TypeInfo::TyRef(_) | TypeInfo::Unit => {
-                Err(TypeError::InvalidFieldAccess {
-                    symbol: symbol.as_ref().to_string(),
-                    object: self.clone(),
-                })
-            }
+            TypeInfo::Scalar(_)
+            | TypeInfo::Func(_)
+            | TypeInfo::Array(_)
+            | TypeInfo::TyRef(_)
+            | TypeInfo::Unit => Err(TypeError::InvalidFieldAccess {
+                symbol: symbol.as_ref().to_string(),
+                object: self.clone(),
+            }),
             TypeInfo::Union(u) => {
                 let union_intersect = u.intersect();
                 union_intersect.access(symbol)
@@ -177,8 +189,10 @@ impl TypeInfo {
 
             // if two type references aren't exactly equal, then they aren't subsets
             // for a proper comparison they should be resolved by the typechecker, then
-            // compared with is_subset
-            (_, TypeInfo::TyRef(_)) | (TypeInfo::TyRef(_), _) => false,
+            // compared with is_subset.
+            // all functions are always different types, unless exactly identical
+            (_, TypeInfo::Func(_) | TypeInfo::TyRef(_))
+            | (TypeInfo::Func(_) | TypeInfo::TyRef(_), _) => false,
 
             // unit only matches unit
             (TypeInfo::Unit, TypeInfo::Unit) => true,
@@ -277,6 +291,9 @@ impl TypeInfo {
             // Intersect cannot be called with references, this should be an error of some kind
             // it usually indicates a bug in the compiler
             (TypeInfo::TyRef(_), _) | (_, TypeInfo::TyRef(_)) => TypeInfo::Unit,
+
+            // functions have no intersect, unless identical
+            (TypeInfo::Func(_), _) | (_, TypeInfo::Func(_)) => TypeInfo::Unit,
 
             // integer range intersect
             (

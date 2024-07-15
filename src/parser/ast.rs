@@ -5,6 +5,9 @@ use crate::{
 
 use std::fmt::Debug;
 
+// temp use until stabalized in std:
+use concat_idents::concat_idents;
+
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum InfixOp {
@@ -32,7 +35,7 @@ pub struct Param<X: Debug + Clone = ()> {
     pub xdata: X,
 
     pub name: String,
-    pub typ: Ty<X>,
+    pub typ: SyntaxNodeRef,
 }
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -42,9 +45,9 @@ pub struct TyParam<X: Debug + Clone = ()> {
     pub xdata: X,
 
     pub name: String,
-    pub super_ty: Ty<X>,
+    pub super_ty: SyntaxNodeRef,
 
-    pub default_ty: Option<Ty>,
+    pub default_ty: Option<SyntaxNodeRef>,
 }
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -53,7 +56,7 @@ pub struct TyArray<X: Debug + Clone = ()> {
     pub span: SourceSpan,
     pub xdata: X,
 
-    pub element_ty: Box<Ty<X>>,
+    pub element_ty: SyntaxNodeRef,
     pub length: u32,
 }
 
@@ -65,7 +68,7 @@ pub struct StructMember<X: Debug + Clone = ()> {
 
     pub mutable: bool,
     pub name: String,
-    pub ty: Ty<X>,
+    pub ty: SyntaxNodeRef,
 }
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -75,7 +78,7 @@ pub struct TyRef<X: Debug + Clone = ()> {
     pub xdata: X,
 
     pub name: String,
-    pub parameters: Vec<Ty<X>>,
+    pub parameters: Vec<SyntaxNodeRef>,
 }
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -84,7 +87,7 @@ pub struct TyStruct<X: Debug + Clone = ()> {
     pub span: SourceSpan,
     pub xdata: X,
 
-    pub members: Vec<StructMember<X>>,
+    pub members: Vec<SyntaxNodeRef>,
 }
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -146,6 +149,7 @@ pub enum Ast<X: Debug + Clone = ()> {
     Repaired(Repaired<X>),
 
     DefFunction(DefFunction<X>),
+    Param(Param<X>),
     Block(Block<X>),
     StmtIf(StmtIf<X>),
     ExprCall(ExprCall<X>),
@@ -159,6 +163,17 @@ pub enum Ast<X: Debug + Clone = ()> {
     DefExtern(DefExtern<X>),
 
     Program(Program<X>),
+
+    // Types
+    TyRef(TyRef<X>),
+    TyStruct(TyStruct<X>),
+    StructLiteralMember(StructLiteralMember<X>),
+    StructMember(StructMember<X>),
+    TyNumberRange(TyNumberRange<X>),
+    TyArray(TyArray<X>),
+    TyBool(TyBool<X>),
+    TyUnit(TyUnit<X>),
+    TyParam(TyParam<X>),
 }
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -167,7 +182,7 @@ pub struct Repaired<X: Debug + Clone = ()> {
     pub span: SourceSpan,
     pub xdata: X,
 
-    pub tree: Option<Box<Ast<X>>>,
+    pub tree: Option<SyntaxNodeRef>,
 }
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -177,7 +192,7 @@ pub struct FieldAccess<X: Debug + Clone = ()> {
     pub xdata: X,
 
     pub field: Ident,
-    pub object: Box<Ast<X>>,
+    pub object: SyntaxNodeRef,
 }
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -186,8 +201,8 @@ pub struct ArrayAccess<X: Debug + Clone = ()> {
     pub span: SourceSpan,
     pub xdata: X,
 
-    pub index: Box<Ast<X>>,
-    pub object: Box<Ast<X>>,
+    pub index: SyntaxNodeRef,
+    pub object: SyntaxNodeRef,
 }
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -196,9 +211,9 @@ pub struct Expr<X: Debug + Clone = ()> {
     pub span: SourceSpan,
     pub xdata: X,
 
-    pub lhs: Box<Ast<X>>,
+    pub lhs: SyntaxNodeRef,
     pub op: InfixOp,
-    pub rhs: Box<Ast<X>>,
+    pub rhs: SyntaxNodeRef,
 }
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -208,7 +223,7 @@ pub struct ExprCall<X: Debug + Clone = ()> {
     pub xdata: X,
 
     pub function_name: String,
-    pub paramaters: Vec<Ast<X>>,
+    pub paramaters: Vec<SyntaxNodeRef>,
 }
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -218,9 +233,9 @@ pub struct StmtLet<X: Debug + Clone = ()> {
     pub xdata: X,
 
     pub name: String,
-    pub ty: Ty<X>,
+    pub ty: SyntaxNodeRef,
     pub mutable: bool,
-    pub value: Box<Ast<X>>,
+    pub value: SyntaxNodeRef,
 }
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -229,7 +244,7 @@ pub struct Program<X: Debug + Clone = ()> {
     pub span: SourceSpan,
     pub xdata: X,
 
-    pub definitions: Vec<Ast<X>>,
+    pub definitions: Vec<SyntaxNodeRef>,
 }
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -239,8 +254,8 @@ pub struct DefType<X: Debug + Clone = ()> {
     pub xdata: X,
 
     pub name: String,
-    pub ty: Ty<X>,
-    pub ty_params: Vec<TyParam<X>>,
+    pub ty: SyntaxNodeRef,
+    pub ty_params: Vec<SyntaxNodeRef>,
 }
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -250,8 +265,8 @@ pub struct DefExtern<X: Debug + Clone = ()> {
     pub xdata: X,
 
     pub name: String,
-    pub params: Vec<Param<X>>,
-    pub return_ty: Ty<X>,
+    pub params: Vec<SyntaxNodeRef>,
+    pub return_ty: SyntaxNodeRef,
 }
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -260,9 +275,9 @@ pub struct StmtIf<X: Debug + Clone = ()> {
     pub span: SourceSpan,
     pub xdata: X,
 
-    pub condition: Box<Ast<X>>,
-    pub body: Box<Ast<X>>,
-    pub else_: Option<Box<Ast<X>>>,
+    pub condition: SyntaxNodeRef,
+    pub body: SyntaxNodeRef,
+    pub else_: Option<SyntaxNodeRef>,
 }
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -287,7 +302,7 @@ pub struct Block<X: Debug + Clone = ()> {
     /// // evaluates to `unit`, `returns = false`
     /// ```
     pub returns: bool,
-    pub statements: Vec<Ast<X>>,
+    pub statements: Vec<SyntaxNodeRef>,
 }
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -324,9 +339,9 @@ pub struct DefFunction<X: Debug + Clone = ()> {
     pub xdata: X,
 
     pub name: String,
-    pub params: Vec<Param<X>>,
-    pub return_ty: Ty<X>,
-    pub body: Box<Ast<X>>,
+    pub params: Vec<SyntaxNodeRef>,
+    pub return_ty: SyntaxNodeRef,
+    pub body: SyntaxNodeRef,
 }
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -336,7 +351,7 @@ pub struct StructLiteralMember<X: Debug + Clone = ()> {
     pub xdata: X,
 
     pub field: Ident,
-    pub value: Box<Ast<X>>,
+    pub value: SyntaxNodeRef,
 }
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -345,7 +360,7 @@ pub struct StructLiteral<X: Debug + Clone = ()> {
     pub span: SourceSpan,
     pub xdata: X,
 
-    pub members: Vec<StructLiteralMember<X>>,
+    pub members: Vec<SyntaxNodeRef>,
 }
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -354,7 +369,7 @@ pub struct LiteralArray<X: Debug + Clone = ()> {
     pub span: SourceSpan,
     pub xdata: X,
 
-    pub values: Vec<Ast<X>>,
+    pub values: Vec<SyntaxNodeRef>,
 }
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -363,8 +378,8 @@ pub struct StmtWhile<X: Debug + Clone = ()> {
     pub span: SourceSpan,
     pub xdata: X,
 
-    pub condition: Box<Ast<X>>,
-    pub body: Box<Ast<X>>,
+    pub condition: SyntaxNodeRef,
+    pub body: SyntaxNodeRef,
 }
 
 /// Implement Spanned for a struct, with the given member of type SourceSpan
@@ -385,7 +400,7 @@ macro_rules! impl_ast_node {
 }
 
 macro_rules! impl_ast_traits {
-    ($ast_ty:ident : $($member:ident ($member_ty:ident)),*) => {
+    ($ast_ty:ident : $($member:ident ($member_ty:ident) [$member_snake:ident]),*) => {
         $(impl_ast_node!{ $member_ty })*
 
         impl<X: Debug + Clone> Spanned for $ast_ty<X> {
@@ -403,44 +418,77 @@ macro_rules! impl_ast_traits {
                 }
             }
         }
+
+        $(
+            impl<X: Debug + Clone> TryInto<$member_ty<X>> for $ast_ty<X> {
+                type Error = ();
+
+                fn try_into(self) -> Result<$member_ty<X>, Self::Error> {
+                    match self {
+                        $ast_ty::$member(a) => Ok(a),
+                        _ => Err(())
+                    }
+                }
+            }
+        )*
+
+        impl<X: Debug + Clone> $ast_ty<X> {
+            $(  concat_idents!(fn_name = as_, $member_snake
+                    {
+                        pub fn fn_name(&self) -> Option<&$member_ty<X>> {
+                            match self {
+                                $ast_ty::$member(a) => Some(a),
+                                _ => None
+                            }
+                        }
+                    });
+
+                concat_idents!(fn_name = into_, $member_snake
+                    {
+                        pub fn fn_name(self) -> Option<$member_ty<X>> {
+                            match self {
+                                $ast_ty::$member(a) => Some(a),
+                                _ => None
+                            }
+                        }
+                    });
+            )*
+        }
     };
     ($ast_ty:ident : $($member:ident),*) => {
-        impl_ast_traits!($ast_ty : $($member ($member)),*);
+        impl_ast_traits!($ast_ty : $($member ($member) [$member]),*);
     };
 }
 
 impl_ast_traits!(Ast :
-    Program,
-    Expr,
-    DefType,
-    DefExtern,
-    ExprCall,
-    StmtIf,
-    StmtLet,
-    Block,
-    DefFunction,
-    Ident,
-    LiteralInteger,
-    LiteralBool,
-    Repaired,
-    FieldAccess,
-    StructLiteral,
-    LiteralArray,
-    ArrayAccess,
-    StmtWhile
-);
-
-impl_ast_node! { StructLiteralMember }
-impl_ast_node! { Param }
-impl_ast_node! { TyParam }
-
-impl_ast_traits!(Ty :
-    TyRef (TyRef),
-    Struct (TyStruct),
-    Array (TyArray),
-    NumberRange (TyNumberRange),
-    Bool (TyBool),
-    Unit (TyUnit)
+    Program(Program) [program],
+    Expr(Expr) [expr],
+    DefType(DefType) [def_type],
+    DefExtern(DefExtern) [def_extern],
+    ExprCall(ExprCall) [expr_call],
+    StmtIf(StmtIf) [stmt_if],
+    StmtLet(StmtLet) [stmt_let],
+    Block(Block) [block],
+    DefFunction(DefFunction) [def_function],
+    Ident(Ident) [ident],
+    LiteralInteger(LiteralInteger) [literal_integer],
+    LiteralBool(LiteralBool) [literal_bool],
+    Repaired(Repaired) [repaired],
+    FieldAccess(FieldAccess) [field_access],
+    StructLiteral(StructLiteral) [struct_literal],
+    LiteralArray(LiteralArray) [literal_array],
+    ArrayAccess(ArrayAccess) [array_access],
+    StmtWhile(StmtWhile) [stmt_while],
+    TyRef(TyRef) [ty_ref],
+    TyStruct(TyStruct) [ty_struct],
+    TyArray(TyArray) [ty_array],
+    StructMember(StructMember) [struct_member],
+    TyNumberRange(TyNumberRange) [ty_number_range],
+    TyBool(TyBool) [ty_bool],
+    TyUnit(TyUnit) [ty_unit],
+    TyParam(TyParam) [ty_param],
+    StructLiteralMember(StructLiteralMember) [struct_literal_member],
+    Param(Param) [param]
 );
 
 pub type SyntaxNodeRef = Id<Ast>;
@@ -493,17 +541,19 @@ impl SyntaxTree {
 
     pub fn map<T, F>(&self, f: F) -> SyntaxData<T>
     where
-        F: Fn(SyntaxNodeRef, &Ast) -> T,
+        F: Fn(&SyntaxData<T>, SyntaxNodeRef, &Ast) -> T,
     {
-        let mut data = Vec::with_capacity(self.nodes.len());
+        let mut data = SyntaxData {
+            data: Vec::with_capacity(self.nodes.len()),
+            token: self.nodes.token(),
+        };
+
         for (r, node) in self.iter() {
-            data.push(f(r, node))
+            let val = f(&data, r, node);
+            data.data.push(val);
         }
 
-        SyntaxData {
-            data,
-            token: self.nodes.token(),
-        }
+        data
     }
 }
 
