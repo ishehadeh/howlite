@@ -1,3 +1,5 @@
+use std::collections::BTreeSet;
+
 use num_bigint::BigInt;
 
 #[cfg(test)]
@@ -6,23 +8,29 @@ mod test;
 mod integer_range;
 pub use integer_range::IntegerRange;
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, PartialEq, Eq, Debug)]
 pub struct IntegerSet {
-    ranges: Vec<IntegerRange>
+    ranges: BTreeSet<IntegerRange>
 }
 
 impl IntegerSet {
+    pub fn new<RangeT: Into<BigInt> + Clone>(ranges: &[(RangeT, RangeT)]) -> IntegerSet {
+        IntegerSet {
+            ranges: ranges.iter().map(IntegerRange::from).collect()
+        }
+    }
+
     pub fn intersect(&self, other: &IntegerSet) -> IntegerSet {
         let mut intersect = IntegerSet::default();
-        for r0 in other.ranges {
-            for r1 in self.ranges {
+        for r0 in other.ranges.iter() {
+            for r1 in self.ranges.iter() {
                 if let Some(r_intersect) = r0.intersect(&r1) { 
-                    intersect.ranges.push(r_intersect)
+                    intersect.ranges.insert(r_intersect);
                 }
             }
         }
 
-        return intersect
+        intersect
     }
 }
 

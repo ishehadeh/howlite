@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 use num_bigint::{BigInt, Sign};
 
 use crate::IntegerRange;
@@ -22,5 +24,22 @@ pub fn test_intersect() {
     assert_eq!(
         IntegerRange::new(-4, 3).intersect(&IntegerRange::new(4, 10)),
         None
+    )
+}
+
+
+#[test]
+pub fn test_ord() {
+    assert_eq!(
+        IntegerRange::new(-4, 3).cmp(&IntegerRange::new(2, 5)),
+        Ordering::Less
+    );
+    assert_eq!(
+        IntegerRange::new(-4, 10).cmp(&IntegerRange::new(-4, 3)),
+        Ordering::Greater
+    );
+    assert_eq!(
+        IntegerRange::new(-4, 3).cmp(&IntegerRange::new(-4, 3)),
+        Ordering::Equal
     )
 }
