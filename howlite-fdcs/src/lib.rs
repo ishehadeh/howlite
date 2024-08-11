@@ -279,7 +279,15 @@ where
                 domain.exclude_below(&range.lo);
                 domain
             }),
-            Event::Exclude { variable, excluded } => todo!(),
+            Event::Exclude { variable, excluded } => {
+                let range_before = self.var_get(variable).clone();
+                self.mutate_var(variable, |mut domain| {
+                    domain.exclude(&excluded);
+                    domain
+                });
+                let range_after = self.var_get(variable).clone();
+                assert_eq!(range_before, range_after);
+            }
         }
     }
 }
