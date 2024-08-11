@@ -1,7 +1,5 @@
 use std::{
-    any::TypeId,
-    collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
-    f32::consts::E,
+    collections::{BTreeMap, BTreeSet},
     fmt::Debug,
 };
 
@@ -110,15 +108,34 @@ pub trait Constraint: Debug {
         Self: Sized;
 }
 
-#[derive(Default, Debug)]
-pub struct Enviornmnet {
-    constraints: Vec<Box<dyn Constraint>>,
+#[derive(Debug)]
+pub struct Enviornmnet<ConstraintT>
+where
+    ConstraintT: Constraint,
+{
+    constraints: Vec<ConstraintT>,
     domains: BTreeMap<Variable, IntegerSet>,
     next_var_id: usize,
 }
 
-impl Enviornmnet {
-    pub fn new() -> Enviornmnet {
+impl<ConstraintT> Default for Enviornmnet<ConstraintT>
+where
+    ConstraintT: Constraint,
+{
+    fn default() -> Self {
+        Self {
+            constraints: Default::default(),
+            domains: Default::default(),
+            next_var_id: Default::default(),
+        }
+    }
+}
+
+impl<ConstraintT> Enviornmnet<ConstraintT>
+where
+    ConstraintT: Constraint,
+{
+    pub fn new() -> Enviornmnet<ConstraintT> {
         Enviornmnet::default()
     }
 
@@ -131,7 +148,7 @@ impl Enviornmnet {
             None => panic!("ran out of variable IDs!"),
         };
 
-        self.domains.insert(var.clone(), domain);
+        self.domains.insert(var, domain);
         var
     }
 
@@ -143,5 +160,14 @@ impl Enviornmnet {
 
     pub fn set(&mut self, var: Variable, domain: IntegerSet) {
         self.domains.insert(var, domain);
+    }
+}
+
+impl<ConstraintT> Enviornmnet<ConstraintT>
+where
+    ConstraintT: Constraint,
+{
+    pub fn constrain(&mut self, constraint: ConstraintT) {
+        self.constraints.push(constraint)
     }
 }
