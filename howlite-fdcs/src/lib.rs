@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, VecDeque},
+    collections::{BTreeMap, HashMap, VecDeque},
     fmt::Debug,
 };
 
@@ -11,10 +11,36 @@ mod test;
 pub mod integer;
 use integer::{IntegerRange, IntegerSet};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Variable {
-    id: usize,
+macro_rules! id_type {
+    ($name:ident, $gen_name:ident) => {
+        #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        pub struct $name {
+            id: usize,
+        }
+
+        #[derive(Clone, Debug, Default)]
+        struct $gen_name {
+            next_id: usize,
+        }
+
+        impl $gen_name {
+            #[allow(dead_code)]
+            pub fn new() -> $gen_name {
+                Default::default()
+            }
+
+            pub fn make_id(&mut self) -> $name {
+                let id_int = self.next_id;
+                self.next_id += 1;
+                $name { id: id_int }
+            }
+        }
+    };
 }
+
+id_type!(Variable, VariableIdGenerator);
+id_type!(ConstraintId, ConstraintIdGenerator);
+id_type!(EventId, EventIdGenerator);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Term {
@@ -23,7 +49,7 @@ pub enum Term {
 }
 
 #[derive(Clone, Debug)]
-pub enum Event {
+pub enum Mutation {
     /// Instantiate `variable` to be equal to `binding`
     Instantiate { variable: Variable, binding: Term },
 
@@ -40,31 +66,26 @@ pub enum Event {
     },
 }
 
-pub trait Constraint: Debug {
-    fn propogate(&mut self, vars: &VariableSet, event: Event) -> Vec<Event>
-    where
-        Self: Sized;
+#[derive(Debug, Clone)]
+pub struct Event {
+    pub id: EventId,
+    pub source: ConstraintId,
+    pub mutation: Mutation,
+}
 
-    fn initialize(&mut self, vars: &VariableSet) -> Vec<Event>
-    where
-        Self: Sized;
+pub trait Constraint: Debug {
+    fn propogate(&mut self, vars: &VariableSet, events: EventSink<'_>, event: Event);
+    fn initialize(&mut self, vars: &VariableSet, events: EventSink<'_>);
 }
 #[derive(Debug, Default, Clone)]
 pub struct VariableSet {
-    next_var_id: usize,
+    variable_id_gen: VariableIdGenerator,
     domains: BTreeMap<Variable, IntegerSet>,
 }
 
 impl VariableSet {
     pub fn create(&mut self, domain: IntegerSet) -> Variable {
-        let var = Variable {
-            id: self.next_var_id,
-        };
-        self.next_var_id = match self.next_var_id.checked_add(1) {
-            Some(v) => v,
-            None => panic!("ran out of variable IDs!"),
-        };
-
+        let var = self.variable_id_gen.make_id();
         self.domains.insert(var, domain);
         var
     }
@@ -85,7 +106,9 @@ pub struct Environment<ConstraintT>
 where
     ConstraintT: Constraint,
 {
-    constraints: Vec<ConstraintT>,
+    constraint_id_gen: ConstraintIdGenerator,
+    constraints: HashMap<ConstraintId, ConstraintT>,
+    events: EventQueue,
     pub variables: VariableSet,
 }
 
@@ -95,8 +118,10 @@ where
 {
     fn default() -> Self {
         Self {
+            constraint_id_gen: Default::default(),
             constraints: Default::default(),
             variables: Default::default(),
+            events: Default::default(),
         }
     }
 }
@@ -114,18 +139,18 @@ where
         self.variables.set(var, mutation(domain.clone()))
     }
 
-    fn do_event(&mut self, event: Event) {
+    fn do_event(&mut self, event: Mutation) {
         match event {
-            Event::Instantiate {
+            Mutation::Instantiate {
                 variable: _,
                 binding: _,
             } => todo!("instatiate impl"),
-            Event::Bound { variable, range } => self.mutate_var(variable, |mut domain| {
+            Mutation::Bound { variable, range } => self.mutate_var(variable, |mut domain| {
                 domain.exclude_above(&range.hi);
                 domain.exclude_below(&range.lo);
                 domain
             }),
-            Event::Exclude { variable, excluded } => {
+            Mutation::Exclude { variable, excluded } => {
                 let range_before = self.variables.get(variable).clone();
                 self.mutate_var(variable, |mut domain| {
                     domain.exclude(&excluded);
@@ -143,15 +168,57 @@ where
     ConstraintT: Constraint,
 {
     pub fn constrain(&mut self, mut constraint: ConstraintT) {
-        let mut events: VecDeque<Event> = Default::default();
-        events.extend(constraint.initialize(&self.variables));
-        self.constraints.push(constraint);
+        let new_id = self.constraint_id_gen.make_id();
 
-        while let Some(event) = events.pop_front() {
-            self.do_event(event.clone());
-            for constraint in &mut self.constraints {
-                events.extend(constraint.propogate(&self.variables, event.clone()))
+        constraint.initialize(&self.variables, self.events.sink(new_id));
+
+        self.constraints.insert(new_id, constraint);
+
+        while let Some(event_data) = self.events.take() {
+            self.do_event(event_data.mutation.clone());
+            for (constraint_id, constraint) in &mut self.constraints {
+                constraint.propogate(
+                    &self.variables,
+                    self.events.sink(*constraint_id),
+                    event_data.clone(),
+                )
             }
         }
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct EventQueue {
+    events: VecDeque<Event>,
+    event_id_gen: EventIdGenerator,
+}
+
+pub struct EventSink<'a> {
+    queue: &'a mut EventQueue,
+    constraint: ConstraintId,
+}
+
+impl<'a> EventSink<'a> {
+    pub fn submit(&mut self, event: Mutation) -> EventId {
+        let id = self.queue.event_id_gen.make_id();
+        self.queue.events.push_back(Event {
+            source: self.constraint,
+            id,
+            mutation: event,
+        });
+        id
+    }
+}
+
+impl EventQueue {
+    pub fn sink(&mut self, constraint: ConstraintId) -> EventSink<'_> {
+        EventSink {
+            queue: self,
+            constraint,
+        }
+    }
+
+    pub fn take(&mut self) -> Option<Event> {
+        self.events.pop_front()
     }
 }

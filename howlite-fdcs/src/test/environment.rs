@@ -1,6 +1,9 @@
 use num_bigint::BigInt;
 
-use crate::{Constraint, Environment, Event, IntegerRange, IntegerSet, Variable, VariableSet};
+use crate::{
+    Constraint, Environment, Event, EventSink, IntegerRange, IntegerSet, Mutation, Variable,
+    VariableSet,
+};
 
 #[derive(Debug, Clone)]
 pub enum TestConstraint {
@@ -8,47 +11,43 @@ pub enum TestConstraint {
 }
 
 impl Constraint for TestConstraint {
-    fn propogate(&mut self, vars: &VariableSet, event: crate::Event) -> Vec<crate::Event>
+    fn propogate(&mut self, vars: &VariableSet, mut events: EventSink<'_>, event: Event)
     where
         Self: Sized,
     {
         match self {
-            TestConstraint::Less { lhs, rhs } => match event {
-                crate::Event::Instantiate { variable, binding } => todo!(),
-                crate::Event::Bound {
+            TestConstraint::Less { lhs, rhs } => match event.mutation {
+                crate::Mutation::Instantiate { variable, binding } => todo!(),
+                crate::Mutation::Bound {
                     variable: e_var,
                     range,
                 } if e_var == *lhs => {
                     let rhs_set = vars.get(*rhs);
                     if range.hi < rhs_set.min().unwrap() {
-                        vec![Event::Bound {
+                        events.submit(Mutation::Bound {
                             variable: rhs.clone(),
                             range: IntegerRange::new(range.hi, rhs_set.max().unwrap()),
-                        }]
-                    } else {
-                        vec![]
+                        });
                     }
                 }
-                crate::Event::Bound {
+                crate::Mutation::Bound {
                     variable: e_var,
                     range,
                 } if e_var == *rhs => {
                     let lhs_set = vars.get(*lhs);
                     if range.lo < lhs_set.max().unwrap() {
-                        vec![Event::Bound {
+                        events.submit(Mutation::Bound {
                             variable: lhs.clone(),
                             range: IntegerRange::new(range.lo, lhs_set.min().unwrap()),
-                        }]
-                    } else {
-                        vec![]
+                        });
                     }
                 }
-                _ => vec![],
+                _ => (),
             },
         }
     }
 
-    fn initialize(&mut self, vars: &VariableSet) -> Vec<crate::Event>
+    fn initialize(&mut self, vars: &VariableSet, mut events: EventSink<'_>)
     where
         Self: Sized,
     {
@@ -56,16 +55,14 @@ impl Constraint for TestConstraint {
             TestConstraint::Less { lhs, rhs } => {
                 let rhs_range = vars.get(*rhs).range().unwrap();
                 let lhs_range = vars.get(*lhs).range().unwrap();
-                vec![
-                    Event::Bound {
-                        variable: *lhs,
-                        range: IntegerRange::new(lhs_range.lo, rhs_range.lo - 1),
-                    },
-                    Event::Bound {
-                        variable: *rhs,
-                        range: IntegerRange::new(lhs_range.hi + 1, rhs_range.hi),
-                    },
-                ]
+                events.submit(Mutation::Bound {
+                    variable: *lhs,
+                    range: IntegerRange::new(lhs_range.lo, rhs_range.lo - 1),
+                });
+                events.submit(Mutation::Bound {
+                    variable: *rhs,
+                    range: IntegerRange::new(lhs_range.hi + 1, rhs_range.hi),
+                });
             }
         }
     }
