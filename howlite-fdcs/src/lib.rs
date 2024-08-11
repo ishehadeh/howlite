@@ -68,6 +68,15 @@ impl IntegerSet {
 
 // IMPL: exclude values
 impl IntegerSet {
+    pub fn exclude(&mut self, other: &IntegerSet) -> bool {
+        let mut has_mutated = false;
+        for other_range in &other.ranges {
+            has_mutated = self.exclude_range(other_range) || has_mutated
+        }
+
+        has_mutated
+    }
+
     pub fn exclude_range(&mut self, other: &IntegerRange) -> bool {
         let mut additions: Vec<IntegerRange> = Vec::new();
         let mut remove: Vec<IntegerRange> = Vec::new();
@@ -87,7 +96,7 @@ impl IntegerSet {
                 // partial - high
                 additions.push(IntegerRange::new(other.hi.clone() + 1, range.hi.clone()));
                 remove.push(range.clone())
-            } else if range.lo < other.lo && range.hi < other.hi {
+            } else if range.lo < other.lo && range.hi <= other.hi {
                 // partial - low
                 additions.push(IntegerRange::new(range.lo.clone(), other.lo.clone() - 1));
                 remove.push(range.clone())

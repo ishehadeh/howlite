@@ -30,4 +30,16 @@ pub fn test_exclude_range() {
     let mut s1: IntegerSet = IntegerSet::new(&[(0, 5), (3, 7), (5, 7), (3, 20)]);
     s1.exclude_range(&(3, 7).into());
     assert_eq!(s1, IntegerSet::new(&[(0, 2), (8, 20)]));
+
+    let mut partial_hi_exact: IntegerSet = IntegerSet::new(&[(0, 10)]);
+    partial_hi_exact.exclude_range(&(5, 10).into());
+    assert_eq!(partial_hi_exact, IntegerSet::new(&[(0, 4)]));
+}
+
+#[test]
+pub fn test_exclude() {
+    let mut s1: IntegerSet = IntegerSet::new(&[(0, 5), (3, 7), (5, 7), (3, 20)]);
+    let s2: IntegerSet = IntegerSet::new(&[(0, 5), (10, 20)]);
+    s1.exclude(&s2);
+    assert_eq!(s1, IntegerSet::new(&[(6, 9)]));
 }
