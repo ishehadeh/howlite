@@ -1,4 +1,5 @@
 use std::{
+    borrow::BorrowMut,
     collections::{BTreeMap, BTreeSet},
     fmt::Debug,
 };
@@ -35,15 +36,66 @@ impl IntegerSet {
 
         intersect
     }
+}
 
+// IMPL: min/max related functions
+impl IntegerSet {
+    /// Get the minimum and maximum values of the set.
     pub fn range(&self) -> Option<IntegerRange> {
-        if let Some(lo_range) = self.ranges.first() {
-            if let Some(hi_range) = self.ranges.last() {
-                return Some((lo_range.lo.clone(), hi_range.hi.clone()).into());
-            }
+        match (self.min(), self.max()) {
+            (Some(min), Some(max)) => Some(IntegerRange::new(min, max)),
+            _ => None,
         }
+    }
 
-        None
+    pub fn min(&self) -> Option<BigInt> {
+        // btree set maintains sort order.
+        // for details on how ranges are sorted see: [IntegerRange] impl of Ord
+        self.ranges.first().map(|lo_range| lo_range.lo.clone())
+    }
+
+    pub fn max(&self) -> Option<BigInt> {
+        // btree set maintains sort order, mostly with respect to the lower value,
+        // so we need to iterate to find the high.
+        // TODO: find a better sort mechanism for ranges.
+        self.ranges
+            .iter()
+            .rev()
+            .map(|hi_range| hi_range.hi.clone())
+            .max()
+    }
+}
+
+// IMPL: mutate bounds
+impl IntegerSet {
+    pub fn exclude_below(&mut self, lo: &BigInt) {
+        let too_low: Vec<_> = self
+            .ranges
+            .iter()
+            .take_while(|range| range.lo < *lo)
+            .cloned()
+            .collect();
+        for mut range in too_low {
+            self.ranges.remove(&range);
+            range.lo.clone_from(lo);
+            self.ranges.insert(range);
+        }
+    }
+
+    pub fn exclude_above(&mut self, hi: &BigInt) {
+        // NOTE: do to sort order mostly being by low,
+        //  we can't use .rev().take_while() here.
+        let too_high: Vec<_> = self
+            .ranges
+            .iter()
+            .filter(|range| range.hi > *hi)
+            .cloned()
+            .collect();
+        for mut range in too_high {
+            self.ranges.remove(&range);
+            range.hi.clone_from(hi);
+            self.ranges.insert(range);
+        }
     }
 }
 
@@ -95,7 +147,7 @@ pub enum Event {
         range: IntegerRange,
     },
 
-    /// Exclude a set of integers from the variable's domain
+    /// Exclude a set of integers from the variable's domain, which do NOT update the bounds.
     Exclude {
         variable: Variable,
         excluded: IntegerSet,
@@ -139,7 +191,7 @@ where
         Enviornmnet::default()
     }
 
-    pub fn var(&mut self, domain: IntegerSet) -> Variable {
+    pub fn var_create(&mut self, domain: IntegerSet) -> Variable {
         let var = Variable {
             id: self.next_var_id,
         };
@@ -152,14 +204,27 @@ where
         var
     }
 
-    pub fn get(&self, var: Variable) -> &IntegerSet {
+    pub fn var_get(&self, var: Variable) -> &IntegerSet {
         self.domains
             .get(&var)
             .expect("variable was interned but does not appear in domain map")
     }
 
-    pub fn set(&mut self, var: Variable, domain: IntegerSet) {
+    pub fn var_set(&mut self, var: Variable, domain: IntegerSet) {
         self.domains.insert(var, domain);
+    }
+
+    fn mutate_var<F: Fn(IntegerSet) -> IntegerSet>(&mut self, var: Variable, mutation: F) {
+        let domain = self.var_get(var);
+        self.var_set(var, mutation(domain.clone()))
+    }
+
+    fn do_event(&mut self, event: Event) {
+        match event {
+            Event::Instantiate { variable, binding } => todo!("instatiate impl"),
+            Event::Bound { variable, range } => {}
+            Event::Exclude { variable, excluded } => todo!(),
+        }
     }
 }
 
