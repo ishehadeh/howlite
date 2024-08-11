@@ -1,6 +1,6 @@
 use std::{
     borrow::BorrowMut,
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, VecDeque},
     fmt::Debug,
 };
 
@@ -207,6 +207,10 @@ pub trait Constraint: Debug {
     fn propogate(&mut self, event: Event) -> Vec<Event>
     where
         Self: Sized;
+
+    fn initialize(&mut self) -> Vec<Event>
+    where
+        Self: Sized;
 }
 
 #[derive(Debug)]
@@ -296,7 +300,15 @@ impl<ConstraintT> Enviornmnet<ConstraintT>
 where
     ConstraintT: Constraint,
 {
-    pub fn constrain(&mut self, constraint: ConstraintT) {
-        self.constraints.push(constraint)
+    pub fn constrain(&mut self, mut constraint: ConstraintT) {
+        let mut events: VecDeque<Event> = Default::default();
+        events.extend(constraint.initialize());
+        self.constraints.push(constraint);
+
+        while let Some(event) = events.pop_front() {
+            for constraint in &mut self.constraints {
+                events.extend(constraint.propogate(event.clone()))
+            }
+        }
     }
 }
