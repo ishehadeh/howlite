@@ -153,32 +153,6 @@ pub struct Variable {
     id: usize,
 }
 
-/// An Domain Constraint is an expression in the form X in I, where I is non-empty set of integers
-#[derive(Debug, Clone)]
-pub struct DomainConstraint {
-    variable: Variable,
-    /// I, a non-empty set of integers
-    domain: IntegerSet,
-}
-
-/// A Store is a non-empty set of [DomainConstraint]s
-#[derive(Clone, Debug, Default)]
-pub struct Store {
-    next_var_id: usize,
-    constraints: Vec<DomainConstraint>,
-}
-
-impl Store {
-    pub fn var(&mut self) -> Variable {
-        let var = Variable {
-            id: self.next_var_id,
-        };
-
-        self.next_var_id += 1;
-        var
-    }
-}
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Term {
     Variable(Variable),
@@ -204,47 +178,22 @@ pub enum Event {
 }
 
 pub trait Constraint: Debug {
-    fn propogate(&mut self, event: Event) -> Vec<Event>
+    fn propogate(&mut self, vars: &VariableSet, event: Event) -> Vec<Event>
     where
         Self: Sized;
 
-    fn initialize(&mut self) -> Vec<Event>
+    fn initialize(&mut self, vars: &VariableSet) -> Vec<Event>
     where
         Self: Sized;
 }
-
-#[derive(Debug)]
-pub struct Enviornmnet<ConstraintT>
-where
-    ConstraintT: Constraint,
-{
-    constraints: Vec<ConstraintT>,
-    domains: BTreeMap<Variable, IntegerSet>,
+#[derive(Debug, Default, Clone)]
+pub struct VariableSet {
     next_var_id: usize,
+    domains: BTreeMap<Variable, IntegerSet>,
 }
 
-impl<ConstraintT> Default for Enviornmnet<ConstraintT>
-where
-    ConstraintT: Constraint,
-{
-    fn default() -> Self {
-        Self {
-            constraints: Default::default(),
-            domains: Default::default(),
-            next_var_id: Default::default(),
-        }
-    }
-}
-
-impl<ConstraintT> Enviornmnet<ConstraintT>
-where
-    ConstraintT: Constraint,
-{
-    pub fn new() -> Enviornmnet<ConstraintT> {
-        Enviornmnet::default()
-    }
-
-    pub fn var_create(&mut self, domain: IntegerSet) -> Variable {
+impl VariableSet {
+    pub fn create(&mut self, domain: IntegerSet) -> Variable {
         let var = Variable {
             id: self.next_var_id,
         };
@@ -257,19 +206,49 @@ where
         var
     }
 
-    pub fn var_get(&self, var: Variable) -> &IntegerSet {
+    pub fn get(&self, var: Variable) -> &IntegerSet {
         self.domains
             .get(&var)
             .expect("variable was interned but does not appear in domain map")
     }
 
-    pub fn var_set(&mut self, var: Variable, domain: IntegerSet) {
+    pub fn set(&mut self, var: Variable, domain: IntegerSet) {
         self.domains.insert(var, domain);
+    }
+}
+
+#[derive(Debug)]
+pub struct Enviornmnet<ConstraintT>
+where
+    ConstraintT: Constraint,
+{
+    constraints: Vec<ConstraintT>,
+    pub variables: VariableSet,
+}
+
+impl<ConstraintT> Default for Enviornmnet<ConstraintT>
+where
+    ConstraintT: Constraint,
+{
+    fn default() -> Self {
+        Self {
+            constraints: Default::default(),
+            variables: Default::default(),
+        }
+    }
+}
+
+impl<ConstraintT> Enviornmnet<ConstraintT>
+where
+    ConstraintT: Constraint,
+{
+    pub fn new() -> Enviornmnet<ConstraintT> {
+        Enviornmnet::default()
     }
 
     fn mutate_var<F: Fn(IntegerSet) -> IntegerSet>(&mut self, var: Variable, mutation: F) {
-        let domain = self.var_get(var);
-        self.var_set(var, mutation(domain.clone()))
+        let domain = self.variables.get(var);
+        self.variables.set(var, mutation(domain.clone()))
     }
 
     fn do_event(&mut self, event: Event) {
@@ -284,12 +263,12 @@ where
                 domain
             }),
             Event::Exclude { variable, excluded } => {
-                let range_before = self.var_get(variable).clone();
+                let range_before = self.variables.get(variable).clone();
                 self.mutate_var(variable, |mut domain| {
                     domain.exclude(&excluded);
                     domain
                 });
-                let range_after = self.var_get(variable).clone();
+                let range_after = self.variables.get(variable).clone();
                 assert_eq!(range_before, range_after);
             }
         }
@@ -302,12 +281,13 @@ where
 {
     pub fn constrain(&mut self, mut constraint: ConstraintT) {
         let mut events: VecDeque<Event> = Default::default();
-        events.extend(constraint.initialize());
+        events.extend(constraint.initialize(&self.variables));
         self.constraints.push(constraint);
 
         while let Some(event) = events.pop_front() {
+            self.do_event(event.clone());
             for constraint in &mut self.constraints {
-                events.extend(constraint.propogate(event.clone()))
+                events.extend(constraint.propogate(&self.variables, event.clone()))
             }
         }
     }
