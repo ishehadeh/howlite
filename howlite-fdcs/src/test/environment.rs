@@ -1,6 +1,6 @@
 use num_bigint::BigInt;
 
-use crate::{Constraint, Enviornmnet, Event, IntegerRange, IntegerSet, Variable, VariableSet};
+use crate::{Constraint, Environment, Event, IntegerRange, IntegerSet, Variable, VariableSet};
 
 #[derive(Debug, Clone)]
 pub enum TestConstraint {
@@ -73,7 +73,7 @@ impl Constraint for TestConstraint {
 
 #[test]
 fn compare() {
-    let mut env = Enviornmnet::new();
+    let mut env = Environment::new();
     let x = env.variables.create(IntegerSet::new(&[(0, 5)]));
     let y = env.variables.create(IntegerSet::new(&[(4, 6)]));
     let z = env.variables.create(IntegerSet::new(&[(-5, 2)]));

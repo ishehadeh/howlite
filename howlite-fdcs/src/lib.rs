@@ -81,7 +81,7 @@ impl VariableSet {
 }
 
 #[derive(Debug)]
-pub struct Enviornmnet<ConstraintT>
+pub struct Environment<ConstraintT>
 where
     ConstraintT: Constraint,
 {
@@ -89,7 +89,7 @@ where
     pub variables: VariableSet,
 }
 
-impl<ConstraintT> Default for Enviornmnet<ConstraintT>
+impl<ConstraintT> Default for Environment<ConstraintT>
 where
     ConstraintT: Constraint,
 {
@@ -101,12 +101,12 @@ where
     }
 }
 
-impl<ConstraintT> Enviornmnet<ConstraintT>
+impl<ConstraintT> Environment<ConstraintT>
 where
     ConstraintT: Constraint,
 {
-    pub fn new() -> Enviornmnet<ConstraintT> {
-        Enviornmnet::default()
+    pub fn new() -> Environment<ConstraintT> {
+        Environment::default()
     }
 
     fn mutate_var<F: Fn(IntegerSet) -> IntegerSet>(&mut self, var: Variable, mutation: F) {
@@ -138,7 +138,7 @@ where
     }
 }
 
-impl<ConstraintT> Enviornmnet<ConstraintT>
+impl<ConstraintT> Environment<ConstraintT>
 where
     ConstraintT: Constraint,
 {
