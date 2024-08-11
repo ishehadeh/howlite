@@ -66,6 +66,46 @@ impl IntegerSet {
     }
 }
 
+// IMPL: exclude values
+impl IntegerSet {
+    pub fn exclude_range(&mut self, other: &IntegerRange) -> bool {
+        let mut additions: Vec<IntegerRange> = Vec::new();
+        let mut remove: Vec<IntegerRange> = Vec::new();
+
+        for range in &self.ranges {
+            if range.lo < other.lo && range.hi > other.hi {
+                // other is inside this range, we need to split the range.
+                let lo_range = IntegerRange::new(range.lo.clone(), other.lo.clone() - 1);
+                let hi_range = IntegerRange::new(other.hi.clone() + 1, range.hi.clone());
+                remove.push(range.clone());
+                additions.push(lo_range);
+                additions.push(hi_range);
+            } else if range.lo >= other.lo && range.hi <= other.hi {
+                // range completely contained in other
+                remove.push(range.clone());
+            } else if range.lo >= other.lo && range.hi > other.hi {
+                // partial - high
+                additions.push(IntegerRange::new(other.hi.clone() + 1, range.hi.clone()));
+                remove.push(range.clone())
+            } else if range.lo < other.lo && range.hi < other.hi {
+                // partial - low
+                additions.push(IntegerRange::new(range.lo.clone(), other.lo.clone() - 1));
+                remove.push(range.clone())
+            }
+        }
+
+        let has_mutated = !additions.is_empty() || !remove.is_empty();
+        for r in remove {
+            self.ranges.remove(&r);
+        }
+        for a in additions {
+            self.ranges.insert(a);
+        }
+
+        has_mutated
+    }
+}
+
 // IMPL: mutate bounds
 impl IntegerSet {
     pub fn exclude_below(&mut self, lo: &BigInt) {
@@ -221,8 +261,15 @@ where
 
     fn do_event(&mut self, event: Event) {
         match event {
-            Event::Instantiate { variable, binding } => todo!("instatiate impl"),
-            Event::Bound { variable, range } => {}
+            Event::Instantiate {
+                variable: _,
+                binding: _,
+            } => todo!("instatiate impl"),
+            Event::Bound { variable, range } => self.mutate_var(variable, |mut domain| {
+                domain.exclude_above(&range.hi);
+                domain.exclude_below(&range.lo);
+                domain
+            }),
             Event::Exclude { variable, excluded } => todo!(),
         }
     }
