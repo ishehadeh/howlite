@@ -74,8 +74,8 @@ pub struct Event {
 }
 
 pub trait Constraint: Debug {
-    fn propogate(&mut self, vars: &VariableSet, events: EventSink<'_>, event: Event);
-    fn initialize(&mut self, vars: &VariableSet, events: EventSink<'_>);
+    fn propogate(&mut self, ctx: ConstraintContext, event: Event);
+    fn initialize(&mut self, ctx: ConstraintContext);
 }
 #[derive(Debug, Default, Clone)]
 pub struct VariableSet {
@@ -170,18 +170,23 @@ where
     pub fn constrain(&mut self, mut constraint: ConstraintT) {
         let new_id = self.constraint_id_gen.make_id();
 
-        constraint.initialize(&self.variables, self.events.sink(new_id));
-
+        let ctx = ConstraintContext {
+            variables: &self.variables,
+            queue: &mut self.events,
+            constraint: new_id,
+        };
+        constraint.initialize(ctx);
         self.constraints.insert(new_id, constraint);
 
         while let Some(event_data) = self.events.take() {
             self.do_event(event_data.mutation.clone());
             for (constraint_id, constraint) in &mut self.constraints {
-                constraint.propogate(
-                    &self.variables,
-                    self.events.sink(*constraint_id),
-                    event_data.clone(),
-                )
+                let ctx = ConstraintContext {
+                    variables: &self.variables,
+                    queue: &mut self.events,
+                    constraint: *constraint_id,
+                };
+                constraint.propogate(ctx, event_data.clone())
             }
         }
     }
@@ -193,12 +198,13 @@ pub struct EventQueue {
     event_id_gen: EventIdGenerator,
 }
 
-pub struct EventSink<'a> {
+pub struct ConstraintContext<'a> {
+    pub variables: &'a VariableSet,
     queue: &'a mut EventQueue,
     constraint: ConstraintId,
 }
 
-impl<'a> EventSink<'a> {
+impl<'a> ConstraintContext<'a> {
     pub fn submit(&mut self, event: Mutation) -> EventId {
         let id = self.queue.event_id_gen.make_id();
         self.queue.events.push_back(Event {
@@ -208,16 +214,13 @@ impl<'a> EventSink<'a> {
         });
         id
     }
+
+    pub fn constraint_id(&self) -> ConstraintId {
+        self.constraint
+    }
 }
 
 impl EventQueue {
-    pub fn sink(&mut self, constraint: ConstraintId) -> EventSink<'_> {
-        EventSink {
-            queue: self,
-            constraint,
-        }
-    }
-
     pub fn take(&mut self) -> Option<Event> {
         self.events.pop_front()
     }
