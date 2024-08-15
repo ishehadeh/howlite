@@ -1,10 +1,11 @@
 use std::{
-    collections::{BTreeMap, HashMap, VecDeque},
+    collections::{BTreeMap, HashMap, HashSet, VecDeque},
     fmt::Debug,
 };
 
 use num_bigint::BigInt;
 
+pub mod constraints;
 #[cfg(test)]
 mod test;
 
@@ -39,7 +40,6 @@ macro_rules! id_type {
 }
 
 id_type!(Variable, VariableIdGenerator);
-id_type!(ConstraintId, ConstraintIdGenerator);
 id_type!(EventId, EventIdGenerator);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -51,25 +51,19 @@ pub enum Term {
 #[derive(Clone, Debug)]
 pub enum Mutation {
     /// Instantiate `variable` to be equal to `binding`
-    Instantiate { variable: Variable, binding: Term },
+    Instantiate { binding: Term },
 
     /// Update the lower or upper bound of `variable`
-    Bound {
-        variable: Variable,
-        range: IntegerRange,
-    },
+    Bound { range: IntegerRange },
 
     /// Exclude a set of integers from the variable's domain, which do NOT update the bounds.
-    Exclude {
-        variable: Variable,
-        excluded: IntegerSet,
-    },
+    Exclude { excluded: IntegerSet },
 }
 
 #[derive(Debug, Clone)]
 pub struct Event {
     pub id: EventId,
-    pub source: ConstraintId,
+    pub subject: Variable,
     pub mutation: Mutation,
 }
 
@@ -77,6 +71,7 @@ pub trait Constraint: Debug {
     fn propogate(&mut self, ctx: ConstraintContext, event: Event);
     fn initialize(&mut self, ctx: ConstraintContext);
 }
+
 #[derive(Debug, Default, Clone)]
 pub struct VariableSet {
     variable_id_gen: VariableIdGenerator,
@@ -106,8 +101,7 @@ pub struct Environment<ConstraintT>
 where
     ConstraintT: Constraint,
 {
-    constraint_id_gen: ConstraintIdGenerator,
-    constraints: HashMap<ConstraintId, ConstraintT>,
+    constraints: Vec<ConstraintT>,
     events: EventQueue,
     pub variables: VariableSet,
 }
@@ -118,7 +112,6 @@ where
 {
     fn default() -> Self {
         Self {
-            constraint_id_gen: Default::default(),
             constraints: Default::default(),
             variables: Default::default(),
             events: Default::default(),
@@ -139,18 +132,15 @@ where
         self.variables.set(var, mutation(domain.clone()))
     }
 
-    fn do_event(&mut self, event: Mutation) {
+    fn do_event(&mut self, variable: Variable, event: Mutation) {
         match event {
-            Mutation::Instantiate {
-                variable: _,
-                binding: _,
-            } => todo!("instatiate impl"),
-            Mutation::Bound { variable, range } => self.mutate_var(variable, |mut domain| {
+            Mutation::Instantiate { binding: _ } => todo!("instatiate impl"),
+            Mutation::Bound { range } => self.mutate_var(variable, |mut domain| {
                 domain.exclude_above(&range.hi);
                 domain.exclude_below(&range.lo);
                 domain
             }),
-            Mutation::Exclude { variable, excluded } => {
+            Mutation::Exclude { excluded } => {
                 let range_before = self.variables.get(variable).clone();
                 self.mutate_var(variable, |mut domain| {
                     domain.exclude(&excluded);
@@ -168,23 +158,19 @@ where
     ConstraintT: Constraint,
 {
     pub fn constrain(&mut self, mut constraint: ConstraintT) {
-        let new_id = self.constraint_id_gen.make_id();
-
         let ctx = ConstraintContext {
             variables: &self.variables,
             queue: &mut self.events,
-            constraint: new_id,
         };
         constraint.initialize(ctx);
-        self.constraints.insert(new_id, constraint);
+        self.constraints.push(constraint);
 
         while let Some(event_data) = self.events.take() {
-            self.do_event(event_data.mutation.clone());
-            for (constraint_id, constraint) in &mut self.constraints {
+            self.do_event(event_data.subject, event_data.mutation.clone());
+            for constraint in &mut self.constraints {
                 let ctx = ConstraintContext {
                     variables: &self.variables,
                     queue: &mut self.events,
-                    constraint: *constraint_id,
                 };
                 constraint.propogate(ctx, event_data.clone())
             }
@@ -201,22 +187,17 @@ pub struct EventQueue {
 pub struct ConstraintContext<'a> {
     pub variables: &'a VariableSet,
     queue: &'a mut EventQueue,
-    constraint: ConstraintId,
 }
 
 impl<'a> ConstraintContext<'a> {
-    pub fn submit(&mut self, event: Mutation) -> EventId {
+    pub fn submit(&mut self, variable: Variable, event: Mutation) -> EventId {
         let id = self.queue.event_id_gen.make_id();
         self.queue.events.push_back(Event {
-            source: self.constraint,
+            subject: variable,
             id,
             mutation: event,
         });
         id
-    }
-
-    pub fn constraint_id(&self) -> ConstraintId {
-        self.constraint
     }
 }
 

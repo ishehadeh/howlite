@@ -33,6 +33,19 @@ impl IntegerRange {
             ))
         }
     }
+
+    /// Add a value to the beginning and end of the range
+    pub fn offset(&self, offset: BigInt) -> IntegerRange {
+        IntegerRange::new(self.lo.clone() + offset.clone(), self.hi.clone() + offset)
+    }
+
+    pub fn with_lo(self, lo: impl Into<BigInt>) -> IntegerRange {
+        IntegerRange::new(lo, self.hi)
+    }
+
+    pub fn with_hi(self, hi: impl Into<BigInt>) -> IntegerRange {
+        IntegerRange::new(self.lo, hi)
+    }
 }
 
 impl<LoT: Into<BigInt>, HiT: Into<BigInt>> From<(LoT, HiT)> for IntegerRange {
