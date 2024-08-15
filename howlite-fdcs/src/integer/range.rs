@@ -46,6 +46,10 @@ impl IntegerRange {
     pub fn with_hi(self, hi: impl Into<BigInt>) -> IntegerRange {
         IntegerRange::new(self.lo, hi)
     }
+
+    pub fn invert(self) -> IntegerRange {
+        IntegerRange::new(-self.hi, -self.lo)
+    }
 }
 
 impl<LoT: Into<BigInt>, HiT: Into<BigInt>> From<(LoT, HiT)> for IntegerRange {

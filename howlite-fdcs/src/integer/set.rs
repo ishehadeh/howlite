@@ -116,8 +116,10 @@ impl IntegerSet {
             .collect();
         for mut range in too_low {
             self.ranges.remove(&range);
-            range.lo.clone_from(lo);
-            self.ranges.insert(range);
+            if range.hi >= *lo {
+                range.lo.clone_from(lo);
+                self.ranges.insert(range);
+            }
         }
     }
 
@@ -132,8 +134,10 @@ impl IntegerSet {
             .collect();
         for mut range in too_high {
             self.ranges.remove(&range);
-            range.hi.clone_from(hi);
-            self.ranges.insert(range);
+            if range.lo <= *hi {
+                range.hi.clone_from(hi);
+                self.ranges.insert(range);
+            }
         }
     }
 }

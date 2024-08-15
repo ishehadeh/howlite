@@ -1,6 +1,9 @@
 use num_bigint::BigInt;
 
 use crate::{Constraint, ConstraintContext, Event, Mutation, Variable};
+mod add;
+
+pub use add::BinaryAddConstraint;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Comparison {

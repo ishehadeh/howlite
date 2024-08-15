@@ -166,6 +166,7 @@ where
         self.constraints.push(constraint);
 
         while let Some(event_data) = self.events.take() {
+            dbg!(&event_data);
             self.do_event(event_data.subject, event_data.mutation.clone());
             for constraint in &mut self.constraints {
                 let ctx = ConstraintContext {
