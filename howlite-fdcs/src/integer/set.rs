@@ -18,7 +18,7 @@ impl IntegerSet {
         let mut intersect = IntegerSet::default();
         for r0 in other.ranges.iter() {
             for r1 in self.ranges.iter() {
-                if let Some(r_intersect) = r0.intersect(&r1) {
+                if let Some(r_intersect) = r0.intersect(r1) {
                     intersect.ranges.insert(r_intersect);
                 }
             }

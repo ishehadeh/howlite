@@ -1,6 +1,6 @@
 use num_bigint::BigInt;
 
-use crate::{integer::IntegerRange, Constraint, ConstraintContext, Event, Mutation, Variable};
+use crate::{Constraint, ConstraintContext, Event, Mutation, Variable};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Comparison {
@@ -120,7 +120,7 @@ impl OffsetCompare {
 }
 
 impl Constraint for OffsetCompare {
-    fn propogate(&mut self, mut ctx: ConstraintContext, event: Event) {
+    fn propogate(&mut self, ctx: ConstraintContext, event: Event) {
         if event.subject == self.lhs {
             self.propogate_lhs(ctx, event)
         } else if event.subject == self.rhs {

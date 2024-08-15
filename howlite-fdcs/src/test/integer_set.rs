@@ -1,6 +1,6 @@
 use num_bigint::BigInt;
 
-use crate::{IntegerRange, IntegerSet};
+use crate::IntegerSet;
 
 #[test]
 pub fn test_intersect() {

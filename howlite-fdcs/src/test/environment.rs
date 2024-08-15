@@ -1,7 +1,4 @@
-use crate::{
-    constraints::OffsetCompare, Constraint, ConstraintContext, Environment, Event, IntegerRange,
-    IntegerSet, Mutation, Variable,
-};
+use crate::{constraints::OffsetCompare, Environment, IntegerSet};
 
 #[test]
 fn compare() {
