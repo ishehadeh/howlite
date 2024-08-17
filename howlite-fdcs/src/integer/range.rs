@@ -20,9 +20,8 @@ impl IntegerRange {
         }
     }
 
-    pub fn contains(&self, value: impl Into<BigInt>) -> bool {
-        let value_big = value.into();
-        value_big >= self.lo && value_big <= self.hi
+    pub fn contains(&self, value: &BigInt) -> bool {
+        value >= &self.lo && value <= &self.hi
     }
 
     pub fn intersect(&self, other: &IntegerRange) -> Option<IntegerRange> {

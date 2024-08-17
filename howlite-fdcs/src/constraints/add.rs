@@ -1,14 +1,18 @@
-use crate::{integer::IntegerRange, Constraint, ConstraintContext, Event, Mutation, Variable};
+use crate::{
+    environment::{Constraint, PropogationEnvironment},
+    integer::IntegerRange,
+    variables::{Mutation, VariableId},
+};
 
 #[derive(Debug, Clone)]
 pub struct BinaryAddConstraint {
-    pub x: Variable,
-    pub y: Variable,
-    pub sum: Variable,
+    pub x: VariableId,
+    pub y: VariableId,
+    pub sum: VariableId,
 }
 
 impl BinaryAddConstraint {
-    pub fn new(x: Variable, y: Variable, sum: Variable) -> BinaryAddConstraint {
+    pub fn new(x: VariableId, y: VariableId, sum: VariableId) -> BinaryAddConstraint {
         BinaryAddConstraint { x, y, sum }
     }
 }
@@ -112,29 +116,26 @@ impl BinaryAddConstraint {
         (x_range, y_range)
     }
 
-    fn adjust_sum_bound(&self, mut ctx: ConstraintContext, new_bound: IntegerRange) {
-        let x_domain = ctx.variables.get(self.x);
-        let y_domain = ctx.variables.get(self.y);
-        let x_range = x_domain.range().unwrap();
-        let y_range = y_domain.range().unwrap();
+    fn adjust_sum_bound(&self, mut ctx: &mut PropogationEnvironment, new_bound: IntegerRange) {
+        let x_range = ctx.variable_range(self.x).unwrap();
+        let y_range = ctx.variable_range(self.y).unwrap();
 
         let (new_x_range, new_y_range) = self.constrain_sum(&x_range, &y_range, &new_bound);
         if x_range != new_x_range {
-            ctx.submit(self.x, Mutation::Bound { range: new_x_range });
+            ctx.mutate(self.x, Mutation::BoundLo { lo: new_x_range.lo });
+            ctx.mutate(self.x, Mutation::BoundHi { hi: new_x_range.hi });
         }
 
         if y_range != new_y_range {
-            ctx.submit(self.y, Mutation::Bound { range: new_y_range });
+            ctx.mutate(self.y, Mutation::BoundLo { lo: new_y_range.lo });
+            ctx.mutate(self.y, Mutation::BoundHi { hi: new_y_range.hi });
         }
     }
 
-    fn adjust_xy_bound(&self, mut ctx: ConstraintContext, variable: Variable) {
-        let x_domain = ctx.variables.get(self.x);
-        let y_domain = ctx.variables.get(self.y);
-        let sum_domain = ctx.variables.get(self.sum);
-        let x_range = x_domain.range().unwrap();
-        let y_range = y_domain.range().unwrap();
-        let sum_range = sum_domain.range().unwrap();
+    fn adjust_xy_bound(&self, ctx: &mut PropogationEnvironment, variable: VariableId) {
+        let x_range = ctx.variable_range(self.x).unwrap();
+        let y_range = ctx.variable_range(self.y).unwrap();
+        let sum_range = ctx.variable_range(self.sum).unwrap();
 
         let (mutated_range, other_range, other_var) = if variable == self.x {
             (x_range, y_range, self.y)
@@ -144,37 +145,39 @@ impl BinaryAddConstraint {
         let (new_sum_range, new_other_range) =
             self.constrain_difference(&sum_range, &other_range, &mutated_range);
         if new_other_range != other_range {
-            ctx.submit(
+            ctx.mutate(
                 other_var,
-                Mutation::Bound {
-                    range: new_other_range,
+                Mutation::BoundLo {
+                    lo: new_other_range.lo,
+                },
+            );
+            ctx.mutate(
+                other_var,
+                Mutation::BoundHi {
+                    hi: new_other_range.hi,
                 },
             );
         }
 
         if sum_range != new_sum_range {
-            ctx.submit(self.sum, Mutation::Bound { range: sum_range });
+            ctx.mutate(self.sum, Mutation::BoundLo { lo: sum_range.lo });
+            ctx.mutate(self.sum, Mutation::BoundHi { hi: sum_range.hi });
         }
     }
 }
 
 impl Constraint for BinaryAddConstraint {
-    fn propogate(&mut self, ctx: ConstraintContext, event: Event) {
-        match event.mutation {
-            Mutation::Instantiate { binding } => todo!(),
-            Mutation::Bound { range } if event.subject == self.sum => {
-                self.adjust_sum_bound(ctx, range);
+    fn propogate(&mut self, ctx: &mut PropogationEnvironment) {
+        match ctx.last_mutation() {
+            None => self.adjust_sum_bound(ctx, ctx.variable_range(self.sum).unwrap()),
+            Some((var, Mutation::BoundLo { .. } | Mutation::BoundHi { .. })) => {
+                if var == self.sum {
+                    self.adjust_sum_bound(ctx, ctx.variable_range(self.sum).unwrap())
+                } else {
+                    self.adjust_xy_bound(ctx, var)
+                }
             }
-            Mutation::Bound { range: _ } if event.subject == self.x || event.subject == self.y => {
-                self.adjust_xy_bound(ctx, event.subject);
-            }
-            Mutation::Bound { range } => todo!(),
-            Mutation::Exclude { excluded } => todo!(),
+            Some((_, _)) => (),
         }
-    }
-
-    fn initialize(&mut self, ctx: crate::ConstraintContext) {
-        // TODO: better initial constraint setup
-        self.adjust_xy_bound(ctx, self.x);
     }
 }

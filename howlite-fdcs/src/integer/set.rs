@@ -14,6 +14,14 @@ impl IntegerSet {
         }
     }
 
+    pub fn empty() -> IntegerSet {
+        Default::default()
+    }
+
+    pub fn contains(&self, value: &BigInt) -> bool {
+        self.ranges.iter().find(|v| v.contains(value)).is_some()
+    }
+
     pub fn intersect(&self, other: &IntegerSet) -> IntegerSet {
         let mut intersect = IntegerSet::default();
         for r0 in other.ranges.iter() {
@@ -62,6 +70,42 @@ impl IntegerSet {
         let mut has_mutated = false;
         for other_range in &other.ranges {
             has_mutated = self.exclude_range(other_range) || has_mutated
+        }
+
+        has_mutated
+    }
+
+    pub fn exclude_value(&mut self, other: &BigInt) -> bool {
+        let mut additions: Vec<IntegerRange> = Vec::new();
+        let mut remove: Vec<IntegerRange> = Vec::new();
+
+        for range in &self.ranges {
+            if range.contains(other) {
+                // other is inside this range, we need to split the range.
+                let lo_range = IntegerRange::new(range.lo.clone(), other - 1);
+                let hi_range = IntegerRange::new(other + 1, range.hi.clone());
+                remove.push(range.clone());
+                additions.push(lo_range);
+                additions.push(hi_range);
+            } else if &range.lo == other && &range.hi == other {
+                remove.push(range.clone());
+            } else if &range.lo == other {
+                // adjust lo by 1
+                additions.push(IntegerRange::new(range.lo.clone() + 1, range.hi.clone()));
+                remove.push(range.clone());
+            } else if &range.hi == other {
+                // adjust hi by 1
+                additions.push(IntegerRange::new(range.lo.clone(), range.hi.clone() - 1));
+                remove.push(range.clone())
+            }
+        }
+
+        let has_mutated = !additions.is_empty() || !remove.is_empty();
+        for r in remove {
+            self.ranges.remove(&r);
+        }
+        for a in additions {
+            self.ranges.insert(a);
         }
 
         has_mutated

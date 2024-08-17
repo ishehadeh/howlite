@@ -1,52 +1,60 @@
 use crate::{
     constraints::{BinaryAddConstraint, OffsetLtConstraint},
-    Constraint, Environment, IntegerSet,
+    environment::Environment,
+    IntegerSet,
 };
 
 #[test]
 fn compare() {
     let mut env = Environment::new();
-    let x = env.variables.create(IntegerSet::new(&[(0, 5)]));
-    let y = env.variables.create(IntegerSet::new(&[(4, 6)]));
-    let z = env.variables.create(IntegerSet::new(&[(-5, 2)]));
+    let x = env.create_variable(IntegerSet::new(&[(0, 5)]));
+    let y = env.create_variable(IntegerSet::new(&[(4, 6)]));
+    let z = env.create_variable(IntegerSet::new(&[(-5, 2)]));
     env.constrain(OffsetLtConstraint::new(x, 0, y));
     env.constrain(OffsetLtConstraint::new(z, 0, x));
-    assert_eq!(env.variables.get(x).clone(), IntegerSet::new(&[(3, 5)]));
-    assert_eq!(env.variables.get(y).clone(), IntegerSet::new(&[(6, 6)]));
-    assert_eq!(env.variables.get(z).clone(), IntegerSet::new(&[(-5, 2)]));
-}
-
-impl Constraint for Box<dyn Constraint> {
-    fn propogate(&mut self, ctx: crate::ConstraintContext, event: crate::Event) {
-        self.as_mut().propogate(ctx, event)
-    }
-
-    fn initialize(&mut self, ctx: crate::ConstraintContext) {
-        self.as_mut().initialize(ctx)
-    }
+    assert_eq!(env.domain(x), IntegerSet::new(&[(0, 3)]));
+    assert_eq!(env.domain(y), IntegerSet::new(&[(4, 6)]));
+    assert_eq!(env.domain(z), IntegerSet::new(&[(-5, -1)]));
 }
 
 #[test]
 fn add() {
-    let mut env: Environment<Box<dyn Constraint>> = Environment::new();
-    let x = env.variables.create(IntegerSet::new(&[(0, 5)]));
-    let y = env.variables.create(IntegerSet::new(&[(4, 6)]));
-    let z = env.variables.create(IntegerSet::new(&[(7, 10)]));
-    env.constrain(Box::new(BinaryAddConstraint::new(x, y, z)));
-    assert_eq!(env.variables.get(x).clone(), IntegerSet::new(&[(3, 4)]));
-    assert_eq!(env.variables.get(y).clone(), IntegerSet::new(&[(4, 6)]));
-    assert_eq!(env.variables.get(z).clone(), IntegerSet::new(&[(7, 10)]));
+    let mut env = Environment::new();
+    let x = env.create_variable(IntegerSet::new(&[(0, 5)]));
+    let y = env.create_variable(IntegerSet::new(&[(4, 6)]));
+    let z = env.create_variable(IntegerSet::new(&[(7, 10)]));
+    env.constrain(BinaryAddConstraint::new(x, y, z));
+    assert_eq!(env.domain(x), IntegerSet::new(&[(3, 4)]));
+    assert_eq!(env.domain(y), IntegerSet::new(&[(4, 6)]));
+    assert_eq!(env.domain(z), IntegerSet::new(&[(7, 10)]));
+}
+
+#[test]
+fn add_chain() {
+    let mut env = Environment::new();
+    let a = env.create_variable(IntegerSet::new(&[(0, 5)]));
+    let b = env.create_variable(IntegerSet::new(&[(4, 6)]));
+    let c = env.create_variable(IntegerSet::new(&[(7, 10)]));
+    let d = env.create_variable(IntegerSet::new(&[(-5, 10)]));
+    let e = env.create_variable(IntegerSet::new(&[(0, 3)]));
+    env.constrain(BinaryAddConstraint::new(a, b, c));
+    env.constrain(BinaryAddConstraint::new(c, d, e));
+    assert_eq!(env.domain(a), IntegerSet::new(&[(3, 3)]));
+    assert_eq!(env.domain(b), IntegerSet::new(&[(4, 4)]));
+    assert_eq!(env.domain(c), IntegerSet::new(&[(7, 7)]));
+    assert_eq!(env.domain(d), IntegerSet::new(&[(-5, -4)]));
+    assert_eq!(env.domain(e), IntegerSet::new(&[(0, 3)]));
 }
 
 #[test]
 fn add_compare() {
-    let mut env: Environment<Box<dyn Constraint>> = Environment::new();
-    let x = env.variables.create(IntegerSet::new(&[(0, 5)]));
-    let y = env.variables.create(IntegerSet::new(&[(4, 6)]));
-    let z = env.variables.create(IntegerSet::new(&[(0, 100)]));
-    env.constrain(Box::new(BinaryAddConstraint::new(x, y, z)));
-    env.constrain(Box::new(OffsetLtConstraint::new(z, -5, y)));
-    assert_eq!(env.variables.get(x).clone(), IntegerSet::new(&[(0, 4)]));
-    assert_eq!(env.variables.get(y).clone(), IntegerSet::new(&[(6, 6)]));
-    assert_eq!(env.variables.get(z).clone(), IntegerSet::new(&[(0, 10)]));
+    let mut env = Environment::new();
+    let x = env.create_variable(IntegerSet::new(&[(0, 5)]));
+    let y = env.create_variable(IntegerSet::new(&[(4, 6)]));
+    let z = env.create_variable(IntegerSet::new(&[(0, 100)]));
+    env.constrain(BinaryAddConstraint::new(x, y, z));
+    env.constrain(OffsetLtConstraint::new(z, -5, y));
+    assert_eq!(env.domain(x), IntegerSet::new(&[(0, 2)]));
+    assert_eq!(env.domain(y), IntegerSet::new(&[(4, 6)]));
+    assert_eq!(env.domain(z), IntegerSet::new(&[(0, 8)]));
 }
