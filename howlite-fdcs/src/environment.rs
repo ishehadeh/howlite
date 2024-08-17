@@ -1,10 +1,8 @@
 use std::{
     collections::VecDeque,
     fmt::Debug,
-    sync::atomic::{AtomicUsize, Ordering},
 };
 
-use num_bigint::BigInt;
 use slotmap::{new_key_type, Key, SlotMap};
 
 use crate::{
@@ -109,6 +107,12 @@ pub struct Environment {
     constraints: SlotMap<ConstraintId, AnyConstraint>,
     generations: SlotMap<GenerationId, Generation>,
     current_generation: GenerationId,
+}
+
+impl Default for Environment {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Environment {

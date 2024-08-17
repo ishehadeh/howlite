@@ -19,7 +19,7 @@ impl IntegerSet {
     }
 
     pub fn contains(&self, value: &BigInt) -> bool {
-        self.ranges.iter().find(|v| v.contains(value)).is_some()
+        self.ranges.iter().any(|v| v.contains(value))
     }
 
     pub fn intersect(&self, other: &IntegerSet) -> IntegerSet {

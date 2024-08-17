@@ -26,7 +26,7 @@ impl Variable {
 
     pub fn apply(self, mutation: Mutation) -> Result<Variable, InvalidMutationError> {
         match (self, mutation) {
-            (Variable::Instantiated(_), _) => return Err(InvalidMutationError::Instantiated),
+            (Variable::Instantiated(_), _) => Err(InvalidMutationError::Instantiated),
             (Variable::Domain(domain), Mutation::Instantiate { value }) => {
                 if domain.contains(&value) {
                     Ok(Variable::Instantiated(value))
