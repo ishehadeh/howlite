@@ -203,10 +203,15 @@ impl Environment {
             generation_queue.push_back(new_constraint_generation);
         }
 
+        let mut consistent = true;
         while let Some(generation) = generation_queue.pop_front() {
             let mut mutation_needed = false;
+            if !self.is_consistent(generation) {
+                consistent = false;
+                continue;
+            }
             self.current_generation = generation;
-            assert!(self.is_consistent(self.current_generation));
+            // assert!(self.is_consistent(self.current_generation));
 
             println!("GENERATION: {:?}", self.current_generation);
             for (var_id, var) in self
@@ -233,6 +238,7 @@ impl Environment {
                 break;
             }
         }
+        assert!(consistent);
     }
 }
 
