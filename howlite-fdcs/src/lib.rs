@@ -161,19 +161,26 @@ where
         let ctx = ConstraintContext {
             variables: &self.variables,
             queue: &mut self.events,
+            refno: self.constraints.len(),
         };
+        println!("[ref: {}] INIT", ctx.refno);
         constraint.initialize(ctx);
+        println!("[ref: {}] END INIT", self.constraints.len());
+
         self.constraints.push(constraint);
 
         while let Some(event_data) = self.events.take() {
-            dbg!(&event_data);
             self.do_event(event_data.subject, event_data.mutation.clone());
-            for constraint in &mut self.constraints {
+            println!("EVENT: {:#?}", event_data);
+            for (i, constraint) in self.constraints.iter_mut().enumerate() {
                 let ctx = ConstraintContext {
                     variables: &self.variables,
                     queue: &mut self.events,
+                    refno: i,
                 };
-                constraint.propogate(ctx, event_data.clone())
+                println!("[ref: {i}] PROPOGATE");
+                constraint.propogate(ctx, event_data.clone());
+                println!("[ref: {i}] END PROPOGATE");
             }
         }
     }
@@ -185,14 +192,20 @@ pub struct EventQueue {
     event_id_gen: EventIdGenerator,
 }
 
+#[derive(Debug)]
 pub struct ConstraintContext<'a> {
     pub variables: &'a VariableSet,
     queue: &'a mut EventQueue,
+    refno: usize,
 }
 
 impl<'a> ConstraintContext<'a> {
     pub fn submit(&mut self, variable: Variable, event: Mutation) -> EventId {
         let id = self.queue.event_id_gen.make_id();
+        println!(
+            "[ref {}] SUBMIT var={:#?} {:#?}",
+            self.refno, variable.id, event
+        );
         self.queue.events.push_back(Event {
             subject: variable,
             id,

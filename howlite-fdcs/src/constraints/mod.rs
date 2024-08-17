@@ -1,157 +1,127 @@
 use num_bigint::BigInt;
 
-use crate::{Constraint, ConstraintContext, Event, Mutation, Variable};
+use crate::{integer::IntegerRange, Constraint, ConstraintContext, Event, Mutation, Variable};
 mod add;
 
 pub use add::BinaryAddConstraint;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Comparison {
-    Less,    // reused for greater/equal
-    Greater, // reused for less/equal
-}
-
 #[derive(Clone, Debug)]
-pub struct OffsetCompare {
+pub struct OffsetLtConstraint {
     pub lhs: Variable,
     pub lhs_offset: BigInt,
     pub rhs: Variable,
-    pub op: Comparison,
 }
 
-impl OffsetCompare {
-    pub fn less(lhs: Variable, offset: impl Into<BigInt>, rhs: Variable) -> OffsetCompare {
-        OffsetCompare {
+impl OffsetLtConstraint {
+    pub fn new(lhs: Variable, offset: impl Into<BigInt>, rhs: Variable) -> OffsetLtConstraint {
+        OffsetLtConstraint {
             lhs,
             lhs_offset: offset.into(),
             rhs,
-            op: Comparison::Less,
         }
     }
 
-    pub fn greater(lhs: Variable, offset: impl Into<BigInt>, rhs: Variable) -> OffsetCompare {
-        OffsetCompare {
-            lhs,
-            lhs_offset: offset.into(),
-            rhs,
-            op: Comparison::Less,
+    /// Try to constrain the right hand side in order to satisfy the constraint.
+    /// If the constraint was not fully satisfied, return the adjustment needed on the left hand side.
+    fn constrain_rhs(
+        &self,
+        ctx: &mut ConstraintContext,
+        adjustment: Option<BigInt>,
+    ) -> Option<BigInt> {
+        let rhs_range = ctx.variables.get(self.rhs).range().unwrap();
+        let lhs_range = ctx.variables.get(self.lhs).range().unwrap();
+
+        let adjustment_needed =
+            adjustment.unwrap_or((&lhs_range.hi + &self.lhs_offset + 1) - (&rhs_range.lo));
+        if adjustment_needed <= BigInt::ZERO {
+            // no adjustment needed if rhs lo > lhs hi
+            return None;
+        }
+        dbg!(&adjustment_needed);
+
+        let allowed_rhs_lo_adjustment = &rhs_range.hi - &rhs_range.lo;
+        assert!(allowed_rhs_lo_adjustment >= BigInt::ZERO);
+        if allowed_rhs_lo_adjustment < adjustment_needed {
+            ctx.submit(
+                self.rhs,
+                Mutation::Bound {
+                    range: IntegerRange::new(rhs_range.hi.clone(), rhs_range.hi),
+                },
+            );
+
+            Some(adjustment_needed - allowed_rhs_lo_adjustment)
+        } else {
+            ctx.submit(
+                self.rhs,
+                Mutation::Bound {
+                    range: IntegerRange::new(rhs_range.lo + adjustment_needed, rhs_range.hi),
+                },
+            );
+            None
         }
     }
 
-    // propogate when the lhs var is mutated
-    fn propogate_lhs(&self, mut ctx: ConstraintContext, event: Event) {
-        match event.mutation {
-            crate::Mutation::Instantiate { binding } => {
-                todo!("impl binding")
-            }
-            crate::Mutation::Bound { range } => {
-                let offset_range = range.offset(self.lhs_offset.clone());
-                let rhs_range = ctx.variables.get(self.rhs).range().unwrap();
-                match self.op {
-                    // no update needed
-                    Comparison::Less if offset_range.hi < rhs_range.lo => (),
+    fn constrain_lhs(
+        &self,
+        ctx: &mut ConstraintContext,
+        adjustment: Option<BigInt>,
+    ) -> Option<BigInt> {
+        // TODO: merge at least part of this with constraint rhs
+        let rhs_range = ctx.variables.get(self.rhs).range().unwrap();
+        let lhs_range = ctx.variables.get(self.lhs).range().unwrap();
 
-                    // constraint failed
-                    Comparison::Less if offset_range.lo >= rhs_range.lo => {
-                        todo!("constraint failed")
-                    }
-
-                    // update to rhs needed.
-                    Comparison::Less if offset_range.hi >= rhs_range.lo => {
-                        ctx.submit(
-                            self.rhs,
-                            Mutation::Bound {
-                                range: ctx
-                                    .variables
-                                    .get(self.lhs)
-                                    .range()
-                                    .unwrap()
-                                    .with_lo(offset_range.lo + 1),
-                            },
-                        );
-                    }
-                    _ => todo!(),
-                }
-            }
-            crate::Mutation::Exclude { excluded } => todo!(),
+        let adjustment_needed =
+            adjustment.unwrap_or((&lhs_range.hi + &self.lhs_offset + 1) - &rhs_range.lo);
+        if adjustment_needed <= BigInt::ZERO {
+            // no adjustment needed if rhs lo > lhs hi
+            return None;
         }
-    }
 
-    // propogate when the rhs var is mutated
-    fn propogate_rhs(&self, mut ctx: ConstraintContext, event: Event) {
-        match event.mutation {
-            crate::Mutation::Instantiate { binding } => {
-                todo!("impl binding")
-            }
-            crate::Mutation::Bound { range } => {
-                let offset_range = ctx
-                    .variables
-                    .get(self.lhs)
-                    .range()
-                    .unwrap()
-                    .offset(self.lhs_offset.clone());
-                let rhs_range = range;
-                match self.op {
-                    // no update needed
-                    Comparison::Less if offset_range.hi < rhs_range.lo => (),
+        let allowed_lhs_hi_adjustment = &lhs_range.hi - &lhs_range.lo;
+        assert!(allowed_lhs_hi_adjustment >= BigInt::ZERO);
+        if allowed_lhs_hi_adjustment < adjustment_needed {
+            ctx.submit(
+                self.lhs,
+                Mutation::Bound {
+                    range: IntegerRange::new(lhs_range.lo.clone(), lhs_range.lo),
+                },
+            );
 
-                    // constraint failed
-                    Comparison::Less if offset_range.lo >= rhs_range.lo => {
-                        todo!("constraint failed")
-                    }
-
-                    // update to lhs needed.
-                    Comparison::Less if offset_range.hi >= rhs_range.lo => {
-                        ctx.submit(
-                            self.lhs,
-                            Mutation::Bound {
-                                range: ctx
-                                    .variables
-                                    .get(self.lhs)
-                                    .range()
-                                    .unwrap()
-                                    .with_hi(rhs_range.hi - 1 - self.lhs_offset.clone()),
-                            },
-                        );
-                    }
-                    _ => todo!(),
-                }
-            }
-            crate::Mutation::Exclude { excluded } => todo!(),
+            Some(adjustment_needed - allowed_lhs_hi_adjustment)
+        } else {
+            ctx.submit(
+                self.lhs,
+                Mutation::Bound {
+                    range: IntegerRange::new(lhs_range.lo, lhs_range.hi - adjustment_needed),
+                },
+            );
+            None
         }
     }
 }
 
-impl Constraint for OffsetCompare {
-    fn propogate(&mut self, ctx: ConstraintContext, event: Event) {
-        if event.subject == self.lhs {
-            self.propogate_lhs(ctx, event)
-        } else if event.subject == self.rhs {
-            self.propogate_rhs(ctx, event)
+impl Constraint for OffsetLtConstraint {
+    fn propogate(&mut self, mut ctx: ConstraintContext, event: Event) {
+        if event.subject == self.rhs {
+            if let Some(lhs_rem) = self.constrain_lhs(&mut ctx, None) {
+                if self.constrain_rhs(&mut ctx, Some(lhs_rem)).is_some() {
+                    panic!("constraint failed")
+                }
+            }
+        } else if event.subject == self.lhs {
+            if let Some(rhs_rem) = self.constrain_rhs(&mut ctx, None) {
+                if self.constrain_lhs(&mut ctx, Some(rhs_rem)).is_some() {
+                    panic!("constraint failed")
+                }
+            }
         }
     }
 
     fn initialize(&mut self, mut ctx: ConstraintContext) {
-        let rhs_range = ctx.variables.get(self.rhs).range().unwrap();
-        let lhs_range = ctx
-            .variables
-            .get(self.lhs)
-            .range()
-            .unwrap()
-            .offset(self.lhs_offset.clone());
-        ctx.submit(
-            self.lhs,
-            Mutation::Bound {
-                range: lhs_range
-                    .clone()
-                    .with_hi(rhs_range.lo.clone() - 1 - self.lhs_offset.clone()),
-            },
-        );
-        ctx.submit(
-            self.rhs,
-            Mutation::Bound {
-                range: rhs_range.with_lo(lhs_range.hi + 1 + self.lhs_offset.clone()),
-            },
-        );
+        if let Some(rhs_rem) = self.constrain_rhs(&mut ctx, None) {
+            if self.constrain_lhs(&mut ctx, Some(rhs_rem)).is_some() {
+                panic!("constraint failed")
+            }
+        }
     }
 }

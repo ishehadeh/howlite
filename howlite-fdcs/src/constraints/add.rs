@@ -98,7 +98,10 @@ impl BinaryAddConstraint {
             let x_hi_diff = &new_x_hi - &x_range.hi;
             let new_y_hi = (&y_range.hi + (-&hi_diff) - &x_hi_diff).max(y_range.lo.clone());
             let y_hi_diff = &new_y_hi - &y_range.hi;
-            if x_hi_diff + y_hi_diff != -&hi_diff {
+            if &x_hi_diff + &y_hi_diff != -&hi_diff {
+                dbg!(&x_hi_diff);
+                dbg!(&y_hi_diff);
+                dbg!(&hi_diff);
                 todo!("constraint failed");
             }
 
