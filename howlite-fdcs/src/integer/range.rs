@@ -1,6 +1,12 @@
-use std::cmp::Ordering;
+use std::{cmp::Ordering, ops::Index};
 
 use num_bigint::BigInt;
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum RangeSide {
+    Lo,
+    Hi,
+}
 
 /// An inclusive range of variable-length integers
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -36,6 +42,10 @@ impl IntegerRange {
                 (&other.hi).min(&self.hi).clone(),
             ))
         }
+    }
+
+    pub fn size(&self) -> BigInt {
+        &self.hi - &self.lo
     }
 
     /// Add a value to the beginning and end of the range
@@ -77,6 +87,17 @@ impl std::cmp::Ord for IntegerRange {
         match (self.lo.cmp(&other.lo), self.hi.cmp(&other.hi)) {
             (Ordering::Equal, hi_order) => hi_order,
             (lo_order, _) => lo_order,
+        }
+    }
+}
+
+impl Index<RangeSide> for IntegerRange {
+    type Output = BigInt;
+
+    fn index(&self, index: RangeSide) -> &Self::Output {
+        match index {
+            RangeSide::Lo => &self.lo,
+            RangeSide::Hi => &self.hi,
         }
     }
 }

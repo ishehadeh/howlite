@@ -1,200 +1,165 @@
+use std::cmp::Ordering;
+
+use num_bigint::BigInt;
+
 use crate::{
     environment::{Constraint, PropogationEnvironment},
-    integer::IntegerRange,
+    integer::{IntegerRange, RangeSide},
     variables::{Mutation, VariableId},
 };
 
 #[derive(Debug, Clone)]
 pub struct BinaryAddConstraint {
     pub x: VariableId,
+    pub x_coefficient: BigInt,
     pub y: VariableId,
     pub sum: VariableId,
 }
 
 impl BinaryAddConstraint {
     pub fn new(x: VariableId, y: VariableId, sum: VariableId) -> BinaryAddConstraint {
-        BinaryAddConstraint { x, y, sum }
+        BinaryAddConstraint {
+            x,
+            x_coefficient: 1.into(),
+            y,
+            sum,
+        }
+    }
+
+    pub fn new_with_coefficient(
+        x: VariableId,
+        x_coefficient: BigInt,
+        y: VariableId,
+        sum: VariableId,
+    ) -> BinaryAddConstraint {
+        BinaryAddConstraint {
+            x,
+            x_coefficient,
+            y,
+            sum,
+        }
     }
 }
 
 impl BinaryAddConstraint {
-    fn constrain_difference(
-        &self,
-        a: &IntegerRange,
-        b: &IntegerRange,
-        within: &IntegerRange,
-    ) -> Option<(IntegerRange, IntegerRange)> {
-        let mut x_range = a.clone();
-        let mut y_range = b.clone();
-
-        let lo_diff = (x_range.lo.clone() - y_range.lo.clone()) - &within.lo;
-        if lo_diff > 0.into() {
-            // x or y need to have a higher minimum.
-            // we'll exclude x as much as possible, then y.
-
-            let new_x_lo = (&x_range.lo + (-&lo_diff)).min(x_range.hi.clone());
-            let x_lo_diff = &new_x_lo - &x_range.lo;
-            let new_y_lo = (&y_range.lo + (-&lo_diff) - &x_lo_diff).min(y_range.hi.clone());
-            let y_lo_diff = &new_y_lo - &y_range.lo;
-            if x_lo_diff + y_lo_diff != -lo_diff {
-                return None;
-            }
-
-            x_range.lo = new_x_lo;
-            y_range.lo = new_y_lo;
-        }
-
-        let hi_diff = (&x_range.hi - &y_range.hi) - &within.hi;
-        if hi_diff < 0.into() {
-            // x or y need to have a lower maximum.
-            // we'll exclude x as much as possible, then y.
-
-            let new_x_hi = (&x_range.hi + (-&hi_diff)).max(x_range.lo.clone());
-            let x_hi_diff = &new_x_hi - &x_range.hi;
-            let new_y_hi = (&y_range.hi + (-&hi_diff) - &x_hi_diff).max(y_range.lo.clone());
-            let y_hi_diff = &new_y_hi - &y_range.hi;
-            dbg!(&hi_diff);
-            dbg!(&new_x_hi);
-            dbg!(&new_y_hi);
-            if x_hi_diff + y_hi_diff != -&hi_diff {
-                return None;
-            }
-
-            x_range.hi = new_x_hi;
-            y_range.hi = new_y_hi;
-        }
-
-        Some((x_range, y_range))
+    fn x_range_with_coefficient(&self, ctx: &PropogationEnvironment) -> IntegerRange {
+        let mut x_range = ctx.variable_range(self.x).unwrap();
+        x_range.lo *= &self.x_coefficient;
+        x_range.hi *= &self.x_coefficient;
+        x_range
     }
 
-    fn constrain_sum(
-        &self,
-        a: &IntegerRange,
-        b: &IntegerRange,
-        within: &IntegerRange,
-    ) -> Option<(IntegerRange, IntegerRange)> {
-        let mut x_range = a.clone();
-        let mut y_range = b.clone();
-
-        let lo_diff = (x_range.lo.clone() + y_range.lo.clone()) - &within.lo;
-        if lo_diff < 0.into() {
-            // x or y need to have a higher minimum.
-            // we'll exclude x as much as possible, then y.
-
-            let new_x_lo = (&x_range.lo + (-&lo_diff)).min(x_range.hi.clone());
-            let x_lo_diff = &new_x_lo - &x_range.lo;
-            let new_y_lo = (&y_range.lo + (-&lo_diff) - &x_lo_diff).min(y_range.hi.clone());
-            let y_lo_diff = &new_y_lo - &y_range.lo;
-            if x_lo_diff + y_lo_diff != -lo_diff {
-                return None;
-            }
-
-            x_range.lo = new_x_lo;
-            y_range.lo = new_y_lo;
-        }
-
-        let hi_diff = (&x_range.hi + &y_range.hi) - &within.hi;
-        if hi_diff > 0.into() {
-            // x or y need to have a lower maximum.
-            // we'll exclude x as much as possible, then y.
-
-            let new_x_hi = (&x_range.hi + (-&hi_diff)).max(x_range.lo.clone());
-            let x_hi_diff = &new_x_hi - &x_range.hi;
-            let new_y_hi = (&y_range.hi + (-&hi_diff) - &x_hi_diff).max(y_range.lo.clone());
-            let y_hi_diff = &new_y_hi - &y_range.hi;
-            if &x_hi_diff + &y_hi_diff != -&hi_diff {
-                return None;
-            }
-
-            x_range.hi = new_x_hi;
-            y_range.hi = new_y_hi;
-        }
-
-        Some((x_range, y_range))
-    }
-
-    fn adjust_sum_bound(&self, ctx: &mut PropogationEnvironment, new_bound: IntegerRange) {
-        let x_range = ctx.variable_range(self.x).unwrap();
-        let y_range = ctx.variable_range(self.y).unwrap();
-
-        let (new_x_range, new_y_range) = match self.constrain_sum(&x_range, &y_range, &new_bound) {
-            Some(v) => v,
-            None => {
-                ctx.inconsistent(vec![self.x, self.y, self.sum]);
-                return;
-            }
-        };
-        if x_range != new_x_range {
-            ctx.mutate(self.x, Mutation::BoundLo { lo: new_x_range.lo })
-                .unwrap();
-            ctx.mutate(self.x, Mutation::BoundHi { hi: new_x_range.hi })
-                .unwrap();
-        }
-
-        if y_range != new_y_range {
-            ctx.mutate(self.y, Mutation::BoundLo { lo: new_y_range.lo })
-                .unwrap();
-            ctx.mutate(self.y, Mutation::BoundHi { hi: new_y_range.hi })
-                .unwrap();
-        }
-    }
-
-    fn adjust_xy_bound(&self, ctx: &mut PropogationEnvironment, variable: VariableId) {
-        let x_range = ctx.variable_range(self.x).unwrap();
-        let y_range = ctx.variable_range(self.y).unwrap();
-        let sum_range = ctx.variable_range(self.sum).unwrap();
-
-        let (mutated_range, other_range, other_var) = if variable == self.x {
-            (x_range, y_range, self.y)
+    fn div_coefficient_with_remainder(&self, x: &BigInt, round_up: bool) -> (BigInt, BigInt) {
+        let div = x / &self.x_coefficient;
+        let rounded = &div * &self.x_coefficient;
+        if &div == &rounded {
+            (div, BigInt::ZERO)
+        } else if round_up && &rounded < x {
+            (div + 1, rounded + &self.x_coefficient - x)
+        } else if !round_up && &rounded > x {
+            (div - 1, rounded - &self.x_coefficient - x)
         } else {
-            (y_range, x_range, self.x)
+            (div, rounded - &self.x_coefficient)
+        }
+    }
+
+    fn constrain_lhs_range(
+        &self,
+        ctx: &mut PropogationEnvironment,
+        side: RangeSide,
+        vars: &[VariableId],
+    ) -> bool {
+        println!("constrain_lhs_range(ctx, side: {side:?}, vars: {vars:?})");
+        let sum_range = ctx.variable_range(self.sum).unwrap();
+        let x_range_coeff = self.x_range_with_coefficient(ctx);
+        let y_range = ctx.variable_range(self.y).unwrap();
+        // how much we need to shift the upper bound down, or the lower bound up of cX + Y to fit withing the bounds of Sum.
+        let mut adjustment_needed = if side == RangeSide::Hi {
+            (&x_range_coeff.hi + &y_range.hi - &sum_range.hi)
+        } else {
+            (&sum_range.lo - (&x_range_coeff.lo + &y_range.lo))
         };
-        let (new_sum_range, new_other_range) =
-            match self.constrain_difference(&sum_range, &other_range, &mutated_range) {
-                Some(v) => v,
-                None => {
-                    ctx.inconsistent(vec![self.x, self.y, self.sum]);
-                    return;
-                }
+        for &variable in vars {
+            match adjustment_needed.cmp(&BigInt::ZERO) {
+                // can't make x/y bigger
+                Ordering::Less if variable != self.sum => continue,
+                Ordering::Equal => break,
+                // can't make sum larger
+                Ordering::Greater if variable == self.sum => continue,
+                _ => (),
             };
-        if new_other_range != other_range {
-            ctx.mutate(
-                other_var,
-                Mutation::BoundLo {
-                    lo: new_other_range.lo,
-                },
-            )
-            .unwrap();
-            ctx.mutate(
-                other_var,
-                Mutation::BoundHi {
-                    hi: new_other_range.hi,
-                },
-            )
-            .unwrap();
+
+            dbg!(variable, &adjustment_needed);
+            let var_range = ctx.variable_range(variable).unwrap();
+            let adjustment = if variable == self.x {
+                let (adjustment_div_coeff, _) =
+                    self.div_coefficient_with_remainder(&adjustment_needed, side != RangeSide::Lo);
+                let adjustment = var_range.size().min(adjustment_div_coeff);
+                adjustment_needed -= &adjustment * &self.x_coefficient;
+                adjustment
+            } else if variable == self.y {
+                let adjustment = var_range.size().min(adjustment_needed.clone());
+                adjustment_needed -= &adjustment;
+                adjustment
+            } else if variable == self.sum {
+                let adjustment = var_range.size().min(-adjustment_needed.clone());
+                adjustment_needed += &adjustment;
+                adjustment
+            } else {
+                // not one of our variables
+                continue;
+            };
+            dbg!(&adjustment, &adjustment_needed);
+
+            if side == RangeSide::Hi {
+                ctx.mutate(
+                    variable,
+                    Mutation::BoundHi {
+                        hi: var_range.hi - adjustment,
+                    },
+                )
+                .unwrap();
+            } else {
+                ctx.mutate(
+                    variable,
+                    Mutation::BoundLo {
+                        lo: var_range.lo + adjustment,
+                    },
+                )
+                .unwrap();
+            }
         }
 
-        if sum_range != new_sum_range {
-            ctx.mutate(self.sum, Mutation::BoundLo { lo: sum_range.lo })
-                .unwrap();
-            ctx.mutate(self.sum, Mutation::BoundHi { hi: sum_range.hi })
-                .unwrap();
-        }
+        dbg!(&adjustment_needed);
+
+        // adjustments < 0 indicate that the sum range is larger than needed.
+        // this is ok, the constraint is still valid.
+        adjustment_needed <= BigInt::ZERO
     }
 }
 
 impl Constraint for BinaryAddConstraint {
-    fn propogate(&mut self, ctx: &mut PropogationEnvironment) {
+    fn propogate(&mut self, ctx: &mut PropogationEnvironment) -> bool {
         match ctx.last_mutation() {
-            None => self.adjust_sum_bound(ctx, ctx.variable_range(self.sum).unwrap()),
-            Some((var, Mutation::BoundLo { .. } | Mutation::BoundHi { .. })) => {
-                if var == self.sum {
-                    self.adjust_sum_bound(ctx, ctx.variable_range(self.sum).unwrap())
-                } else {
-                    self.adjust_xy_bound(ctx, var)
-                }
+            None => {
+                self.constrain_lhs_range(ctx, RangeSide::Hi, &[self.x, self.y, self.sum])
+                    && self.constrain_lhs_range(ctx, RangeSide::Lo, &[self.x, self.y, self.sum])
             }
-            Some((_, _)) => (),
+            Some((var, Mutation::BoundLo { .. } | Mutation::BoundHi { .. })) => {
+                let vars = if var == self.sum {
+                    &[self.x, self.y]
+                } else if var == self.x {
+                    &[self.y, self.sum]
+                } else if var == self.y {
+                    &[self.x, self.sum]
+                } else {
+                    &[self.x, self.y]
+                };
+
+                self.constrain_lhs_range(ctx, RangeSide::Hi, vars)
+                    && self.constrain_lhs_range(ctx, RangeSide::Lo, vars)
+            }
+            Some((_, _)) => true,
         }
     }
 }

@@ -1,9 +1,9 @@
 use std::{
-    collections::VecDeque,
+    collections::{HashSet, VecDeque},
     fmt::Debug,
 };
 
-use slotmap::{new_key_type, Key, SlotMap};
+use slotmap::{new_key_type, Key, SecondaryMap, SlotMap};
 
 use crate::{
     integer::{IntegerRange, IntegerSet},
@@ -11,19 +11,19 @@ use crate::{
 };
 
 pub trait Constraint: Debug {
-    fn propogate(&mut self, env: &mut PropogationEnvironment<'_>);
+    fn propogate(&mut self, env: &mut PropogationEnvironment<'_>) -> bool;
 }
 
 pub type AnyConstraint = Box<dyn Constraint>;
 
 impl Constraint for AnyConstraint {
-    fn propogate(&mut self, env: &mut PropogationEnvironment<'_>) {
+    fn propogate(&mut self, env: &mut PropogationEnvironment<'_>) -> bool {
         self.as_mut().propogate(env)
     }
 }
 
-new_key_type! { struct ConstraintId; }
-new_key_type! { struct GenerationId; }
+new_key_type! { pub struct ConstraintId; }
+new_key_type! { pub struct GenerationId; }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum EventNodeState {
@@ -79,7 +79,7 @@ impl VariableGeneration {
 }
 
 #[derive(Debug, Clone)]
-struct Generation {
+pub struct Generation {
     parent: GenerationId,
     variables: VariableGeneration,
     action: GenerationAction,
@@ -88,9 +88,6 @@ struct Generation {
 #[derive(Clone, Debug)]
 enum GenerationAction {
     NoAction,
-    Inconsistency {
-        variables: Vec<VariableId>,
-    },
     CreateVariable {
         variable: VariableId,
         value: IntegerSet,
@@ -106,6 +103,7 @@ enum GenerationAction {
 pub struct Environment {
     constraints: SlotMap<ConstraintId, AnyConstraint>,
     generations: SlotMap<GenerationId, Generation>,
+    satisfies: SecondaryMap<GenerationId, HashSet<ConstraintId>>,
     current_generation: GenerationId,
 }
 
@@ -127,6 +125,7 @@ impl Environment {
             constraints: Default::default(),
             current_generation: root_gen_id,
             generations,
+            satisfies: Default::default(),
         }
     }
 
@@ -134,6 +133,10 @@ impl Environment {
         self.generations
             .get(generation_id)
             .expect("invalid generation id")
+    }
+
+    pub fn current_generation(&self) -> GenerationId {
+        self.current_generation
     }
 
     pub fn create_variable(&mut self, domain: IntegerSet) -> VariableId {
@@ -150,13 +153,6 @@ impl Environment {
         };
         self.current_generation = self.generations.insert(generation);
         id
-    }
-
-    pub fn is_consistent(&self, generation: GenerationId) -> bool {
-        !matches!(
-            self.generation(generation).action,
-            GenerationAction::Inconsistency { .. }
-        )
     }
 
     pub fn domain(&self, variable: VariableId) -> IntegerSet {
@@ -176,7 +172,7 @@ impl Environment {
         &mut self,
         constraint_id: ConstraintId,
         initial_generation: GenerationId,
-    ) -> GenerationId {
+    ) -> (GenerationId, bool) {
         let mut environment = PropogationEnvironment {
             constraint_id,
             generations: &mut self.generations,
@@ -189,60 +185,76 @@ impl Environment {
             .expect("invalid constraint id");
 
         println!("PROPOGATE constraint={constraint_id:?}, generation={initial_generation:?}");
-        constraint.propogate(&mut environment);
+        let success = constraint.propogate(&mut environment);
         println!(
-            "PROPOGATE END [generation={:?}]",
+            "PROPOGATE END [generation={:?}, success={success}]",
             environment.local_generation_id()
         );
-        environment.local_generation_id()
+        (environment.local_generation_id(), success)
     }
 
-    pub fn constrain<T: Constraint + 'static>(&mut self, constraint: T) {
-        let new_constraint_id = self.constraints.insert(Box::new(constraint));
-        let new_constraint_generation =
-            self.do_constraint(new_constraint_id, self.current_generation);
-
-        let mut generation_queue = VecDeque::new();
-        if self.current_generation != new_constraint_generation {
-            generation_queue.push_back(new_constraint_generation);
+    fn show_gen(&self, generation: GenerationId) {
+        {
+            let current_gen = self.generation(generation);
+            println!(
+                "GENERATION: {:?}, action={:?}",
+                self.current_generation, current_gen.action
+            );
+            for (var_id, var) in current_gen.variables.variables.iter() {
+                println!("  {var_id:?} = {var:?}")
+            }
         }
+    }
 
-        let mut consistent = true;
-        while let Some(generation) = generation_queue.pop_front() {
-            let mut mutation_needed = false;
-            if !self.is_consistent(generation) {
-                consistent = false;
-                continue;
-            }
-            self.current_generation = generation;
-            // assert!(self.is_consistent(self.current_generation));
+    pub fn satisfied_constraints(&self, generation: GenerationId) -> HashSet<ConstraintId> {
+        self.satisfies.get(generation).cloned().unwrap_or_default()
+    }
 
-            println!("GENERATION: {:?}", self.current_generation);
-            for (var_id, var) in self
-                .generation(self.current_generation)
-                .variables
-                .variables
-                .iter()
-            {
-                println!("  var[{var_id:?}] = {var:?}")
-            }
-            let constraints: Vec<_> = self.constraints.keys().collect();
-            for constraint_id in constraints {
-                let new_generation = self.do_constraint(constraint_id, self.current_generation);
-                if self.current_generation != new_generation {
-                    generation_queue.push_back(new_generation);
-                    mutation_needed = true;
+    pub fn satisfies_all(&self, generation: GenerationId) -> bool {
+        self.satisfies
+            .get(generation)
+            .map(|x| x.len() == self.constraints.len())
+            .unwrap_or(false)
+    }
+
+    pub fn run_constraints(&mut self, mut generation: GenerationId) -> GenerationId {
+        let constraints: HashSet<_> = self.constraints.keys().collect();
+        let satisfied_constraints = self.satisfied_constraints(generation);
+        let unsatisfied_constraints = constraints.difference(&satisfied_constraints);
+        for &constraint_id in unsatisfied_constraints {
+            self.show_gen(generation);
+            let (next_generation, success) = self.do_constraint(constraint_id, generation);
+            if success {
+                if let Some(satisfied_constraints) = self.satisfies.get_mut(next_generation) {
+                    satisfied_constraints.insert(constraint_id);
+                } else {
+                    self.satisfies
+                        .insert(next_generation, HashSet::from([constraint_id]));
+                }
+                if self.satisfies[next_generation].len() == self.constraints.len() {
+                    return next_generation;
                 }
             }
-            println!(
-                "GENERATION END: {:?}, mutation={mutation_needed}",
-                self.current_generation
-            );
-            if !mutation_needed {
-                break;
+            if generation != next_generation && success {
+                println!("DESCEND");
+                generation = self.run_constraints(next_generation)
+            } else {
+                println!(
+                    "SKIP success={}, changed={}",
+                    success,
+                    generation != next_generation
+                );
             }
         }
-        assert!(consistent);
+
+        generation
+    }
+
+    pub fn constrain<T: Constraint + 'static>(&mut self, constraint: T) -> ConstraintId {
+        let new_constraint_id = self.constraints.insert(Box::new(constraint));
+        self.current_generation = self.run_constraints(self.current_generation);
+        assert!(self.satisfies_all(self.current_generation));
+        new_constraint_id
     }
 }
 
@@ -293,33 +305,12 @@ impl<'env> PropogationEnvironment<'env> {
             .get(variable)
     }
 
-    pub fn inconsistent(&mut self, variables: impl Into<Vec<VariableId>>) {
-        let inconsisten_variables = variables.into();
-        let generation = self.generation(self.local_current_generation);
-
-        let new_variable_generation = inconsisten_variables
-            .iter()
-            .fold(generation.variables.clone(), |variables, &variable_id| {
-                variables.clear(variable_id)
-            });
-
-        let new_generation = Generation {
-            parent: self.local_current_generation,
-            variables: new_variable_generation,
-            action: GenerationAction::Inconsistency {
-                variables: inconsisten_variables,
-            },
-        };
-
-        self.local_current_generation = self.generations.insert(new_generation);
-    }
-
     pub fn mutate(
         &mut self,
         variable: VariableId,
         mutation: Mutation,
     ) -> Result<(), InvalidMutationError> {
-        println!("  MUTATE var[{variable:?}] {mutation:?}");
+        println!("  MUTATE {variable:?} {mutation:?}");
         let new_variable_generation = self
             .generation(self.local_current_generation)
             .variables

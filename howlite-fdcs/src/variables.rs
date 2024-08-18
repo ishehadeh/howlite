@@ -69,7 +69,7 @@ impl Variable {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct VariableId {
     id: NonZeroUsize,
 }
@@ -103,4 +103,10 @@ pub enum InvalidMutationError {
 
     #[error("cannot adjust lower bound to expand domain: {value}, outside of range {range:?}")]
     HiOutOfRange { value: BigInt, range: IntegerRange },
+}
+
+impl std::fmt::Debug for VariableId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "var[{}]", self.id)
+    }
 }

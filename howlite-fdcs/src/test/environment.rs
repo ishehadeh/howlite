@@ -30,6 +30,18 @@ fn add() {
 }
 
 #[test]
+fn add_coefficient() {
+    let mut env = Environment::new();
+    let x = env.create_variable(IntegerSet::new(&[(0, 5)]));
+    let y = env.create_variable(IntegerSet::new(&[(4, 6)]));
+    let z = env.create_variable(IntegerSet::new(&[(4, 7)]));
+    env.constrain(BinaryAddConstraint::new_with_coefficient(x, 3.into(), y, z));
+    assert_eq!(env.domain(x), IntegerSet::new(&[(0, 0)]));
+    assert_eq!(env.domain(y), IntegerSet::new(&[(4, 6)]));
+    assert_eq!(env.domain(z), IntegerSet::new(&[(4, 6)]));
+}
+
+#[test]
 fn add_chain() {
     let mut env = Environment::new();
     let a = env.create_variable(IntegerSet::new(&[(0, 5)]));
@@ -56,5 +68,5 @@ fn add_compare() {
     env.constrain(OffsetLtConstraint::new(z, -5, y));
     assert_eq!(env.domain(x), IntegerSet::new(&[(0, 2)]));
     assert_eq!(env.domain(y), IntegerSet::new(&[(4, 6)]));
-    assert_eq!(env.domain(z), IntegerSet::new(&[(0, 8)]));
+    assert_eq!(env.domain(z), IntegerSet::new(&[(4, 8)]));
 }
