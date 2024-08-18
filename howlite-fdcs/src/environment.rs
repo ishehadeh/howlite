@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashSet, VecDeque},
+    collections::{HashSet},
     fmt::Debug,
 };
 
@@ -162,7 +162,7 @@ impl Environment {
             .get(variable)
         {
             Variable::Domain(d) => d.clone(),
-            Variable::Instantiated(x) => IntegerSet::new(&[(x.clone(), x.clone())]),
+            Variable::Instantiated(x) => IntegerSet::new_from_tuples(&[(x.clone(), x.clone())]),
         }
     }
 }

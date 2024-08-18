@@ -27,7 +27,6 @@ pub fn test_intersect() {
     )
 }
 
-
 #[test]
 pub fn test_ord() {
     assert_eq!(

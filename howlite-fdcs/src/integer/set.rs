@@ -1,17 +1,25 @@
-use std::collections::BTreeSet;
+use std::cmp::Ordering;
 
 use super::{num_bigint::BigInt, IntegerRange};
 
 #[derive(Clone, Default, PartialEq, Eq, Debug)]
 pub struct IntegerSet {
-    ranges: BTreeSet<IntegerRange>,
+    ranges: Vec<IntegerRange>,
 }
 
 impl IntegerSet {
-    pub fn new<RangeT: Into<BigInt> + Clone>(ranges: &[(RangeT, RangeT)]) -> IntegerSet {
-        IntegerSet {
-            ranges: ranges.iter().map(IntegerRange::from).collect(),
-        }
+    pub fn new_from_tuples<RangeT: Into<BigInt> + Clone>(
+        ranges: &[(RangeT, RangeT)],
+    ) -> IntegerSet {
+        Self::new(ranges.iter().map(|x| x.into()))
+    }
+
+    pub fn new<T: IntoIterator<Item = IntegerRange>>(ranges: T) -> IntegerSet {
+        let mut set = IntegerSet {
+            ranges: Vec::from_iter(ranges),
+        };
+        set.make_normal();
+        set
     }
 
     pub fn empty() -> IntegerSet {
@@ -19,19 +27,33 @@ impl IntegerSet {
     }
 
     pub fn contains(&self, value: &BigInt) -> bool {
-        self.ranges.iter().any(|v| v.contains(value))
+        assert!(self.is_normal());
+        self.ranges
+            .binary_search_by(|r| {
+                if value < &r.lo {
+                    Ordering::Less
+                } else if value > &r.hi {
+                    Ordering::Greater
+                } else {
+                    Ordering::Equal
+                }
+            })
+            .is_ok()
     }
 
     pub fn intersect(&self, other: &IntegerSet) -> IntegerSet {
+        assert!(self.is_normal());
+        assert!(other.is_normal());
+
         let mut intersect = IntegerSet::default();
         for r0 in other.ranges.iter() {
             for r1 in self.ranges.iter() {
                 if let Some(r_intersect) = r0.intersect(r1) {
-                    intersect.ranges.insert(r_intersect);
+                    intersect.ranges.push(r_intersect);
                 }
             }
         }
-
+        intersect.make_normal();
         intersect
     }
 }
@@ -47,26 +69,85 @@ impl IntegerSet {
     }
 
     pub fn min(&self) -> Option<BigInt> {
-        // btree set maintains sort order.
+        assert!(self.is_normal());
+
+        // ranges are sorted, so the first range will always have the lower bound.
         // for details on how ranges are sorted see: [IntegerRange] impl of Ord
         self.ranges.first().map(|lo_range| lo_range.lo.clone())
     }
 
     pub fn max(&self) -> Option<BigInt> {
-        // btree set maintains sort order, mostly with respect to the lower value,
-        // so we need to iterate to find the high.
-        // TODO: find a better sort mechanism for ranges.
+        assert!(self.is_normal());
+
+        // because ranges are non-overlapping and sorted in the normal form, the last range will always hold the upper bound.
+        self.ranges.last().map(|r| r.hi.clone())
+    }
+}
+
+// IMPL: sorting and normalization
+impl IntegerSet {
+    fn is_sorted(&self) -> bool {
+        for (i, range) in self.ranges.iter().enumerate().skip(1) {
+            if Self::sort_range(&self.ranges[i - 1], range) == Ordering::Greater {
+                return false;
+            }
+        }
+
+        true
+    }
+
+    fn has_overlapping_ranges(&self) -> bool {
         self.ranges
             .iter()
-            .rev()
-            .map(|hi_range| hi_range.hi.clone())
-            .max()
+            .enumerate()
+            .skip(1)
+            .any(|(i, range)| self.ranges[i - 1].hi >= range.lo)
+    }
+
+    fn merge_overlapping(&mut self) {
+        assert!(self.is_sorted());
+
+        // offset needed after applying mutations to the underlying array
+        let mut idx_offset = 0;
+
+        for frozen_idx in 1..self.ranges.len() {
+            let i = frozen_idx - idx_offset;
+            if self.ranges[i - 1].hi >= self.ranges[i].lo {
+                idx_offset += 1;
+                let lower_range = self.ranges.remove(i - 1);
+                self.ranges[frozen_idx - idx_offset].lo = lower_range.lo;
+            }
+        }
+    }
+
+    fn is_normal(&self) -> bool {
+        self.is_sorted() && !self.has_overlapping_ranges()
+    }
+
+    fn make_normal(&mut self) {
+        self.ranges.sort_by(Self::sort_range);
+        self.merge_overlapping();
+    }
+
+    fn sort_range(a: &IntegerRange, b: &IntegerRange) -> Ordering {
+        if a == b {
+            Ordering::Equal
+        } else if a.is_strict_subrange(b) {
+            Ordering::Greater
+        } else if b.is_strict_subrange(a) || a.lo < b.lo {
+            Ordering::Less
+        } else {
+            Ordering::Greater
+        }
     }
 }
 
 // IMPL: exclude values
 impl IntegerSet {
     pub fn exclude(&mut self, other: &IntegerSet) -> bool {
+        assert!(self.is_normal());
+        assert!(other.is_normal());
+
         let mut has_mutated = false;
         for other_range in &other.ranges {
             has_mutated = self.exclude_range(other_range) || has_mutated
@@ -75,113 +156,89 @@ impl IntegerSet {
         has_mutated
     }
 
+    /// remove a value from the set.
+    /// Return false if the value was not present
     pub fn exclude_value(&mut self, other: &BigInt) -> bool {
-        let mut additions: Vec<IntegerRange> = Vec::new();
-        let mut remove: Vec<IntegerRange> = Vec::new();
+        assert!(self.is_normal());
 
-        for range in &self.ranges {
-            if range.contains(other) {
-                // other is inside this range, we need to split the range.
-                let lo_range = IntegerRange::new(range.lo.clone(), other - 1);
-                let hi_range = IntegerRange::new(other + 1, range.hi.clone());
-                remove.push(range.clone());
-                additions.push(lo_range);
-                additions.push(hi_range);
-            } else if &range.lo == other && &range.hi == other {
-                remove.push(range.clone());
-            } else if &range.lo == other {
-                // adjust lo by 1
-                additions.push(IntegerRange::new(range.lo.clone() + 1, range.hi.clone()));
-                remove.push(range.clone());
-            } else if &range.hi == other {
-                // adjust hi by 1
-                additions.push(IntegerRange::new(range.lo.clone(), range.hi.clone() - 1));
-                remove.push(range.clone())
+        let maybe_range_idx = self.ranges.binary_search_by(|r| {
+            if other < &r.lo {
+                Ordering::Less
+            } else if other > &r.hi {
+                Ordering::Greater
+            } else {
+                Ordering::Equal
             }
-        }
+        });
 
-        let has_mutated = !additions.is_empty() || !remove.is_empty();
-        for r in remove {
-            self.ranges.remove(&r);
-        }
-        for a in additions {
-            self.ranges.insert(a);
-        }
+        if let Ok(range_idx) = maybe_range_idx {
+            let (lower_range, upper_range) = self.ranges[range_idx].split(other);
+            let mut iter = lower_range.into_iter().chain(upper_range);
+            if let Some(lower_range) = iter.next() {
+                self.ranges[range_idx] = lower_range;
+            }
+            if let Some(higher_range) = iter.next() {
+                self.ranges.insert(range_idx + 1, higher_range);
+            }
 
-        has_mutated
+            // this should maintain sort order and non-overlap, but an assert doesnt hurt...
+            assert!(self.is_normal());
+            true
+        } else {
+            // set does not contain value
+            false
+        }
     }
 
     pub fn exclude_range(&mut self, other: &IntegerRange) -> bool {
-        let mut additions: Vec<IntegerRange> = Vec::new();
-        let mut remove: Vec<IntegerRange> = Vec::new();
+        assert!(self.is_normal());
 
-        for range in &self.ranges {
-            if range.lo < other.lo && range.hi > other.hi {
-                // other is inside this range, we need to split the range.
-                let lo_range = IntegerRange::new(range.lo.clone(), other.lo.clone() - 1);
-                let hi_range = IntegerRange::new(other.hi.clone() + 1, range.hi.clone());
-                remove.push(range.clone());
-                additions.push(lo_range);
-                additions.push(hi_range);
-            } else if range.lo >= other.lo && range.hi <= other.hi {
-                // range completely contained in other
-                remove.push(range.clone());
-            } else if range.lo >= other.lo && range.hi > other.hi {
-                // partial - high
-                additions.push(IntegerRange::new(other.hi.clone() + 1, range.hi.clone()));
-                remove.push(range.clone())
-            } else if range.lo < other.lo && range.hi <= other.hi {
-                // partial - low
-                additions.push(IntegerRange::new(range.lo.clone(), other.lo.clone() - 1));
-                remove.push(range.clone())
+        let mut mutated = false;
+        let mut offset = 0isize;
+        for original_idx in 0isize..self.ranges.len() as isize {
+            let i = (original_idx + offset) as usize;
+            if self.ranges[i].contains(&other.lo) || self.ranges[i].contains(&other.hi) {
+                let (lower_range, upper_range) =
+                    self.ranges[i].split_between(other.lo.clone() - 1, other.hi.clone() + 1);
+                let mut iter = lower_range.into_iter().chain(upper_range.into_iter());
+                if let Some(lower_range) = iter.next() {
+                    self.ranges[i] = lower_range;
+                    if let Some(higher_range) = iter.next() {
+                        self.ranges.insert(i + 1, higher_range);
+                        offset += 1;
+                    }
+                } else {
+                    self.ranges.remove(i);
+                    offset -= 1;
+                }
+
+                mutated = true;
             }
         }
 
-        let has_mutated = !additions.is_empty() || !remove.is_empty();
-        for r in remove {
-            self.ranges.remove(&r);
-        }
-        for a in additions {
-            self.ranges.insert(a);
-        }
-
-        has_mutated
+        assert!(self.is_normal());
+        mutated
     }
 }
 
 // IMPL: mutate bounds
 impl IntegerSet {
     pub fn exclude_below(&mut self, lo: &BigInt) {
-        let too_low: Vec<_> = self
-            .ranges
-            .iter()
-            .take_while(|range| range.lo < *lo)
-            .cloned()
-            .collect();
-        for mut range in too_low {
-            self.ranges.remove(&range);
-            if range.hi >= *lo {
-                range.lo.clone_from(lo);
-                self.ranges.insert(range);
-            }
+        let partial_range_idx = self.ranges.iter().take_while(|r| &r.hi > lo).count();
+        self.ranges
+            .drain(..(partial_range_idx + 1).min(self.ranges.len() - 1));
+        dbg!(&partial_range_idx);
+        if !self.ranges.is_empty() {
+            self.ranges[0].lo.clone_from(lo);
         }
     }
 
     pub fn exclude_above(&mut self, hi: &BigInt) {
-        // NOTE: do to sort order mostly being by low,
-        //  we can't use .rev().take_while() here.
-        let too_high: Vec<_> = self
-            .ranges
-            .iter()
-            .filter(|range| range.hi > *hi)
-            .cloned()
-            .collect();
-        for mut range in too_high {
-            self.ranges.remove(&range);
-            if range.lo <= *hi {
-                range.hi.clone_from(hi);
-                self.ranges.insert(range);
-            }
+        let partial_range_idx = self.ranges.iter().rev().take_while(|r| &r.lo > hi).count();
+        self.ranges.drain(self.ranges.len() - partial_range_idx..);
+        if !self.ranges.is_empty() {
+            let last_idx = self.ranges.len() - 1;
+            self.ranges[last_idx].hi.clone_from(hi);
         }
     }
 }

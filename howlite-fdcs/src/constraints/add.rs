@@ -75,9 +75,9 @@ impl BinaryAddConstraint {
         let y_range = ctx.variable_range(self.y).unwrap();
         // how much we need to shift the upper bound down, or the lower bound up of cX + Y to fit withing the bounds of Sum.
         let mut adjustment_needed = if side == RangeSide::Hi {
-            (&x_range_coeff.hi + &y_range.hi - &sum_range.hi)
+            &x_range_coeff.hi + &y_range.hi - &sum_range.hi
         } else {
-            (&sum_range.lo - (&x_range_coeff.lo + &y_range.lo))
+            &sum_range.lo - (&x_range_coeff.lo + &y_range.lo)
         };
         for &variable in vars {
             match adjustment_needed.cmp(&BigInt::ZERO) {

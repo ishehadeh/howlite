@@ -99,7 +99,7 @@ impl OffsetLtConstraint {
 impl Constraint for OffsetLtConstraint {
     fn propogate(&mut self, ctx: &mut PropogationEnvironment) -> bool {
         if let Some(lhs_rem) = self.constrain_lhs(ctx, None) {
-            return self.constrain_rhs(ctx, Some(lhs_rem)).is_some();
+            self.constrain_rhs(ctx, Some(lhs_rem)).is_some()
         } else {
             true
         }

@@ -1,4 +1,7 @@
-use std::{cmp::Ordering, ops::Index};
+use std::{
+    cmp::Ordering,
+    ops::{Add, Index},
+};
 
 use num_bigint::BigInt;
 
@@ -20,9 +23,27 @@ pub struct IntegerRange {
 
 impl IntegerRange {
     pub fn new<LoT: Into<BigInt>, HiT: Into<BigInt>>(lo: LoT, hi: HiT) -> IntegerRange {
-        IntegerRange {
-            lo: lo.into(),
-            hi: hi.into(),
+        let lo_big = lo.into();
+        let hi_big = hi.into();
+        Self::try_new(lo_big.clone(), hi_big.clone()).unwrap_or_else(|| {
+            panic!(
+                "IntegerRange::new(): invalid range, lo is larger than hi. lo={}, hi={})",
+                lo_big, &hi_big
+            )
+        })
+    }
+
+    /// Like IntegerRange::new, but return None if lo > hi instead of `panic!`-ing.
+    pub fn try_new<LoT: Into<BigInt>, HiT: Into<BigInt>>(lo: LoT, hi: HiT) -> Option<IntegerRange> {
+        let lo_big = lo.into();
+        let hi_big = hi.into();
+        if lo_big > hi_big {
+            None
+        } else {
+            Some(IntegerRange {
+                lo: lo_big,
+                hi: hi_big,
+            })
         }
     }
 
@@ -44,13 +65,39 @@ impl IntegerRange {
         }
     }
 
-    pub fn size(&self) -> BigInt {
-        &self.hi - &self.lo
+    pub fn split(&self, value: &BigInt) -> (Option<IntegerRange>, Option<IntegerRange>) {
+        if value < &self.lo || value > &self.hi {
+            (None, None)
+        } else {
+            (
+                IntegerRange::try_new(self.lo.clone(), value - 1),
+                IntegerRange::try_new(value + 1, self.hi.clone()),
+            )
+        }
     }
 
-    /// Add a value to the beginning and end of the range
-    pub fn offset(&self, offset: BigInt) -> IntegerRange {
-        IntegerRange::new(self.lo.clone() + offset.clone(), self.hi.clone() + offset)
+    pub fn is_strict_subrange(&self, subrange: &IntegerRange) -> bool {
+        self.lo < subrange.lo && self.hi > subrange.hi
+    }
+
+    /// split the range in two, creating two new ranges [self.lo, lo] and [hi, self.hi]
+    pub fn split_between(
+        &self,
+        lo: BigInt,
+        hi: BigInt,
+    ) -> (Option<IntegerRange>, Option<IntegerRange>) {
+        if lo < self.lo && hi > self.hi {
+            (None, None)
+        } else {
+            (
+                IntegerRange::try_new(self.lo.clone(), lo),
+                IntegerRange::try_new(hi, self.hi.clone()),
+            )
+        }
+    }
+
+    pub fn size(&self) -> BigInt {
+        &self.hi - &self.lo
     }
 
     pub fn with_lo(self, lo: impl Into<BigInt>) -> IntegerRange {
@@ -75,6 +122,27 @@ impl<LoT: Into<BigInt>, HiT: Into<BigInt>> From<(LoT, HiT)> for IntegerRange {
 impl<LoT: Into<BigInt> + Clone, HiT: Into<BigInt> + Clone> From<&(LoT, HiT)> for IntegerRange {
     fn from((lo, hi): &(LoT, HiT)) -> Self {
         IntegerRange::new(lo.clone(), hi.clone())
+    }
+}
+
+impl<T: Into<BigInt>> Add<T> for IntegerRange {
+    type Output = IntegerRange;
+
+    fn add(mut self, rhs: T) -> Self::Output {
+        let rhs_big = rhs.into();
+        self.lo += &rhs_big;
+        self.hi += &rhs_big;
+        self
+    }
+}
+
+impl Add<IntegerRange> for IntegerRange {
+    type Output = IntegerRange;
+
+    fn add(mut self, rhs: IntegerRange) -> Self::Output {
+        self.lo += &rhs.lo;
+        self.hi += &rhs.hi;
+        self
     }
 }
 
