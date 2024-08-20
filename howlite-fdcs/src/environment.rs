@@ -1,7 +1,4 @@
-use std::{
-    collections::{HashSet},
-    fmt::Debug,
-};
+use std::{collections::HashSet, fmt::Debug};
 
 use slotmap::{new_key_type, Key, SecondaryMap, SlotMap};
 
@@ -105,6 +102,7 @@ pub struct Environment {
     generations: SlotMap<GenerationId, Generation>,
     satisfies: SecondaryMap<GenerationId, HashSet<ConstraintId>>,
     current_generation: GenerationId,
+    root: GenerationId,
 }
 
 impl Default for Environment {
@@ -124,6 +122,7 @@ impl Environment {
         Environment {
             constraints: Default::default(),
             current_generation: root_gen_id,
+            root: root_gen_id,
             generations,
             satisfies: Default::default(),
         }
@@ -173,24 +172,26 @@ impl Environment {
         constraint_id: ConstraintId,
         initial_generation: GenerationId,
     ) -> (GenerationId, bool) {
-        let mut environment = PropogationEnvironment {
-            constraint_id,
-            generations: &mut self.generations,
-            parent_current_generation: initial_generation,
-            local_current_generation: initial_generation,
-        };
+        self.show_gen(initial_generation);
         let constraint = self
             .constraints
             .get_mut(constraint_id)
             .expect("invalid constraint id");
 
         println!("PROPOGATE constraint={constraint_id:?}, generation={initial_generation:?}");
-        let success = constraint.propogate(&mut environment);
-        println!(
-            "PROPOGATE END [generation={:?}, success={success}]",
-            environment.local_generation_id()
-        );
-        (environment.local_generation_id(), success)
+        let (result_gen, success) = {
+            let mut environment = PropogationEnvironment {
+                constraint_id,
+                generations: &mut self.generations,
+                parent_current_generation: initial_generation,
+                local_current_generation: initial_generation,
+            };
+            let success = constraint.propogate(&mut environment);
+            (environment.local_generation_id(), success)
+        };
+        println!("PROPOGATE END [generation={result_gen:?}, success={success}]",);
+        self.show_gen(result_gen);
+        (result_gen, success)
     }
 
     fn show_gen(&self, generation: GenerationId) {
@@ -210,6 +211,15 @@ impl Environment {
         self.satisfies.get(generation).cloned().unwrap_or_default()
     }
 
+    fn mark_satisfied(&mut self, generation: GenerationId, constraint: ConstraintId) {
+        if let Some(satisfied) = self.satisfies.get_mut(generation) {
+            satisfied.insert(constraint);
+        } else {
+            self.satisfies
+                .insert(generation, HashSet::from([constraint]));
+        }
+    }
+
     pub fn satisfies_all(&self, generation: GenerationId) -> bool {
         self.satisfies
             .get(generation)
@@ -217,44 +227,58 @@ impl Environment {
             .unwrap_or(false)
     }
 
-    pub fn run_constraints(&mut self, mut generation: GenerationId) -> GenerationId {
-        let constraints: HashSet<_> = self.constraints.keys().collect();
-        let satisfied_constraints = self.satisfied_constraints(generation);
-        let unsatisfied_constraints = constraints.difference(&satisfied_constraints);
-        for &constraint_id in unsatisfied_constraints {
-            self.show_gen(generation);
-            let (next_generation, success) = self.do_constraint(constraint_id, generation);
-            if success {
-                if let Some(satisfied_constraints) = self.satisfies.get_mut(next_generation) {
-                    satisfied_constraints.insert(constraint_id);
+    pub fn run_constraints(&mut self, generation: GenerationId) -> GenerationId {
+        println!("\nrun_constraints(): generation={generation:?}");
+        let keys: HashSet<_> = self.constraints.keys().collect();
+        let satisfied_set = self.satisfied_constraints(generation);
+        let mut unsatisfied_iter = keys.difference(&satisfied_set).collect::<Vec<_>>();
+        unsatisfied_iter.sort(); // keep sorted so behavior is determenistic. Order matters here!
+        for &constraint_id in unsatisfied_iter {
+            let (constraint_gen, consistent) = self.do_constraint(constraint_id, generation);
+            if consistent {
+                self.mark_satisfied(constraint_gen, constraint_id);
+
+                if constraint_gen != generation {
+                    dbg!(constraint_gen);
+                    if self.satisfies_all(constraint_gen) {
+                        println!("found");
+                        return constraint_gen;
+                    }
+                    let descent_gen = self.run_constraints(constraint_gen);
+                    if self.satisfies_all(descent_gen) {
+                        return descent_gen;
+                    }
                 } else {
-                    self.satisfies
-                        .insert(next_generation, HashSet::from([constraint_id]));
+                    self.mark_satisfied(generation, constraint_id);
                 }
-                if self.satisfies[next_generation].len() == self.constraints.len() {
-                    return next_generation;
-                }
-            }
-            if generation != next_generation && success {
-                println!("DESCEND");
-                generation = self.run_constraints(next_generation)
-            } else {
-                println!(
-                    "SKIP success={}, changed={}",
-                    success,
-                    generation != next_generation
-                );
             }
         }
 
+        println!("exit run_constraints() generation={generation:?}");
         generation
     }
 
     pub fn constrain<T: Constraint + 'static>(&mut self, constraint: T) -> ConstraintId {
         let new_constraint_id = self.constraints.insert(Box::new(constraint));
-        self.current_generation = self.run_constraints(self.current_generation);
-        assert!(self.satisfies_all(self.current_generation));
+        let var_gen = self.last_variable_introduction();
+        self.current_generation = self.run_constraints(var_gen.unwrap_or(self.root));
         new_constraint_id
+    }
+
+    fn last_variable_introduction(&self) -> Option<GenerationId> {
+        let mut generation_id = self.current_generation;
+        while generation_id != GenerationId::null() {
+            let generation = self.generation(generation_id);
+            match &generation.action {
+                GenerationAction::CreateVariable {
+                    variable: _,
+                    value: _,
+                } => return Some(generation_id),
+                _ => generation_id = generation.parent,
+            }
+        }
+
+        None
     }
 }
 

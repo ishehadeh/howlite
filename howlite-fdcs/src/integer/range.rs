@@ -1,9 +1,11 @@
 use std::{
     cmp::Ordering,
-    ops::{Add, Index},
+    ops::{Add, Index, Mul},
 };
 
 use num_bigint::BigInt;
+
+use crate::Mutation;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum RangeSide {
@@ -125,13 +127,15 @@ impl<LoT: Into<BigInt> + Clone, HiT: Into<BigInt> + Clone> From<&(LoT, HiT)> for
     }
 }
 
-impl<T: Into<BigInt>> Add<T> for IntegerRange {
+impl Mul<&BigInt> for IntegerRange {
     type Output = IntegerRange;
 
-    fn add(mut self, rhs: T) -> Self::Output {
-        let rhs_big = rhs.into();
-        self.lo += &rhs_big;
-        self.hi += &rhs_big;
+    fn mul(mut self, rhs: &BigInt) -> Self::Output {
+        self.lo *= rhs;
+        self.hi *= rhs;
+        if self.hi < self.lo {
+            std::mem::swap(&mut self.lo, &mut self.hi);
+        }
         self
     }
 }
@@ -177,5 +181,55 @@ impl std::cmp::PartialOrd<IntegerRange> for IntegerRange {
     /// >   <=> lo > lo, or if lo = lo, then hi > hi    
     fn partial_cmp(&self, other: &IntegerRange) -> Option<Ordering> {
         Some(self.cmp(other))
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct Lo;
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct Hi;
+
+pub const HI: Hi = Hi {};
+pub const LO: Lo = Lo {};
+
+pub trait BoundMarker: Clone + Copy + PartialEq + Eq {
+    type Inverse: BoundMarker;
+    const IS_LO: bool;
+    const INVERSE: Self::Inverse;
+}
+
+impl<T: BoundMarker> Index<T> for IntegerRange {
+    type Output = BigInt;
+
+    #[inline(always)]
+    fn index(&self, _: T) -> &Self::Output {
+        if T::IS_LO {
+            &self.lo
+        } else {
+            &self.hi
+        }
+    }
+}
+
+
+impl BoundMarker for Lo {
+    const IS_LO: bool = true;
+    const INVERSE: Self::Inverse = HI;
+    type Inverse = Hi;
+}
+
+impl BoundMarker for Hi {
+    const IS_LO: bool = false;
+    const INVERSE: Self::Inverse = LO;
+    type Inverse = Lo;
+}
+
+impl IntegerRange {
+    pub fn outward_shift_mutation<B: BoundMarker>(&self, _: B, shift: &BigInt) -> Mutation {
+        if B::IS_LO {
+            Mutation::BoundLo { lo: &self.lo - shift }
+        } else {
+            Mutation::BoundHi { hi: &self.hi + shift }
+        }
     }
 }
