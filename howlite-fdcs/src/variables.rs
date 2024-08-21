@@ -7,16 +7,16 @@ use crate::integer::{IntegerRange, IntegerSet};
 
 #[derive(Clone, Debug)]
 pub enum Mutation {
-    Instantiate { value: BigInt },
+    Instantiate { value: IntegerSet },
     Exclude { value: BigInt },
     BoundLo { lo: BigInt },
     BoundHi { hi: BigInt },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Variable {
     Domain(IntegerSet),
-    Instantiated(BigInt),
+    Instantiated(IntegerSet),
 }
 
 impl Variable {
@@ -28,7 +28,7 @@ impl Variable {
         match (self, mutation) {
             (Variable::Instantiated(_), _) => Err(InvalidMutationError::Instantiated),
             (Variable::Domain(domain), Mutation::Instantiate { value }) => {
-                if domain.contains(&value) {
+                if value.is_subset_of(&domain) {
                     Ok(Variable::Instantiated(value))
                 } else {
                     Err(InvalidMutationError::InstantiateOutOfDomain { value, domain })
@@ -89,8 +89,8 @@ pub enum InvalidMutationError {
     #[error("cannot mutate an instantiated variable")]
     Instantiated,
 
-    #[error("cannot instantiate variable as {value}, domain is {domain:?}")]
-    InstantiateOutOfDomain { value: BigInt, domain: IntegerSet },
+    #[error("cannot instantiate variable as {value:?}, domain is {domain:?}")]
+    InstantiateOutOfDomain { value: IntegerSet, domain: IntegerSet },
 
     #[error("cannot exclude value {value}, not in domain {domain:?}")]
     ExcludeOutOfDomain { value: BigInt, domain: IntegerSet },

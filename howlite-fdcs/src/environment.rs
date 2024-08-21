@@ -7,28 +7,42 @@ use crate::{
     variables::{InvalidMutationError, Mutation, Variable, VariableId},
 };
 
+
+
+#[derive(Debug, Clone)]
+pub enum NarrowResult {
+    Narrow(VariableId, Mutation),
+    Satisfied,
+    Violation,
+}
+
+
+#[derive(Debug, Clone)]
+pub struct Event {
+    // pub id: EventId,
+    pub variable: VariableId,
+    pub constraint: ConstraintId,
+    // pub parent: EventId,
+    pub mutation: Mutation,
+}
+
+
+
 pub trait Constraint: Debug {
-    fn propogate(&mut self, env: &mut PropogationEnvironment<'_>) -> bool;
+    fn propogate(&self, env: &mut PropogationEnvironment<'_>, event: Option<&Event>) -> NarrowResult;
 }
 
 pub type AnyConstraint = Box<dyn Constraint>;
 
 impl Constraint for AnyConstraint {
-    fn propogate(&mut self, env: &mut PropogationEnvironment<'_>) -> bool {
-        self.as_mut().propogate(env)
+    fn propogate(&self, env: &mut PropogationEnvironment<'_>, event: Option<&Event>) -> NarrowResult {
+        self.as_ref().propogate(env, event)
     }
 }
 
 new_key_type! { pub struct ConstraintId; }
-new_key_type! { pub struct GenerationId; }
+new_key_type! { pub struct GenerationId; pub struct EventId; }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum EventNodeState {
-    Waiting,
-    Consistent,
-    Inconsistent,
-    Rolledback,
-}
 
 #[derive(Clone, Default, Debug)]
 pub struct VariableGeneration {
@@ -89,11 +103,10 @@ enum GenerationAction {
         variable: VariableId,
         value: IntegerSet,
     },
-    MutateVariable {
-        constraint: ConstraintId,
-        mutation: Mutation,
-        variable: VariableId,
-    },
+    Narrow {
+        constraint_id: ConstraintId,
+        result: NarrowResult
+    }
 }
 
 #[derive(Debug)]
@@ -138,6 +151,12 @@ impl Environment {
         self.current_generation
     }
 
+    pub fn set_current_generation(&mut self, gen: GenerationId) -> GenerationId {
+        let old = self.current_generation();
+        self.current_generation = gen;
+        return old
+    }
+
     pub fn create_variable(&mut self, domain: IntegerSet) -> VariableId {
         let current_generation = self.generation(self.current_generation);
 
@@ -161,7 +180,7 @@ impl Environment {
             .get(variable)
         {
             Variable::Domain(d) => d.clone(),
-            Variable::Instantiated(x) => IntegerSet::new_from_tuples(&[(x.clone(), x.clone())]),
+            Variable::Instantiated(x) => x.clone(),
         }
     }
 }
@@ -171,7 +190,7 @@ impl Environment {
         &mut self,
         constraint_id: ConstraintId,
         initial_generation: GenerationId,
-    ) -> (GenerationId, bool) {
+    ) -> NarrowResult {
         self.show_gen(initial_generation);
         let constraint = self
             .constraints
@@ -179,19 +198,27 @@ impl Environment {
             .expect("invalid constraint id");
 
         println!("PROPOGATE constraint={constraint_id:?}, generation={initial_generation:?}");
-        let (result_gen, success) = {
+        let result = {
             let mut environment = PropogationEnvironment {
                 constraint_id,
-                generations: &mut self.generations,
+                generations: &self.generations,
                 parent_current_generation: initial_generation,
                 local_current_generation: initial_generation,
             };
-            let success = constraint.propogate(&mut environment);
-            (environment.local_generation_id(), success)
+            match &self.generations[initial_generation].action {
+                GenerationAction::Narrow {
+                    constraint_id,
+                    result: NarrowResult::Narrow(variable, mutation),
+                } => constraint.propogate(&mut environment, Some(&Event {
+                    constraint: constraint_id.clone(),
+                    variable: variable.clone(),
+                    mutation: mutation.clone(),
+                })),
+                _ => constraint.propogate(&mut environment, None)
+            }
         };
-        println!("PROPOGATE END [generation={result_gen:?}, success={success}]",);
-        self.show_gen(result_gen);
-        (result_gen, success)
+        println!("PROPOGATE END [result={result:?}]");
+        result
     }
 
     fn show_gen(&self, generation: GenerationId) {
@@ -227,41 +254,53 @@ impl Environment {
             .unwrap_or(false)
     }
 
-    pub fn run_constraints(&mut self, generation: GenerationId) -> GenerationId {
+    pub fn run_constraints(&mut self, generation: GenerationId) -> Option<GenerationId> {
         println!("\nrun_constraints(): generation={generation:?}");
         let keys: HashSet<_> = self.constraints.keys().collect();
         let satisfied_set = self.satisfied_constraints(generation);
         let mut unsatisfied_iter = keys.difference(&satisfied_set).collect::<Vec<_>>();
         unsatisfied_iter.sort(); // keep sorted so behavior is determenistic. Order matters here!
         for &constraint_id in unsatisfied_iter {
-            let (constraint_gen, consistent) = self.do_constraint(constraint_id, generation);
-            if consistent {
-                self.mark_satisfied(constraint_gen, constraint_id);
+            let result = self.do_constraint(constraint_id, generation);
+            let result_generation_id = match &result {
+                NarrowResult::Satisfied | NarrowResult::Violation => {                        
+                    self.generations.insert(Generation {
+                        parent: generation,
+                        variables: self.generation(generation).variables.clone(),
+                        action: GenerationAction::Narrow {
+                            result: result.clone(),
+                            constraint_id
+                        }
+                    });
 
-                if constraint_gen != generation {
-                    dbg!(constraint_gen);
-                    if self.satisfies_all(constraint_gen) {
-                        println!("found");
-                        return constraint_gen;
+                    if matches!(result, NarrowResult::Satisfied) {
+                        continue;
+                    } else {
+                        return None;
                     }
-                    let descent_gen = self.run_constraints(constraint_gen);
-                    if self.satisfies_all(descent_gen) {
-                        return descent_gen;
-                    }
-                } else {
-                    self.mark_satisfied(generation, constraint_id);
+                },
+                NarrowResult::Narrow(variable, mutation) => {
+                    self.generations.insert(Generation {
+                        parent: generation,
+                        variables: self.generation(generation).variables.mutate(*variable, mutation.clone()).unwrap(),
+                        action: GenerationAction::Narrow {
+                            result: result.clone(),
+                            constraint_id
+                        }
+                    })
                 }
+            };
+            if let Some(generation_id) = self.run_constraints(result_generation_id) {
+                return Some(generation_id);
             }
         }
 
         println!("exit run_constraints() generation={generation:?}");
-        generation
+        Some(generation)
     }
 
     pub fn constrain<T: Constraint + 'static>(&mut self, constraint: T) -> ConstraintId {
         let new_constraint_id = self.constraints.insert(Box::new(constraint));
-        let var_gen = self.last_variable_introduction();
-        self.current_generation = self.run_constraints(var_gen.unwrap_or(self.root));
         new_constraint_id
     }
 
@@ -286,7 +325,7 @@ impl Environment {
 /// A frozen environment where mutations from a single constraint are applied in isolation.
 pub struct PropogationEnvironment<'env> {
     constraint_id: ConstraintId,
-    generations: &'env mut SlotMap<GenerationId, Generation>,
+    generations: &'env SlotMap<GenerationId, Generation>,
     parent_current_generation: GenerationId,
     local_current_generation: GenerationId,
 }
@@ -306,57 +345,16 @@ impl<'env> PropogationEnvironment<'env> {
             .expect("invalid generation id")
     }
 
-    pub fn last_mutation(&self) -> Option<(VariableId, Mutation)> {
-        let mut generation_id = self.local_current_generation;
-        while generation_id != GenerationId::null() {
-            let generation = self.generation(generation_id);
-            match &generation.action {
-                GenerationAction::MutateVariable {
-                    constraint: _,
-                    mutation,
-                    variable,
-                } => return Some((*variable, mutation.clone())),
-                _ => generation_id = generation.parent,
-            }
-        }
-
-        None
-    }
-
     pub fn variable(&self, variable: VariableId) -> &Variable {
         self.generation(self.local_current_generation)
             .variables
             .get(variable)
     }
 
-    pub fn mutate(
-        &mut self,
-        variable: VariableId,
-        mutation: Mutation,
-    ) -> Result<(), InvalidMutationError> {
-        println!("  MUTATE {variable:?} {mutation:?}");
-        let new_variable_generation = self
-            .generation(self.local_current_generation)
-            .variables
-            .mutate(variable, mutation.clone())?;
-        let new_generation = Generation {
-            parent: self.local_current_generation,
-            variables: new_variable_generation,
-            action: GenerationAction::MutateVariable {
-                constraint: self.constraint_id,
-                mutation,
-                variable,
-            },
-        };
-
-        self.local_current_generation = self.generations.insert(new_generation);
-        Ok(())
-    }
-
     pub fn variable_range(&self, variable: VariableId) -> Option<IntegerRange> {
         match self.variable(variable) {
             Variable::Domain(domain) => domain.range(),
-            Variable::Instantiated(val) => Some(IntegerRange::new(val.clone(), val.clone())),
+            Variable::Instantiated(val) => val.range(),
         }
     }
 }

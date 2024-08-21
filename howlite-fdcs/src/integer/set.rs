@@ -1,8 +1,8 @@
-use std::cmp::Ordering;
+use std::{cmp::Ordering, ops::Mul};
 
 use super::{num_bigint::BigInt, IntegerRange};
 
-#[derive(Clone, Default, PartialEq, Eq, Debug)]
+#[derive(Clone, Default, PartialEq, Eq, Debug, Hash)]
 pub struct IntegerSet {
     ranges: Vec<IntegerRange>,
 }
@@ -41,6 +41,31 @@ impl IntegerSet {
             .is_ok()
     }
 
+    pub fn is_subset_of(&self, other: &IntegerSet) -> bool {
+        assert!(self.is_normal());
+        assert!(other.is_normal());
+
+        let mut start_idx = 0;
+        for r0 in &self.ranges {
+            let mut found = false;
+            for i in start_idx..other.ranges.len() {
+                if other.ranges[i].hi < r0.lo {
+                    return false;
+                }
+                if r0.is_subrange_of(&other.ranges[i]) {
+                    start_idx = i;
+                    found = true
+                }
+            }
+
+            if !found {
+                return false;
+            }
+        }
+
+        true
+    }
+
     pub fn intersect(&self, other: &IntegerSet) -> IntegerSet {
         assert!(self.is_normal());
         assert!(other.is_normal());
@@ -55,6 +80,48 @@ impl IntegerSet {
         }
         intersect.make_normal();
         intersect
+    }
+
+    pub fn subtract_range(&mut self, other: &IntegerRange) -> bool {
+        assert!(self.is_normal());
+
+        let mut i = 0;
+        while i < self.ranges.len() {
+            if self.ranges[i].contains(&other.lo) || self.ranges[i].contains(&other.hi) {
+                let (lo_remaining, hi_remaining) = self.ranges[i].split_between(&other.lo - 1, &other.hi + 1);
+                let mut replace_iter = lo_remaining.into_iter().chain(hi_remaining.into_iter());
+                if let Some(replacement0) = replace_iter.next() {
+                    dbg!(&replacement0);
+                    self.ranges[i] = replacement0;
+                    if let Some(replacement1) = replace_iter.next() {
+                        dbg!(&replacement1);
+                        self.ranges.insert(i + 1, replacement1);
+                    }
+                } else {
+                    self.ranges.remove(i);
+                }
+                dbg!(&self.ranges);
+                assert!(self.is_normal());
+            }
+            
+            i += 1;
+        }
+
+        false
+    }
+
+    pub fn subtract(&mut self, other: &IntegerSet) -> bool {
+        let mut mutated = false;
+        for r in &other.ranges {
+            mutated = self.subtract_range(r) || mutated;
+        }
+        mutated
+    }
+
+    /// Get contiguous ranges within the set.
+    /// Ranges will be sorted from lowest to highest, and never overlap.
+    pub fn spans(&self) -> impl ExactSizeIterator<Item=&IntegerRange> {
+        self.ranges.iter()
     }
 }
 
@@ -163,22 +230,27 @@ impl IntegerSet {
 
         let maybe_range_idx = self.ranges.binary_search_by(|r| {
             if other < &r.lo {
-                Ordering::Less
-            } else if other > &r.hi {
                 Ordering::Greater
+            } else if other > &r.hi {
+                Ordering::Less
             } else {
                 Ordering::Equal
             }
         });
+        
+        dbg!(&maybe_range_idx, &other, &self.ranges);
 
         if let Ok(range_idx) = maybe_range_idx {
             let (lower_range, upper_range) = self.ranges[range_idx].split(other);
             let mut iter = lower_range.into_iter().chain(upper_range);
             if let Some(lower_range) = iter.next() {
                 self.ranges[range_idx] = lower_range;
-            }
-            if let Some(higher_range) = iter.next() {
-                self.ranges.insert(range_idx + 1, higher_range);
+                
+                if let Some(higher_range) = iter.next() {
+                    self.ranges.insert(range_idx + 1, higher_range);
+                }
+            } else {
+                self.ranges.remove(range_idx);
             }
 
             // this should maintain sort order and non-overlap, but an assert doesnt hurt...
@@ -239,6 +311,16 @@ impl IntegerSet {
         if !self.ranges.is_empty() {
             let last_idx = self.ranges.len() - 1;
             self.ranges[last_idx].hi.clone_from(hi);
+        }
+    }
+}
+
+impl Mul<&BigInt> for IntegerSet {
+    type Output = IntegerSet;
+
+    fn mul(self, other: &BigInt) -> IntegerSet {
+        IntegerSet {
+            ranges: self.ranges.into_iter().map(|r| r * &other).collect(),
         }
     }
 }

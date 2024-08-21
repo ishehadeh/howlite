@@ -4,6 +4,7 @@ use std::{
 };
 
 use num_bigint::BigInt;
+use num_traits::Signed;
 
 use crate::Mutation;
 
@@ -14,7 +15,7 @@ pub enum RangeSide {
 }
 
 /// An inclusive range of variable-length integers
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct IntegerRange {
     /// Smallest value in the range (inclusive)
     pub lo: BigInt,
@@ -82,24 +83,24 @@ impl IntegerRange {
         self.lo < subrange.lo && self.hi > subrange.hi
     }
 
+    pub fn is_subrange_of(&self, other: &IntegerRange) -> bool {
+        self.lo >= other.lo && self.hi <= other.hi
+    }
+
     /// split the range in two, creating two new ranges [self.lo, lo] and [hi, self.hi]
     pub fn split_between(
         &self,
         lo: BigInt,
         hi: BigInt,
     ) -> (Option<IntegerRange>, Option<IntegerRange>) {
-        if lo < self.lo && hi > self.hi {
-            (None, None)
-        } else {
-            (
-                IntegerRange::try_new(self.lo.clone(), lo),
-                IntegerRange::try_new(hi, self.hi.clone()),
-            )
-        }
+        (
+            IntegerRange::try_new(self.lo.clone(), lo),
+            IntegerRange::try_new(hi, self.hi.clone()),
+        )
     }
 
     pub fn size(&self) -> BigInt {
-        &self.hi - &self.lo
+        &self.hi - &self.lo + 1
     }
 
     pub fn with_lo(self, lo: impl Into<BigInt>) -> IntegerRange {
@@ -211,7 +212,6 @@ impl<T: BoundMarker> Index<T> for IntegerRange {
     }
 }
 
-
 impl BoundMarker for Lo {
     const IS_LO: bool = true;
     const INVERSE: Self::Inverse = HI;
@@ -225,11 +225,21 @@ impl BoundMarker for Hi {
 }
 
 impl IntegerRange {
-    pub fn outward_shift_mutation<B: BoundMarker>(&self, _: B, shift: &BigInt) -> Mutation {
-        if B::IS_LO {
-            Mutation::BoundLo { lo: &self.lo - shift }
+    pub fn outward_shift_mutation<B: BoundMarker>(
+        &self,
+        _: B,
+        shift_ref: BigInt,
+    ) -> Option<Mutation> {
+        if shift_ref.abs() >= self.size().abs() || &shift_ref == &BigInt::ZERO {
+            None
+        } else if B::IS_LO {
+            Some(Mutation::BoundLo {
+                lo: &self.lo - &shift_ref,
+            })
         } else {
-            Mutation::BoundHi { hi: &self.hi + shift }
+            Some(Mutation::BoundHi {
+                hi: &self.hi + &shift_ref,
+            })
         }
     }
 }

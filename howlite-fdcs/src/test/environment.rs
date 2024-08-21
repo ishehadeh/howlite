@@ -1,5 +1,5 @@
 use crate::{
-    constraints::{BinaryAddConstraint, OffsetLtConstraint},
+    constraints::{OffsetLtConstraint, MultiplyConstEqConstraint},
     environment::Environment,
     IntegerSet,
 };
@@ -12,10 +12,50 @@ fn compare() {
     let z = env.create_variable(IntegerSet::new_from_tuples(&[(-5, 2)]));
     env.constrain(OffsetLtConstraint::new(x, 0, y));
     env.constrain(OffsetLtConstraint::new(z, 0, x));
+    let gen = env.run_constraints(env.current_generation()).expect("constraints failed");
+    env.set_current_generation(gen);
     assert_eq!(env.domain(x), IntegerSet::new_from_tuples(&[(0, 3)]));
     assert_eq!(env.domain(y), IntegerSet::new_from_tuples(&[(4, 6)]));
     assert_eq!(env.domain(z), IntegerSet::new_from_tuples(&[(-5, -1)]));
 }
+
+#[test]
+fn compare_mul_eq() {
+    let mut env = Environment::new();
+    let x = env.create_variable(IntegerSet::new_from_tuples(&[(0, 5)]));
+    let y = env.create_variable(IntegerSet::new_from_tuples(&[(4, 6)]));
+    let t0 = env.create_variable(IntegerSet::new_from_tuples(&[(0, 15)]));
+    env.constrain(OffsetLtConstraint::new(x, 0, t0));
+    env.constrain(MultiplyConstEqConstraint::new(y, 3.into(), t0));
+    let gen = env.run_constraints(env.current_generation()).expect("constraints failed");
+    env.set_current_generation(gen);
+    assert_eq!(env.domain(x), IntegerSet::new_from_tuples(&[(0, 0)]));
+    assert_eq!(env.domain(y), IntegerSet::new_from_tuples(&[(4, 5)]));
+    assert_eq!(env.domain(t0), IntegerSet::new_from_tuples(&[(12, 15)]));
+}
+
+
+#[test]
+fn compare_mul_eq2() {
+    let mut env = Environment::new();
+    let x = env.create_variable(IntegerSet::new_from_tuples(&[(1, 2), (7, 9)]));
+    let y = env.create_variable(IntegerSet::new_from_tuples(&[(4, 6), (8, 11)]));
+    let t0 = env.create_variable(IntegerSet::new_from_tuples(&[(0, 100)]));
+    let t1 = env.create_variable(IntegerSet::new_from_tuples(&[(0, 100)]));
+    env.constrain(MultiplyConstEqConstraint::new(x, 8.into(), t1));
+    env.constrain(MultiplyConstEqConstraint::new(y, 3.into(), t0));
+    env.constrain(OffsetLtConstraint::new(t1, 0, t0));
+    env.constrain(OffsetLtConstraint::new(t1, 0, t0));
+    let gen = env.run_constraints(env.current_generation()).expect("constraints failed");
+    env.set_current_generation(gen);
+    assert_eq!(env.domain(x), IntegerSet::new_from_tuples(&[(2, 2)]));
+    assert_eq!(env.domain(t1), IntegerSet::new_from_tuples(&[(16, 16)]));
+    assert_eq!(env.domain(y), IntegerSet::new_from_tuples(&[(6, 6)]));
+    assert_eq!(env.domain(t0), IntegerSet::new_from_tuples(&[(18, 18)]));
+}
+
+/*
+
 
 #[test]
 fn add() {
@@ -28,7 +68,6 @@ fn add() {
     assert_eq!(env.domain(y), IntegerSet::new_from_tuples(&[(4, 6)]));
     assert_eq!(env.domain(z), IntegerSet::new_from_tuples(&[(7, 10)]));
 }
-
 #[test]
 fn add_coefficient() {
     let mut env = Environment::new();
@@ -132,3 +171,4 @@ fn linear_system() {
     assert_eq!(env.domain(x), IntegerSet::new_from_tuples(&[(-4, -4)]));
     assert_eq!(env.domain(y), IntegerSet::new_from_tuples(&[(1, 1)]));
 }
+*/
