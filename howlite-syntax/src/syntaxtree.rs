@@ -3,10 +3,6 @@ use slab::Slab;
 
 pub type Ast = ();
 
-pub type SyntaxNodeRef {
-    slab_ref: usize
-}
-
 #[derive(Clone, Debug, Default)]
 pub struct SyntaxTreeBuffer {
     slab: Slab<Ast>,
