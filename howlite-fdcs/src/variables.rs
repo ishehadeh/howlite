@@ -90,7 +90,10 @@ pub enum InvalidMutationError {
     Instantiated,
 
     #[error("cannot instantiate variable as {value:?}, domain is {domain:?}")]
-    InstantiateOutOfDomain { value: IntegerSet, domain: IntegerSet },
+    InstantiateOutOfDomain {
+        value: IntegerSet,
+        domain: IntegerSet,
+    },
 
     #[error("cannot exclude value {value}, not in domain {domain:?}")]
     ExcludeOutOfDomain { value: BigInt, domain: IntegerSet },

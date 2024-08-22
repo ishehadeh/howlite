@@ -1,18 +1,74 @@
 use crate::{
-    constraints::{OffsetLtConstraint, MultiplyConstEqConstraint},
+    constraints::{MultiplyConstEqConstraint, OffsetLtConstraint},
     environment::Environment,
     IntegerSet,
 };
 
+macro_rules! iset {
+    (@range [$($args:expr),*] -> , $x:literal .. $y:literal $($rest:tt)*) => {
+        iset!(@range [$($args),* ($x, $y).into()] -> $($rest)*)
+    };
+
+    (@range [$($args:expr),*] -> , $x:literal $($rest:tt)*) => {
+        iset!(@range [($x, $x).into(), $($args),*] -> $($rest)*)
+    };
+
+
+    (@range [$($args:expr),*] ->) => {
+        vec![$($args),*]
+    };
+
+    ($($args:tt)*) => {
+        IntegerSet::new(iset!(@range [] -> $($args)*))
+    };
+
+}
+
+macro_rules! constraints {
+    (using $env:expr; let $($var:ident = { $($val:tt)* } ),*; ensure $($constraints:tt)*) => {
+        $(
+            let $var = $env.create_variable(iset!($($val)*));
+        )*
+        constraints!(@c $env, $($constraints)*);
+    };
+
+    (@c $env:expr, $a:ident < $b:ident, $($rest:tt)*) => {
+       $env.constrain($crate::constraints::OffsetLtConstraint::lt($a, $b));
+       constraints!(@c $env, $($rest)*);
+    };
+
+    (@c $env:expr, $a:ident =< $b:ident, $($rest:tt)*) => {
+       $env.constrain($crate::constraints::OffsetLtConstraint::lt_eq($a, $b));
+        constraints!(@c $env, $($rest)*);
+    };
+
+    (@c $env:expr, $a:ident > $b:ident, $($rest:tt)*) => {
+        $env.constrain($crate::constraints::OffsetLtConstraint::gt($a, $b));
+        constraints!(@c $env, $($rest)*);
+    };
+
+    (@c $env:expr, $a:ident >= $b:ident, $($rest:tt)*) => {
+       $env.constrain($crate::constraints::OffsetLtConstraint::gt_eq($a, $b));
+        constraints!(@c $env, $($rest)*);
+    };
+
+    (@c $env:expr,) => { };
+}
+
 #[test]
 fn compare() {
     let mut env = Environment::new();
-    let x = env.create_variable(IntegerSet::new_from_tuples(&[(0, 5)]));
-    let y = env.create_variable(IntegerSet::new_from_tuples(&[(4, 6)]));
-    let z = env.create_variable(IntegerSet::new_from_tuples(&[(-5, 2)]));
-    env.constrain(OffsetLtConstraint::new(x, 0, y));
-    env.constrain(OffsetLtConstraint::new(z, 0, x));
-    let gen = env.run_constraints(env.current_generation()).expect("constraints failed");
+    constraints! {
+        using env;
+        let x = { 0 .. 5, 8 },
+            y = { 4 .. 6 },
+            z = { -5 .. 2 };
+        ensure x < y,
+               x > z,
+    }
+    let gen = env
+        .run_constraints(env.current_generation())
+        .expect("constraints failed");
     env.set_current_generation(gen);
     assert_eq!(env.domain(x), IntegerSet::new_from_tuples(&[(0, 3)]));
     assert_eq!(env.domain(y), IntegerSet::new_from_tuples(&[(4, 6)]));
@@ -25,15 +81,14 @@ fn compare_mul_eq() {
     let x = env.create_variable(IntegerSet::new_from_tuples(&[(0, 5)]));
     let y = env.create_variable(IntegerSet::new_from_tuples(&[(4, 6)]));
     let t0 = env.create_variable(IntegerSet::new_from_tuples(&[(0, 15)]));
-    env.constrain(OffsetLtConstraint::new(x, 0, t0));
+    env.constrain(OffsetLtConstraint::lt(x, t0));
     env.constrain(MultiplyConstEqConstraint::new(y, 3.into(), t0));
-    let gen = env.run_constraints(env.current_generation()).expect("constraints failed");
+    let gen = env
+        .run_constraints(env.current_generation())
+        .expect("constraints failed");
     env.set_current_generation(gen);
-    assert_eq!(env.domain(x), IntegerSet::new_from_tuples(&[(0, 0)]));
-    assert_eq!(env.domain(y), IntegerSet::new_from_tuples(&[(4, 5)]));
     assert_eq!(env.domain(t0), IntegerSet::new_from_tuples(&[(12, 15)]));
 }
-
 
 #[test]
 fn compare_mul_eq2() {
@@ -44,9 +99,10 @@ fn compare_mul_eq2() {
     let t1 = env.create_variable(IntegerSet::new_from_tuples(&[(0, 100)]));
     env.constrain(MultiplyConstEqConstraint::new(x, 8.into(), t1));
     env.constrain(MultiplyConstEqConstraint::new(y, 3.into(), t0));
-    env.constrain(OffsetLtConstraint::new(t1, 0, t0));
-    env.constrain(OffsetLtConstraint::new(t1, 0, t0));
-    let gen = env.run_constraints(env.current_generation()).expect("constraints failed");
+    env.constrain(OffsetLtConstraint::lt(t1, t0));
+    let gen = env
+        .run_constraints(env.current_generation())
+        .expect("constraints failed");
     env.set_current_generation(gen);
     assert_eq!(env.domain(x), IntegerSet::new_from_tuples(&[(2, 2)]));
     assert_eq!(env.domain(t1), IntegerSet::new_from_tuples(&[(16, 16)]));

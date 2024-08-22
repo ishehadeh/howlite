@@ -7,15 +7,12 @@ use crate::{
     variables::{InvalidMutationError, Mutation, Variable, VariableId},
 };
 
-
-
 #[derive(Debug, Clone)]
 pub enum NarrowResult {
     Narrow(VariableId, Mutation),
     Satisfied,
     Violation,
 }
-
 
 #[derive(Debug, Clone)]
 pub struct Event {
@@ -26,23 +23,28 @@ pub struct Event {
     pub mutation: Mutation,
 }
 
-
-
 pub trait Constraint: Debug {
-    fn propogate(&self, env: &mut PropogationEnvironment<'_>, event: Option<&Event>) -> NarrowResult;
+    fn propogate(
+        &self,
+        env: &mut PropogationEnvironment<'_>,
+        event: Option<&Event>,
+    ) -> NarrowResult;
 }
 
 pub type AnyConstraint = Box<dyn Constraint>;
 
 impl Constraint for AnyConstraint {
-    fn propogate(&self, env: &mut PropogationEnvironment<'_>, event: Option<&Event>) -> NarrowResult {
+    fn propogate(
+        &self,
+        env: &mut PropogationEnvironment<'_>,
+        event: Option<&Event>,
+    ) -> NarrowResult {
         self.as_ref().propogate(env, event)
     }
 }
 
 new_key_type! { pub struct ConstraintId; }
 new_key_type! { pub struct GenerationId; pub struct EventId; }
-
 
 #[derive(Clone, Default, Debug)]
 pub struct VariableGeneration {
@@ -105,8 +107,8 @@ enum GenerationAction {
     },
     Narrow {
         constraint_id: ConstraintId,
-        result: NarrowResult
-    }
+        result: NarrowResult,
+    },
 }
 
 #[derive(Debug)]
@@ -154,7 +156,7 @@ impl Environment {
     pub fn set_current_generation(&mut self, gen: GenerationId) -> GenerationId {
         let old = self.current_generation();
         self.current_generation = gen;
-        return old
+        return old;
     }
 
     pub fn create_variable(&mut self, domain: IntegerSet) -> VariableId {
@@ -209,12 +211,15 @@ impl Environment {
                 GenerationAction::Narrow {
                     constraint_id,
                     result: NarrowResult::Narrow(variable, mutation),
-                } => constraint.propogate(&mut environment, Some(&Event {
-                    constraint: constraint_id.clone(),
-                    variable: variable.clone(),
-                    mutation: mutation.clone(),
-                })),
-                _ => constraint.propogate(&mut environment, None)
+                } => constraint.propogate(
+                    &mut environment,
+                    Some(&Event {
+                        constraint: constraint_id.clone(),
+                        variable: variable.clone(),
+                        mutation: mutation.clone(),
+                    }),
+                ),
+                _ => constraint.propogate(&mut environment, None),
             }
         };
         println!("PROPOGATE END [result={result:?}]");
@@ -263,14 +268,14 @@ impl Environment {
         for &constraint_id in unsatisfied_iter {
             let result = self.do_constraint(constraint_id, generation);
             let result_generation_id = match &result {
-                NarrowResult::Satisfied | NarrowResult::Violation => {                        
+                NarrowResult::Satisfied | NarrowResult::Violation => {
                     self.generations.insert(Generation {
                         parent: generation,
                         variables: self.generation(generation).variables.clone(),
                         action: GenerationAction::Narrow {
                             result: result.clone(),
-                            constraint_id
-                        }
+                            constraint_id,
+                        },
                     });
 
                     if matches!(result, NarrowResult::Satisfied) {
@@ -278,17 +283,19 @@ impl Environment {
                     } else {
                         return None;
                     }
-                },
-                NarrowResult::Narrow(variable, mutation) => {
-                    self.generations.insert(Generation {
-                        parent: generation,
-                        variables: self.generation(generation).variables.mutate(*variable, mutation.clone()).unwrap(),
-                        action: GenerationAction::Narrow {
-                            result: result.clone(),
-                            constraint_id
-                        }
-                    })
                 }
+                NarrowResult::Narrow(variable, mutation) => self.generations.insert(Generation {
+                    parent: generation,
+                    variables: self
+                        .generation(generation)
+                        .variables
+                        .mutate(*variable, mutation.clone())
+                        .unwrap(),
+                    action: GenerationAction::Narrow {
+                        result: result.clone(),
+                        constraint_id,
+                    },
+                }),
             };
             if let Some(generation_id) = self.run_constraints(result_generation_id) {
                 return Some(generation_id);

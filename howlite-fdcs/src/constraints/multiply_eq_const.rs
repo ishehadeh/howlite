@@ -13,9 +13,15 @@ pub struct MultiplyConstEqConstraint {
 }
 
 impl MultiplyConstEqConstraint {
-    pub fn new(lhs: VariableId, lhs_coefficient: BigInt, rhs: VariableId) -> MultiplyConstEqConstraint {
+    pub fn new(
+        lhs: VariableId,
+        lhs_coefficient: BigInt,
+        rhs: VariableId,
+    ) -> MultiplyConstEqConstraint {
         MultiplyConstEqConstraint {
-            lhs, lhs_coefficient, rhs
+            lhs,
+            lhs_coefficient,
+            rhs,
         }
     }
     fn narrow_lhs(&self, ctx: &mut PropogationEnvironment) -> NarrowResult {
@@ -40,14 +46,24 @@ impl MultiplyConstEqConstraint {
 
         if lhs_range.hi > rhs_range.hi {
             return lhs_var_range
-                .outward_shift_mutation(HI, (&rhs_range.hi - &lhs_range.hi).max(-lhs_range.size()).div_floor(&self.lhs_coefficient))
+                .outward_shift_mutation(
+                    HI,
+                    (&rhs_range.hi - &lhs_range.hi)
+                        .max(-lhs_range.size())
+                        .div_floor(&self.lhs_coefficient),
+                )
                 .map(|m| NarrowResult::Narrow(self.lhs, m))
                 .unwrap_or(NarrowResult::Violation);
         }
         if lhs_range.lo < rhs_range.lo {
             dbg!((&lhs_range.lo - &rhs_range.lo).max(-lhs_range.size()));
             return lhs_var_range
-                .outward_shift_mutation(LO, (&lhs_range.lo - &rhs_range.lo).max(-lhs_range.size()).div_floor(&self.lhs_coefficient))
+                .outward_shift_mutation(
+                    LO,
+                    (&lhs_range.lo - &rhs_range.lo)
+                        .max(-lhs_range.size())
+                        .div_floor(&self.lhs_coefficient),
+                )
                 .map(|m| NarrowResult::Narrow(self.lhs, m))
                 .unwrap_or(NarrowResult::Violation);
         }
@@ -131,7 +147,10 @@ impl Constraint for MultiplyConstEqConstraint {
         match event {
             Some(event) if event.variable == self.rhs => {
                 let lhs_result = self.narrow_lhs(ctx);
-                if matches!(lhs_result, NarrowResult::Violation | NarrowResult::Satisfied) {
+                if matches!(
+                    lhs_result,
+                    NarrowResult::Violation | NarrowResult::Satisfied
+                ) {
                     self.narrow_rhs(ctx)
                 } else {
                     lhs_result
@@ -139,7 +158,10 @@ impl Constraint for MultiplyConstEqConstraint {
             }
             Some(_) | None => {
                 let rhs_result = self.narrow_rhs(ctx);
-                if matches!(rhs_result, NarrowResult::Violation | NarrowResult::Satisfied) {
+                if matches!(
+                    rhs_result,
+                    NarrowResult::Violation | NarrowResult::Satisfied
+                ) {
                     self.narrow_lhs(ctx)
                 } else {
                     rhs_result

@@ -12,12 +12,60 @@ pub struct OffsetLtConstraint {
 }
 
 impl OffsetLtConstraint {
-    pub fn new(lhs: VariableId, offset: impl Into<BigInt>, rhs: VariableId) -> OffsetLtConstraint {
+    pub fn lt_offset(
+        lhs: VariableId,
+        offset: impl Into<BigInt>,
+        rhs: VariableId,
+    ) -> OffsetLtConstraint {
         OffsetLtConstraint {
             lhs,
             lhs_offset: offset.into(),
             rhs,
         }
+    }
+
+    pub fn gt_offset(
+        lhs: VariableId,
+        offset: impl Into<BigInt>,
+        rhs: VariableId,
+    ) -> OffsetLtConstraint {
+        OffsetLtConstraint {
+            lhs: rhs,
+            lhs_offset: -offset.into(),
+            rhs: lhs,
+        }
+    }
+
+    pub fn lt_eq_offset(
+        lhs: VariableId,
+        offset: impl Into<BigInt>,
+        rhs: VariableId,
+    ) -> OffsetLtConstraint {
+        Self::lt_offset(lhs, offset.into() + 1, rhs)
+    }
+
+    pub fn gt_eq_offset(
+        lhs: VariableId,
+        offset: impl Into<BigInt>,
+        rhs: VariableId,
+    ) -> OffsetLtConstraint {
+        Self::gt_offset(lhs, offset.into() - 1, rhs)
+    }
+
+    pub fn gt_eq(lhs: VariableId, rhs: VariableId) -> OffsetLtConstraint {
+        Self::gt_eq_offset(lhs, BigInt::ZERO, rhs)
+    }
+
+    pub fn lt_eq(lhs: VariableId, rhs: VariableId) -> OffsetLtConstraint {
+        Self::lt_eq_offset(lhs, BigInt::ZERO, rhs)
+    }
+
+    pub fn gt(lhs: VariableId, rhs: VariableId) -> OffsetLtConstraint {
+        Self::gt_offset(lhs, BigInt::ZERO, rhs)
+    }
+
+    pub fn lt(lhs: VariableId, rhs: VariableId) -> OffsetLtConstraint {
+        Self::lt_offset(lhs, BigInt::ZERO, rhs)
     }
 
     /// Try to constrain the right hand side in order to satisfy the constraint.
@@ -44,9 +92,12 @@ impl OffsetLtConstraint {
         if allowed_rhs_lo_adjustment == BigInt::ZERO {
             NarrowResult::Violation
         } else {
-            NarrowResult::Narrow(self.rhs, Mutation::BoundLo {
-                lo: rhs_range.lo + adjustment_needed.min(allowed_rhs_lo_adjustment),
-            })
+            NarrowResult::Narrow(
+                self.rhs,
+                Mutation::BoundLo {
+                    lo: rhs_range.lo + adjustment_needed.min(allowed_rhs_lo_adjustment),
+                },
+            )
         }
     }
 
@@ -71,9 +122,12 @@ impl OffsetLtConstraint {
         if allowed_lhs_hi_adjustment == BigInt::ZERO {
             NarrowResult::Violation
         } else {
-            NarrowResult::Narrow(self.lhs, Mutation::BoundHi {
-                hi: lhs_range.hi - adjustment_needed.min(allowed_lhs_hi_adjustment),
-            })
+            NarrowResult::Narrow(
+                self.lhs,
+                Mutation::BoundHi {
+                    hi: lhs_range.hi - adjustment_needed.min(allowed_lhs_hi_adjustment),
+                },
+            )
         }
     }
 }

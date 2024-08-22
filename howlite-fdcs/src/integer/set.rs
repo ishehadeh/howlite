@@ -88,7 +88,8 @@ impl IntegerSet {
         let mut i = 0;
         while i < self.ranges.len() {
             if self.ranges[i].contains(&other.lo) || self.ranges[i].contains(&other.hi) {
-                let (lo_remaining, hi_remaining) = self.ranges[i].split_between(&other.lo - 1, &other.hi + 1);
+                let (lo_remaining, hi_remaining) =
+                    self.ranges[i].split_between(&other.lo - 1, &other.hi + 1);
                 let mut replace_iter = lo_remaining.into_iter().chain(hi_remaining.into_iter());
                 if let Some(replacement0) = replace_iter.next() {
                     dbg!(&replacement0);
@@ -103,7 +104,7 @@ impl IntegerSet {
                 dbg!(&self.ranges);
                 assert!(self.is_normal());
             }
-            
+
             i += 1;
         }
 
@@ -120,7 +121,7 @@ impl IntegerSet {
 
     /// Get contiguous ranges within the set.
     /// Ranges will be sorted from lowest to highest, and never overlap.
-    pub fn spans(&self) -> impl ExactSizeIterator<Item=&IntegerRange> {
+    pub fn spans(&self) -> impl ExactSizeIterator<Item = &IntegerRange> {
         self.ranges.iter()
     }
 }
@@ -237,7 +238,7 @@ impl IntegerSet {
                 Ordering::Equal
             }
         });
-        
+
         dbg!(&maybe_range_idx, &other, &self.ranges);
 
         if let Ok(range_idx) = maybe_range_idx {
@@ -245,7 +246,7 @@ impl IntegerSet {
             let mut iter = lower_range.into_iter().chain(upper_range);
             if let Some(lower_range) = iter.next() {
                 self.ranges[range_idx] = lower_range;
-                
+
                 if let Some(higher_range) = iter.next() {
                     self.ranges.insert(range_idx + 1, higher_range);
                 }
