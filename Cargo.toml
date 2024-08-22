@@ -1,0 +1,2 @@
+[workspace]
+members = ["howlite-fdcs", "howlite-syntax"]

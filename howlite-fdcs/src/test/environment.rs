@@ -4,22 +4,31 @@ use crate::{
     IntegerSet,
 };
 
-macro_rules! iset {
-    (@range [$($args:expr),*] -> , $x:literal .. $y:literal $($rest:tt)*) => {
-        iset!(@range [$($args),* ($x, $y).into()] -> $($rest)*)
+macro_rules! _iset_helper {
+    (@range [$($args:expr),*,] -> $x:literal .. $y:literal, $($rest:tt)*) => {
+        _iset_helper!(@range [crate::integer::IntegerRange::new($x, $y), $($args),*] -> $($rest)*)
     };
 
-    (@range [$($args:expr),*] -> , $x:literal $($rest:tt)*) => {
-        iset!(@range [($x, $x).into(), $($args),*] -> $($rest)*)
+    (@range [$($args:expr),*,] -> $x:literal, $($rest:tt)*) => {
+        _iset_helper!(@range [crate::integer::IntegerRange::new($x, $x), $($args),*] -> $($rest)*)
     };
-
-
-    (@range [$($args:expr),*] ->) => {
+    
+    (@range [$($args:expr),*,] -> $x:literal .. $y:literal) => {
+         vec![crate::integer::IntegerRange::new($x, $y), $($args),*]
+    };
+    
+    (@range [$($args:expr),*,] -> $x:literal) => {
+        vec![crate::integer::IntegerRange::new($x, $x), $($args),*]
+    };
+    
+    (@range [$($args:expr),*,] ->) => {
         vec![$($args),*]
     };
+}
 
+macro_rules! iset {
     ($($args:tt)*) => {
-        IntegerSet::new(iset!(@range [] -> $($args)*))
+        IntegerSet::new(_iset_helper!(@range [,] -> $($args)*))
     };
 
 }
@@ -52,6 +61,11 @@ macro_rules! constraints {
         constraints!(@c $env, $($rest)*);
     };
 
+    (@c $env:expr, $a:ident * $x:literal = $b:ident, $($rest:tt)*) => {
+       $env.constrain($crate::constraints::MultiplyConstEqConstraint::new($a, $x.into(), $b));
+        constraints!(@c $env, $($rest)*);
+    };
+
     (@c $env:expr,) => { };
 }
 
@@ -78,11 +92,14 @@ fn compare() {
 #[test]
 fn compare_mul_eq() {
     let mut env = Environment::new();
-    let x = env.create_variable(IntegerSet::new_from_tuples(&[(0, 5)]));
-    let y = env.create_variable(IntegerSet::new_from_tuples(&[(4, 6)]));
-    let t0 = env.create_variable(IntegerSet::new_from_tuples(&[(0, 15)]));
-    env.constrain(OffsetLtConstraint::lt(x, t0));
-    env.constrain(MultiplyConstEqConstraint::new(y, 3.into(), t0));
+    constraints! {
+        using env;
+        let x = { 0 .. 5 },
+            y = { 4 .. 6 },
+            t0 = { 0 .. 15 };
+        ensure x < t0,
+               y * 3 = t0,
+    }
     let gen = env
         .run_constraints(env.current_generation())
         .expect("constraints failed");
@@ -93,13 +110,16 @@ fn compare_mul_eq() {
 #[test]
 fn compare_mul_eq2() {
     let mut env = Environment::new();
-    let x = env.create_variable(IntegerSet::new_from_tuples(&[(1, 2), (7, 9)]));
-    let y = env.create_variable(IntegerSet::new_from_tuples(&[(4, 6), (8, 11)]));
-    let t0 = env.create_variable(IntegerSet::new_from_tuples(&[(0, 100)]));
-    let t1 = env.create_variable(IntegerSet::new_from_tuples(&[(0, 100)]));
-    env.constrain(MultiplyConstEqConstraint::new(x, 8.into(), t1));
-    env.constrain(MultiplyConstEqConstraint::new(y, 3.into(), t0));
-    env.constrain(OffsetLtConstraint::lt(t1, t0));
+    constraints! {
+        using env;
+        let x = { 1 .. 2, 7 .. 9 },
+            y = { 4 .. 6, 8 .. 11 },
+            t0 = { 0 .. 100 },
+            t1 = { 0 .. 100 };
+        ensure x * 8 = t1,
+               y * 3 = t0,
+               t1 < t0,
+    }
     let gen = env
         .run_constraints(env.current_generation())
         .expect("constraints failed");
