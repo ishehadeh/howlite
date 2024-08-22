@@ -12,15 +12,15 @@ macro_rules! _iset_helper {
     (@range [$($args:expr),*,] -> $x:literal, $($rest:tt)*) => {
         _iset_helper!(@range [crate::integer::IntegerRange::new($x, $x), $($args),*] -> $($rest)*)
     };
-    
+
     (@range [$($args:expr),*,] -> $x:literal .. $y:literal) => {
          vec![crate::integer::IntegerRange::new($x, $y), $($args),*]
     };
-    
+
     (@range [$($args:expr),*,] -> $x:literal) => {
         vec![crate::integer::IntegerRange::new($x, $x), $($args),*]
     };
-    
+
     (@range [$($args:expr),*,] ->) => {
         vec![$($args),*]
     };
@@ -128,6 +128,29 @@ fn compare_mul_eq2() {
     assert_eq!(env.domain(t1), IntegerSet::new_from_tuples(&[(16, 16)]));
     assert_eq!(env.domain(y), IntegerSet::new_from_tuples(&[(6, 6)]));
     assert_eq!(env.domain(t0), IntegerSet::new_from_tuples(&[(18, 18)]));
+}
+
+#[test]
+fn blog_example() {
+    let mut env = Environment::new();
+    constraints! {
+        using env;
+        let x = { 0 .. 20 },
+            y = { 17 .. 30 },
+            z = { 3 .. 5 },
+            t0 = { -999 .. 999 };
+        ensure y < t0,
+               x < y,
+               z * 5 = t0,
+    }
+    let gen = env
+        .run_constraints(env.current_generation())
+        .expect("constraints failed");
+    env.set_current_generation(gen);
+    assert_eq!(env.domain(t0), IntegerSet::new_from_tuples(&[(20, 25)]));
+    assert_eq!(env.domain(z), IntegerSet::new_from_tuples(&[(4, 5)]));
+    assert_eq!(env.domain(x), IntegerSet::new_from_tuples(&[(0, 16)]));
+    assert_eq!(env.domain(y), IntegerSet::new_from_tuples(&[(17, 17)]));
 }
 
 /*
