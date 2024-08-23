@@ -27,8 +27,12 @@ Why this answer? Well, working through the problem, writing this post, It's the 
 
 Given this problem, Preseli minimizes `y`, so `y = 17`. Which isn't ideal, if we want to maximize the domain of each variable.
 
-### Choosing Solutions
+### Understanding the Problem
 
 This is a search problem. A binary search is a much smaller, but conceptually similar algorithm. We have a domain, and we recursively narrow that domain until a solution is found, or we've eliminated the entire domain.
 
 Now, in our problem we have several variables; all of which may have any set of integer values. There are many integers, even if constrained by our computer's memory. And there are many more possible sets of integers.
+
+## Constraints
+
+Variables are constrained to an initial set of integers.
