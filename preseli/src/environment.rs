@@ -156,7 +156,7 @@ impl Environment {
     pub fn set_current_generation(&mut self, gen: GenerationId) -> GenerationId {
         let old = self.current_generation();
         self.current_generation = gen;
-        return old;
+        old
     }
 
     pub fn create_variable(&mut self, domain: IntegerSet) -> VariableId {
@@ -214,8 +214,8 @@ impl Environment {
                 } => constraint.propogate(
                     &mut environment,
                     Some(&Event {
-                        constraint: constraint_id.clone(),
-                        variable: variable.clone(),
+                        constraint: *constraint_id,
+                        variable: *variable,
                         mutation: mutation.clone(),
                     }),
                 ),
@@ -307,8 +307,7 @@ impl Environment {
     }
 
     pub fn constrain<T: Constraint + 'static>(&mut self, constraint: T) -> ConstraintId {
-        let new_constraint_id = self.constraints.insert(Box::new(constraint));
-        new_constraint_id
+        self.constraints.insert(Box::new(constraint))
     }
 
     fn last_variable_introduction(&self) -> Option<GenerationId> {

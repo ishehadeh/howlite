@@ -321,7 +321,7 @@ impl Mul<&BigInt> for IntegerSet {
 
     fn mul(self, other: &BigInt) -> IntegerSet {
         IntegerSet {
-            ranges: self.ranges.into_iter().map(|r| r * &other).collect(),
+            ranges: self.ranges.into_iter().map(|r| r * other).collect(),
         }
     }
 }

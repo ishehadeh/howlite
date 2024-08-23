@@ -1,7 +1,7 @@
 use crate::{
     environment::{Constraint, Event, NarrowResult, PropogationEnvironment},
-    integer::{num_bigint::BigInt, HI, LO},
-    variables::{Mutation, Variable, VariableId},
+    integer::num_bigint::BigInt,
+    variables::{Mutation, VariableId},
 };
 
 #[derive(Clone, Debug)]

@@ -1,5 +1,4 @@
 use crate::{
-    constraints::{MultiplyConstEqConstraint, OffsetLtConstraint},
     environment::Environment,
     IntegerSet,
 };
