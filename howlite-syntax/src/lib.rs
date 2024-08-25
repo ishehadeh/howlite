@@ -1,16 +1,86 @@
-// pub mod syntaxtree;
-// TODO: syntax
-pub fn add(left: usize, right: usize) -> usize {
-    left + right
+// pub mod ast;
+// pub mod lexer;
+pub mod ast;
+pub mod span;
+pub mod treeslab;
+pub use ast::{AstNode, AstNodeData};
+use std::env;
+
+use lrpar::Span;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NewlineKind {
+    Lf,
+    CrLf,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CommentKind {
+    Line,
+    MultiLine,
+}
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TriviaData {
+    Space,
+    Tab,
+    Comment(CommentKind),
+    Newline(NewlineKind),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TriviaPeice {
+    pub span: Span,
+    pub data: TriviaData,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Trivia {
+    pub peices: Vec<TriviaPeice>,
+}
+
+impl TriviaPeice {
+    pub fn new(span: Span, data: TriviaData) -> TriviaPeice {
+        TriviaPeice { span, data }
     }
+}
+
+// mod errors;
+// pub use errors::{ParseError, ParseErrorKind};
+
+// use lalrpop_util::lalrpop_mod;
+
+// lalrpop_mod!(
+//     #[allow(clippy::all)]
+//     #[allow(unused)]
+//     pub grammar, "/grammar.rs");
+use lrlex::lrlex_mod;
+use lrpar::lrpar_mod;
+
+// Using `lrlex_mod!` brings the lexer for `calc.l` into scope. By default the
+// module name will be `calc_l` (i.e. the file name, minus any extensions,
+// with a suffix of `_l`).
+lrlex_mod!("howlite.l");
+// Using `lrpar_mod!` brings the parser for `calc.y` into scope. By default the
+// module name will be `calc_y` (i.e. the file name, minus any extensions,
+// with a suffix of `_y`).
+lrpar_mod!("howlite.y");
+
+#[test]
+fn main() {
+    // Get the `LexerDef` for the `calc` language.
+    let lexerdef = howlite_l::lexerdef();
+    // Now we create a lexer with the `lexer` method with which we can lex an
+    // input.
+    let lexer = lexerdef.lexer("\n    // hello world");
+    // Pass the lexer to the parser and lex and parse the input.
+    let (res, errs) = howlite_y::parse(&lexer);
+    for e in errs {
+        println!("{}", e.pp(&lexer, &howlite_y::token_epp));
+    }
+    match res {
+        Some(r) => println!("Result: {:?}", r),
+        _ => eprintln!("Unable to evaluate expression."),
+    }
+    panic!("");
 }

@@ -1,0 +1,9 @@
+// line comment
+/* Multi line comment in one line */
+/* Multi line comment 
+
+
+over many lines
+*/
+//
+/**/

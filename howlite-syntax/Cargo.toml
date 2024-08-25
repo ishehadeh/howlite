@@ -4,4 +4,13 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-slab = "0.4.9"
+logos = "0.14.0"
+cfgrammar = "=0.13.7"
+lrlex = "=0.13.7"
+lrpar = "=0.13.7"
+thiserror = { version = "1.0.56" }
+
+[build-dependencies]
+cfgrammar = "=0.13.7"
+lrlex = "=0.13.7"
+lrpar = "=0.13.7"
