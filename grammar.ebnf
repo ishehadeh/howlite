@@ -1,0 +1,118 @@
+(*
+
+  Welcome to EBNF 2 Railroad
+  ==========================
+
+  In this editor you can try out the command line tool.
+
+  Comments will be rendered throught markdown,
+  so you can do **markup** in them.
+
+  `Ctrl-Shift-C`/`Cmd-Shift-C` will expand the selected
+  string in `terminal` elements for each character,
+  as a choice element.
+
+  ```
+  digit = 1234567890;
+  ```
+
+  selecting the numbers and pressing `Ctrl-Shift-C` /
+  `Cmd-Shift-C`
+
+  will expand this into:
+
+  ```
+  digit = "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "0";
+  ```
+
+  The EBNF syntax is as follows:
+
+*)
+
+(*
+  # Top Level Statements
+*)
+
+function = "func", {trivia}-, identifier, {trivia}, "(", ")";
+
+type_spec = identifier
+         | integer_range
+         | integer
+         | struct_spec
+         | reference_type_spec
+         | array_type_spec;
+
+reference_type_spec = "&", {trivia}, type_spec;
+array_type_spec = "[", {trivia}, type_spec, {trivia}, "]";
+
+struct_spec = "{", {trivia}, {struct_member_list_spec}, {trivia}, "}";
+struct_member_spec = identifier, {trivia}, ":", {trivia}, type_spec;
+struct_member_list_spec = (struct_member_spec, {trivia}, ",", {trivia}, {struct_member_list_spec})
+                        | struct_member_list_spec;
+(*
+  # Low Level Entities
+
+*)
+
+
+identifier = ("_" | alpha), { "_" |  alpha | digit10 };
+unsigned_integer10 = digit10, { ("_", digit10) | digit10 };
+unsigned_integer2 = digit2, { ("_", digit2) | digit2 };
+unsigned_integer8 = digit8, { ("_", digit8) | digit8 };
+unsigned_integer16 = digit16, { ("_", digit16) | digit16 };
+
+integer = ["-" | "+"],
+        ( unsigned_integer10
+        | ("0x", unsigned_integer16)
+        | ("0b", unsigned_integer2)
+        | ("0o", unsigned_integer8));
+
+integer_range = integer, {trivia}, "..", {trivia}, integer;
+
+comment_line = "//", {printable | space}, newline;
+comment_multi = "/*", {printable | space | newline}, "*/";
+trivia = space | newline | comment_line | comment_multi;
+
+(*
+  Character Classes
+  ----------------
+  These are low level components, the small building blocks.
+*)
+
+(*
+  ### Whitespace & Newlines
+*)
+
+(* unix style newlines *)
+newline_lf = "\n";
+
+(*windows style newlines *)
+newline_crlf = "\r\n";
+
+
+newline = newline_crlf | newline_lf;
+(* documents may mix unix/windows newlines, although it's discouraged *)
+
+space = " " | "\t";
+
+printable = ? ascii \x21 .. \x7E ?;
+
+alpha  = "A" | "B" | "C" | "D" | "E" | "F" | "G"
+       | "H" | "I" | "J" | "K" | "L" | "M" | "N"
+       | "O" | "P" | "Q" | "R" | "S" | "T" | "U"
+       | "V" | "W" | "X" | "Y" | "Z" | "a" | "b"
+       | "c" | "d" | "e" | "f" | "g" | "h" | "i"
+       | "j" | "k" | "l" | "m" | "n" | "o" | "p"
+       | "q" | "r" | "s" | "t" | "u" | "v" | "w"
+       | "x" | "y" | "z" ;
+
+digit2 = "0" | "1";
+digit8 = digit2 | "2" | "3" | "4" | "5" | "6" | "7";
+digit10 = digit8 | "8" | "9";
+digit16 = digit10
+        | "a" | "A"
+        | "b" | "B"
+        | "c" | "C"
+        | "d" | "D"
+        | "e" | "E"
+        | "f" | "F";

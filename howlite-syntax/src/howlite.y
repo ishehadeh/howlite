@@ -1,7 +1,8 @@
 %start Program
+%parse-param tree: &crate::treeslab::TreeSlab<AstNode> 
 %%
-Program -> Result<Trivia>:
-  Trivia { $1 };
+Program -> Result<AstRef>:
+  LiteralInt { $1 };
 
 Trivia -> Result<Trivia>:
   Trivia TriviaPeice {
@@ -12,6 +13,18 @@ Trivia -> Result<Trivia>:
   | TriviaPeice { Ok(Trivia { peices: vec![$1?] }) }
   ;
 
+
+LiteralInt -> Result<AstRef>:
+    'MINUS' Trivia LiteralUInt { node!(tree, $span, LiteralInteger { value: -($3?) }) }
+  | 'PLUS'  Trivia LiteralUInt { node!(tree, $span, LiteralInteger { value: $3? }) }
+  | LiteralUInt { node!(tree, $span, LiteralInteger {value: $1? }) };
+
+LiteralUInt -> Result<BigInt>:
+    'UINT2'  { Ok(must_parse_int_radix::<2>($lexer.span_str($1?.span()))) }
+  | 'UINT8'  { Ok(must_parse_int_radix::<8>($lexer.span_str($1?.span()))) }
+  | 'UINT10' { Ok(must_parse_int_radix::<10>($lexer.span_str($1?.span()))) }
+  | 'UINT16' { Ok(must_parse_int_radix::<16>($lexer.span_str($1?.span()))) };
+ 
 TriviaPeice -> Result<TriviaPeice>:
   Newline { $1 }
   | Space { $1 }
@@ -43,8 +56,46 @@ MultiLineComment -> Result<TriviaPeice>:
 
 %%
 
-use crate::{Trivia, TriviaData, TriviaPeice, NewlineKind, CommentKind};
-use lrpar::Span;
+use crate::{Trivia, TriviaData, TriviaPeice, NewlineKind, treeslab, treeslab::NodeId, CommentKind, ast::*};
+use lrpar::{Span, NonStreamingLexer, LexerTypes};
+use num_bigint::{BigInt, Sign};
 
 pub type Result<T, E = Box<dyn std::error::Error>> = std::result::Result<T, E>;
 
+#[inline(always)]
+fn must_parse_int_radix<const RADIX: u32>(s: &str) -> BigInt {
+  let radix_prefix_size = if RADIX == 10 { 0 } else { 2 };
+
+  /* TODO(ian, low): potential optimization: we can parse numbers ourselves here to avoid an extra allocation
+  let digit_count = s.len() - radix_prefix_size;
+  let est_bits_per_digit = RADIX.next_power_of_two().ilog2();
+  let est_bytes = ((est_bits_per_digit * digit_count) / 32) + 1;
+  let mut digits: Vec<u32> = Vec::with_capacity(est_bytes);
+  */
+
+  // lexer should have already verified these are all ascii digits in radix
+  let mut digit_bytes = s[radix_prefix_size..]
+    .bytes()
+    .filter(|&c| c != b'_')
+    .collect::<Vec<u8>>();
+  
+  if RADIX > 10 {
+    for i in 0..digit_bytes.len() {
+      digit_bytes[i] += ((digit_bytes[i] & 0b0100_000) >> 3) | ((digit_bytes[i] & 0b0100_000) >> 7);
+    }
+  }
+
+  for i in 0..digit_bytes.len() {
+    digit_bytes[i] &= 0b0000_1111;
+  }
+
+  BigInt::from_radix_be(Sign::Plus, digit_bytes.as_slice(), RADIX).unwrap()
+}
+
+pub type AstRef = NodeId<AstNode>;
+
+macro_rules! node {
+  ($t:ident, $span:expr, $node:expr) => {
+    Ok($t.push(AstNode::new($span, $node)))
+  }
+}

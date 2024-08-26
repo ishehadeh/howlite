@@ -1,2 +1,3 @@
 [workspace]
 members = ["preseli", "howlite-syntax"]
+resolver = "2"

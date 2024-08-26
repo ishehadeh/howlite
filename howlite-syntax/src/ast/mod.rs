@@ -1,8 +1,12 @@
-use crate::treeslab::NodeId;
+use crate::treeslab::{Node, NodeId};
 
 use lrpar::Span;
+use num_bigint::BigInt;
 
 use std::fmt::Debug;
+
+mod literals;
+pub use literals::*;
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -29,8 +33,10 @@ pub enum InfixOp {
 pub enum AstNodeData {
     // TODO convert this to usize
     LiteralInteger(LiteralInteger),
-    LiteralBool(LiteralBool),
     LiteralArray(LiteralArray),
+    StructLiteral(StructLiteral),
+    StructLiteralMember(StructLiteralMember),
+
     Ident(Ident),
     FieldAccess(FieldAccess),
     ArrayAccess(ArrayAccess),
@@ -46,7 +52,6 @@ pub enum AstNodeData {
     ExprCall(ExprCall),
     Expr(Expr),
 
-    StructLiteral(StructLiteral),
     StmtLet(StmtLet),
     StmtWhile(StmtWhile),
 
@@ -58,7 +63,6 @@ pub enum AstNodeData {
     // Types
     TyRef(TyRef),
     TyStruct(TyStruct),
-    StructLiteralMember(StructLiteralMember),
     StructMember(StructMember),
     TyNumberRange(TyNumberRange),
     TyArray(TyArray),
@@ -254,18 +258,6 @@ pub struct Block {
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone, PartialEq)]
-pub struct LiteralInteger {
-    pub value: i32,
-}
-
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Debug, Clone, PartialEq)]
-pub struct LiteralBool {
-    pub value: bool,
-}
-
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Debug, Clone, PartialEq)]
 pub struct Ident {
     pub symbol: String,
 }
@@ -277,25 +269,6 @@ pub struct DefFunction {
     pub params: Vec<NodeId<AstNode>>,
     pub return_ty: NodeId<AstNode>,
     pub body: NodeId<AstNode>,
-}
-
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Debug, Clone, PartialEq)]
-pub struct StructLiteralMember {
-    pub field: Ident,
-    pub value: NodeId<AstNode>,
-}
-
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Debug, Clone, PartialEq)]
-pub struct StructLiteral {
-    pub members: Vec<NodeId<AstNode>>,
-}
-
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Debug, Clone, PartialEq)]
-pub struct LiteralArray {
-    pub values: Vec<NodeId<AstNode>>,
 }
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -319,7 +292,6 @@ macro_rules! impl_ast_intos {
 
 impl_ast_intos!(
     LiteralInteger(LiteralInteger),
-    LiteralBool(LiteralBool),
     LiteralArray(LiteralArray),
     Ident(Ident),
     FieldAccess(FieldAccess),
@@ -347,3 +319,5 @@ impl_ast_intos!(
     TyUnit(TyUnit),
     TyParam(TyParam)
 );
+
+impl Node for AstNode {}

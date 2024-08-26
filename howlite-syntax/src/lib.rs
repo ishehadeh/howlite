@@ -5,6 +5,7 @@ pub mod span;
 pub mod treeslab;
 pub use ast::{AstNode, AstNodeData};
 use std::env;
+use treeslab::TreeSlab;
 
 use lrpar::Span;
 
@@ -72,9 +73,13 @@ fn main() {
     let lexerdef = howlite_l::lexerdef();
     // Now we create a lexer with the `lexer` method with which we can lex an
     // input.
-    let lexer = lexerdef.lexer("\n    // hello world");
+    let lexer = lexerdef.lexer("-/* hello  */0b1001");
     // Pass the lexer to the parser and lex and parse the input.
-    let (res, errs) = howlite_y::parse(&lexer);
+    let tree: TreeSlab<_> = TreeSlab::default();
+    let (res, errs) = howlite_y::parse(&lexer, &tree);
+
+    dbg!(&tree);
+
     for e in errs {
         println!("{}", e.pp(&lexer, &howlite_y::token_epp));
     }
