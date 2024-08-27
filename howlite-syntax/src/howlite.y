@@ -15,54 +15,65 @@ TriviaSeries -> Result<Trivia>:
 
 Trivia -> Result<Option<Trivia>>:
     TriviaSeries { Ok(Some($1?)) }
-  | %empty { None }
+  | %empty { Ok(None) }
   ;
+
 Expr -> Result<AstRef>:
-  ExprInfixBitwise { $1 }
+  ExprInfixLogic { $1 }
+  ;
+
+ExprInfixLogic -> Result<AstRef>:
+    ExprInfixLogic '&&' Trivia ExprInfixBitwise {
+      infix!(tree, $span, $1, $4, InfixOp::LogicalAnd)
+  }
+  | ExprInfixLogic '||' Trivia ExprInfixBitwise {
+      infix!(tree, $span, $1, $4, InfixOp::LogicalAnd)
+    }
+  | ExprInfixBitwise { $1 }
   ;
 
 ExprInfixBitwise -> Result<AstRef>:
     Term '>>' Trivia Term {
-      node!(tree, $span, ExprInfix { lhs: $1?, rhs: $4?, op: InfixOp::BitRShift })
+      infix!(tree, $span, $1, $4, InfixOp::BitRShift)
     }
   | Term '<<' Trivia Term {
-      node!(tree, $span, ExprInfix { lhs: $1?, rhs: $4?, op: InfixOp::BitLShift })
+      infix!(tree, $span, $1, $4, InfixOp::BitLShift)
     }
   | Term '|' Trivia Term {
-      node!(tree, $span, ExprInfix { lhs: $1?, rhs: $4?, op: InfixOp::BitOr })
+      infix!(tree, $span, $1, $4, InfixOp::BitOr)
     }
   | Term '&' Trivia Term {
-      node!(tree, $span, ExprInfix { lhs: $1?, rhs: $4?, op: InfixOp::BitAnd })
+      infix!(tree, $span, $1, $4, InfixOp::BitAnd)
     }
   | Term '^' Trivia Term {
-      node!(tree, $span, ExprInfix { lhs: $1?, rhs: $4?, op: InfixOp::BitXor })
+      infix!(tree, $span, $1, $4, InfixOp::BitXor)
     }
   | ExprInfixAdd { $1 }
   ;
 
 ExprInfixAdd -> Result<AstRef>:
     ExprInfixAdd '-' Trivia ExprInfixMul {
-      node!(tree, $span, ExprInfix { lhs: $1?, rhs: $4?, op: InfixOp::Sub })
+      infix!(tree, $span, $1, $4, InfixOp::Sub)
     }
   | ExprInfixAdd '+' Trivia ExprInfixMul {
-      node!(tree, $span, ExprInfix { lhs: $1?, rhs: $4?, op: InfixOp::Add })
+      infix!(tree, $span, $1, $4, InfixOp::Add)
     }
   | ExprInfixMul { $1 }
   ;
 
 ExprInfixMul -> Result<AstRef>:
     ExprInfixMul '*' Trivia Term {
-      node!(tree, $span, ExprInfix { lhs: $1?, rhs: $4?, op: InfixOp::Mul })
+      infix!(tree, $span, $1, $4, InfixOp::Mul)
     }
   | ExprInfixMul '/' Trivia Term {
-      node!(tree, $span, ExprInfix { lhs: $1?, rhs: $4?, op: InfixOp::Div })
+      infix!(tree, $span, $1, $4, InfixOp::Div)
     }
   | Term { $1 }
   ;
 
 Term -> Result<AstRef>:
   LiteralInt { $1 }
-  | '(' Trivia Expr ')' Trivia { $1 }
+  | '(' Trivia Expr ')' Trivia { $3 }
   ;
 
 LiteralInt -> Result<AstRef>:
@@ -148,5 +159,10 @@ pub type AstRef = NodeId<AstNode>;
 macro_rules! node {
   ($t:ident, $span:expr, $node:expr) => {
     Ok($t.push(AstNode::new($span, $node)))
+  }
+}
+macro_rules! infix {
+  ($tree:ident, $span:ident, $lhs:expr, $rhs:expr, $op:expr) => {
+    node!($tree, $span, ExprInfix { lhs: $lhs?, rhs: $rhs?, op: $op })
   }
 }
