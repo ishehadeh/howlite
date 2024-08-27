@@ -10,20 +10,23 @@ pub enum InfixOp {
     Div,
     Mul,
 
-    Assign,
+    Assign, // TODO
 
-    CmpNe,
-    CmpEq,
-    CmpGt,
-    CmpLt,
-    CmpGe,
-    CmpLe,
+    CmpNe, // TODO
+    CmpEq, // TODO
+    CmpGt, // TODO
+    CmpLt, // TODO
+    CmpGe, // TODO
+    CmpLe, // TODO
 
     BitOr,
     BitAnd,
     BitXor,
     BitLShift,
     BitRShift,
+
+    LogicalOr,  // TODO
+    LogicalAnd, // TODO
 }
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
