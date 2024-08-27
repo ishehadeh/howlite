@@ -10,7 +10,7 @@ pub enum InfixOp {
     Div,
     Mul,
 
-    Assign, // TODO
+    Assign,
 
     CmpNe,
     CmpEq,

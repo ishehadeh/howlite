@@ -74,7 +74,7 @@ fn main() {
     let lexerdef = howlite_l::lexerdef();
     // Now we create a lexer with the `lexer` method with which we can lex an
     // input.
-    let lexer = lexerdef.lexer("-/* hello  */0b1001");
+    let lexer = lexerdef.lexer("-/* hello  */0b1001 = 100");
     // Pass the lexer to the parser and lex and parse the input.
     let tree: TreeSlab<_> = TreeSlab::default();
     let (res, errs) = howlite_y::parse(&lexer, &tree);

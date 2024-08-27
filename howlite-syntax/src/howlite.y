@@ -19,7 +19,12 @@ Trivia -> Result<Option<Trivia>>:
   ;
 
 Expr -> Result<AstRef>:
-  ExprInfixLogic { $1 }
+  ExprInfixAssign { $1 }
+  ;
+
+ExprInfixAssign -> Result<AstRef>:
+   ExprInfixLogic '=' Trivia ExprInfixLogic { infix!(tree, $span, $1, $4, InfixOp::Assign) }
+  | ExprInfixLogic { $1 }
   ;
 
 ExprInfixLogic -> Result<AstRef>:
