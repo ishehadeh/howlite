@@ -23,12 +23,23 @@ Expr -> Result<AstRef>:
   ;
 
 ExprInfixLogic -> Result<AstRef>:
-    ExprInfixLogic '&&' Trivia ExprInfixBitwise {
+    ExprInfixLogic '&&' Trivia ExprInfixCompare {
       infix!(tree, $span, $1, $4, InfixOp::LogicalAnd)
   }
-  | ExprInfixLogic '||' Trivia ExprInfixBitwise {
+  | ExprInfixLogic '||' Trivia ExprInfixCompare {
       infix!(tree, $span, $1, $4, InfixOp::LogicalAnd)
     }
+  | ExprInfixCompare { $1 }
+  ;
+
+
+ExprInfixCompare -> Result<AstRef>:
+    ExprInfixCompare '<=' Trivia ExprInfixBitwise { infix!(tree, $span, $1, $4, InfixOp::CmpLtEq)}
+  | ExprInfixCompare '>=' Trivia ExprInfixBitwise { infix!(tree, $span, $1, $4, InfixOp::CmpGtEq)}
+  | ExprInfixCompare '==' Trivia ExprInfixBitwise { infix!(tree, $span, $1, $4, InfixOp::CmpEq)}
+  | ExprInfixCompare '!=' Trivia ExprInfixBitwise { infix!(tree, $span, $1, $4, InfixOp::CmpNe)}
+  | ExprInfixCompare '<' Trivia ExprInfixBitwise { infix!(tree, $span, $1, $4, InfixOp::CmpLt)}
+  | ExprInfixCompare '>' Trivia ExprInfixBitwise { infix!(tree, $span, $1, $4, InfixOp::CmpGt)}
   | ExprInfixBitwise { $1 }
   ;
 
