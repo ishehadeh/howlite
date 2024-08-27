@@ -2,10 +2,10 @@
 %parse-param tree: &crate::treeslab::TreeSlab<AstNode> 
 %%
 Program -> Result<AstRef>:
-  LiteralInt { $1 };
+  Expr { $1 };
 
-Trivia -> Result<Trivia>:
-  Trivia TriviaPeice {
+TriviaSeries -> Result<Trivia>:
+    TriviaSeries TriviaPeice {
       let mut trivia = $1?;
       trivia.peices.push($2?);
       Ok(trivia)
@@ -13,11 +13,62 @@ Trivia -> Result<Trivia>:
   | TriviaPeice { Ok(Trivia { peices: vec![$1?] }) }
   ;
 
+Trivia -> Result<Option<Trivia>>:
+    TriviaSeries { Ok(Some($1?)) }
+  | %empty { None }
+  ;
+Expr -> Result<AstRef>:
+  ExprInfixBitwise { $1 }
+  ;
+
+ExprInfixBitwise -> Result<AstRef>:
+    Term '>>' Trivia Term {
+      node!(tree, $span, ExprInfix { lhs: $1?, rhs: $4?, op: InfixOp::BitRShift })
+    }
+  | Term '<<' Trivia Term {
+      node!(tree, $span, ExprInfix { lhs: $1?, rhs: $4?, op: InfixOp::BitLShift })
+    }
+  | Term '|' Trivia Term {
+      node!(tree, $span, ExprInfix { lhs: $1?, rhs: $4?, op: InfixOp::BitOr })
+    }
+  | Term '&' Trivia Term {
+      node!(tree, $span, ExprInfix { lhs: $1?, rhs: $4?, op: InfixOp::BitAnd })
+    }
+  | Term '^' Trivia Term {
+      node!(tree, $span, ExprInfix { lhs: $1?, rhs: $4?, op: InfixOp::BitXor })
+    }
+  | ExprInfixAdd { $1 }
+  ;
+
+ExprInfixAdd -> Result<AstRef>:
+    ExprInfixAdd '-' Trivia ExprInfixMul {
+      node!(tree, $span, ExprInfix { lhs: $1?, rhs: $4?, op: InfixOp::Sub })
+    }
+  | ExprInfixAdd '+' Trivia ExprInfixMul {
+      node!(tree, $span, ExprInfix { lhs: $1?, rhs: $4?, op: InfixOp::Add })
+    }
+  | ExprInfixMul { $1 }
+  ;
+
+ExprInfixMul -> Result<AstRef>:
+    ExprInfixMul '*' Trivia Term {
+      node!(tree, $span, ExprInfix { lhs: $1?, rhs: $4?, op: InfixOp::Mul })
+    }
+  | ExprInfixMul '/' Trivia Term {
+      node!(tree, $span, ExprInfix { lhs: $1?, rhs: $4?, op: InfixOp::Div })
+    }
+  | Term { $1 }
+  ;
+
+Term -> Result<AstRef>:
+  LiteralInt { $1 }
+  | '(' Trivia Expr ')' Trivia { $1 }
+  ;
 
 LiteralInt -> Result<AstRef>:
-    'MINUS' Trivia LiteralUInt { node!(tree, $span, LiteralInteger { value: -($3?) }) }
-  | 'PLUS'  Trivia LiteralUInt { node!(tree, $span, LiteralInteger { value: $3? }) }
-  | LiteralUInt { node!(tree, $span, LiteralInteger {value: $1? }) };
+    '-' Trivia LiteralUInt Trivia { node!(tree, $span, LiteralInteger { value: -($3?) }) }
+  | '+'  Trivia LiteralUInt  Trivia { node!(tree, $span, LiteralInteger { value: $3? }) }
+  | LiteralUInt Trivia { node!(tree, $span, LiteralInteger {value: $1? }) };
 
 LiteralUInt -> Result<BigInt>:
     'UINT2'  { Ok(must_parse_int_radix::<2>($lexer.span_str($1?.span()))) }

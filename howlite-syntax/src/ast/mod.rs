@@ -5,26 +5,10 @@ use num_bigint::BigInt;
 
 use std::fmt::Debug;
 
+mod infix;
 mod literals;
+pub use infix::*;
 pub use literals::*;
-
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum InfixOp {
-    Add,
-    Sub,
-    Div,
-    Mul,
-
-    Assign,
-
-    CmpNe,
-    CmpEq,
-    CmpGt,
-    CmpLt,
-    CmpGe,
-    CmpLe,
-}
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(tag = "type"))]
@@ -50,7 +34,7 @@ pub enum AstNodeData {
     Block(Block),
     StmtIf(StmtIf),
     ExprCall(ExprCall),
-    Expr(Expr),
+    Expr(ExprInfix),
 
     StmtLet(StmtLet),
     StmtWhile(StmtWhile),
@@ -182,14 +166,6 @@ pub struct ArrayAccess {
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone, PartialEq)]
-pub struct Expr {
-    pub lhs: NodeId<AstNode>,
-    pub op: InfixOp,
-    pub rhs: NodeId<AstNode>,
-}
-
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Debug, Clone, PartialEq)]
 pub struct ExprCall {
     pub function_name: String,
     pub paramaters: Vec<NodeId<AstNode>>,
@@ -302,7 +278,7 @@ impl_ast_intos!(
     Block(Block),
     StmtIf(StmtIf),
     ExprCall(ExprCall),
-    Expr(Expr),
+    Expr(ExprInfix),
     StructLiteral(StructLiteral),
     StmtLet(StmtLet),
     StmtWhile(StmtWhile),

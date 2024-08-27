@@ -5,7 +5,6 @@ pub mod span;
 pub mod treeslab;
 pub use ast::{AstNode, AstNodeData};
 use std::env;
-use treeslab::TreeSlab;
 
 use lrpar::Span;
 
@@ -69,6 +68,8 @@ lrpar_mod!("howlite.y");
 
 #[test]
 fn main() {
+    use treeslab::TreeSlab;
+
     // Get the `LexerDef` for the `calc` language.
     let lexerdef = howlite_l::lexerdef();
     // Now we create a lexer with the `lexer` method with which we can lex an
@@ -77,7 +78,6 @@ fn main() {
     // Pass the lexer to the parser and lex and parse the input.
     let tree: TreeSlab<_> = TreeSlab::default();
     let (res, errs) = howlite_y::parse(&lexer, &tree);
-
     dbg!(&tree);
 
     for e in errs {
