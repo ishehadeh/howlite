@@ -1,7 +1,6 @@
 use crate::treeslab::{Node, NodeId};
 
 use lrpar::Span;
-use num_bigint::BigInt;
 
 use std::fmt::Debug;
 
@@ -235,7 +234,7 @@ pub struct Block {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone, PartialEq)]
 pub struct Ident {
-    pub symbol: String,
+    pub symbol: Span,
 }
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]

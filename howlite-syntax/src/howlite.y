@@ -2,7 +2,7 @@
 %parse-param tree: &crate::treeslab::TreeSlab<AstNode> 
 %%
 Program -> Result<AstRef>:
-  Expr { $1 };
+  ExprInfix { $1 };
 
 TriviaSeries -> Result<Trivia>:
     TriviaSeries TriviaPeice {
@@ -18,7 +18,9 @@ Trivia -> Result<Option<Trivia>>:
   | %empty { Ok(None) }
   ;
 
-Expr -> Result<AstRef>:
+/// BEGIN: Infix Expressions
+
+ExprInfix -> Result<AstRef>:
   ExprInfixAssign { $1 }
   ;
 
@@ -87,9 +89,16 @@ ExprInfixMul -> Result<AstRef>:
   | Term { $1 }
   ;
 
+/// END: Infix Expressions
+
 Term -> Result<AstRef>:
   LiteralInt { $1 }
-  | '(' Trivia Expr ')' Trivia { $3 }
+  | Ident { $1 }
+  | '(' Trivia ExprInfix ')' Trivia { $3 }
+  ;
+
+Ident -> Result<AstRef>:
+    "IDENT" Trivia { node!(tree, $span, Ident { symbol: $1?.span() }) }
   ;
 
 LiteralInt -> Result<AstRef>:
