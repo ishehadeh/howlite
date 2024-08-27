@@ -25,66 +25,66 @@ ExprInfix -> Result<AstRef>:
   ;
 
 ExprInfixAssign -> Result<AstRef>:
-   ExprInfixLogic '=' Trivia ExprInfixLogic { infix!(tree, $span, $1, $4, InfixOp::Assign) }
+   ExprInfixLogic '=' Trivia ExprInfixLogic { infix!(tree, $span, $1, trivia!(right trivia_tree, $5, $4), InfixOp::Assign) }
   | ExprInfixLogic { $1 }
   ;
 
 ExprInfixLogic -> Result<AstRef>:
     ExprInfixLogic '&&' Trivia ExprInfixCompare {
-      infix!(tree, $span, $1, $4, InfixOp::LogicalAnd)
+      infix!(tree, $span, $1, trivia!(right trivia_tree, $5, $4), InfixOp::LogicalAnd)
   }
   | ExprInfixLogic '||' Trivia ExprInfixCompare {
-      infix!(tree, $span, $1, $4, InfixOp::LogicalAnd)
+      infix!(tree, $span, $1, trivia!(right trivia_tree, $5, $4), InfixOp::LogicalAnd)
     }
   | ExprInfixCompare { $1 }
   ;
 
 
 ExprInfixCompare -> Result<AstRef>:
-    ExprInfixCompare '<=' Trivia ExprInfixBitwise { infix!(tree, $span, $1, $4, InfixOp::CmpLtEq)}
-  | ExprInfixCompare '>=' Trivia ExprInfixBitwise { infix!(tree, $span, $1, $4, InfixOp::CmpGtEq)}
-  | ExprInfixCompare '==' Trivia ExprInfixBitwise { infix!(tree, $span, $1, $4, InfixOp::CmpEq)}
-  | ExprInfixCompare '!=' Trivia ExprInfixBitwise { infix!(tree, $span, $1, $4, InfixOp::CmpNe)}
-  | ExprInfixCompare '<' Trivia ExprInfixBitwise { infix!(tree, $span, $1, $4, InfixOp::CmpLt)}
-  | ExprInfixCompare '>' Trivia ExprInfixBitwise { infix!(tree, $span, $1, $4, InfixOp::CmpGt)}
+    ExprInfixCompare '<=' Trivia ExprInfixBitwise { infix!(tree, $span, $1, trivia!(right trivia_tree, $5, $4), InfixOp::CmpLtEq)}
+  | ExprInfixCompare '>=' Trivia ExprInfixBitwise { infix!(tree, $span, $1, trivia!(right trivia_tree, $5, $4), InfixOp::CmpGtEq)}
+  | ExprInfixCompare '==' Trivia ExprInfixBitwise { infix!(tree, $span, $1, trivia!(right trivia_tree, $5, $4), InfixOp::CmpEq)}
+  | ExprInfixCompare '!=' Trivia ExprInfixBitwise { infix!(tree, $span, $1, trivia!(right trivia_tree, $5, $4), InfixOp::CmpNe)}
+  | ExprInfixCompare '<' Trivia ExprInfixBitwise { infix!(tree, $span, $1, trivia!(right trivia_tree, $5, $4), InfixOp::CmpLt)}
+  | ExprInfixCompare '>' Trivia ExprInfixBitwise { infix!(tree, $span, $1, trivia!(right trivia_tree, $5, $4), InfixOp::CmpGt)}
   | ExprInfixBitwise { $1 }
   ;
 
 ExprInfixBitwise -> Result<AstRef>:
     Term '>>' Trivia Term {
-      infix!(tree, $span, $1, $4, InfixOp::BitRShift)
+      infix!(tree, $span, $1, trivia!(right trivia_tree, $5, trivia!(right trivia_tree, $5, $4)), InfixOp::BitRShift)
     }
   | Term '<<' Trivia Term {
-      infix!(tree, $span, $1, $4, InfixOp::BitLShift)
+      infix!(tree, $span, $1, trivia!(right trivia_tree, $5, $4), InfixOp::BitLShift)
     }
   | Term '|' Trivia Term {
-      infix!(tree, $span, $1, $4, InfixOp::BitOr)
+      infix!(tree, $span, $1, trivia!(right trivia_tree, $5, $4), InfixOp::BitOr)
     }
   | Term '&' Trivia Term {
-      infix!(tree, $span, $1, $4, InfixOp::BitAnd)
+      infix!(tree, $span, $1, trivia!(right trivia_tree, $5, $4), InfixOp::BitAnd)
     }
   | Term '^' Trivia Term {
-      infix!(tree, $span, $1, $4, InfixOp::BitXor)
+      infix!(tree, $span, $1, trivia!(right trivia_tree, $5, $4), InfixOp::BitXor)
     }
   | ExprInfixAdd { $1 }
   ;
 
 ExprInfixAdd -> Result<AstRef>:
     ExprInfixAdd '-' Trivia ExprInfixMul {
-      infix!(tree, $span, $1, $4, InfixOp::Sub)
+      infix!(tree, $span, $1, trivia!(right trivia_tree, $5, $4), InfixOp::Sub)
     }
   | ExprInfixAdd '+' Trivia ExprInfixMul {
-      infix!(tree, $span, $1, $4, InfixOp::Add)
+      infix!(tree, $span, $1, trivia!(right trivia_tree, $5, $4), InfixOp::Add)
     }
   | ExprInfixMul { $1 }
   ;
 
 ExprInfixMul -> Result<AstRef>:
     ExprInfixMul '*' Trivia Term {
-      infix!(tree, $span, $1, $4, InfixOp::Mul)
+      infix!(tree, $span, $1, trivia!(right trivia_tree, $5, $4), InfixOp::Mul)
     }
   | ExprInfixMul '/' Trivia Term {
-      infix!(tree, $span, $1, $4, InfixOp::Div)
+      infix!(tree, $span, $1, trivia!(right trivia_tree, $5, $4), InfixOp::Div)
     }
   | Term { $1 }
   ;
@@ -94,16 +94,24 @@ ExprInfixMul -> Result<AstRef>:
 Term -> Result<AstRef>:
   LiteralInt { $1 }
   | Ident { $1 }
-  | '(' Trivia ExprInfix ')' Trivia { $3 }
+  | '(' Trivia ExprInfix ')' Trivia { 
+    trivia!(
+      left trivia_tree, $2, trivia!(right trivia_tree, $5, $3)
+    )
+  }
   ;
 
 Ident -> Result<AstRef>:
-    "IDENT" Trivia { node!(tree, $span, Ident { symbol: $1?.span() }) }
+    "IDENT" Trivia { trivia!(right trivia_tree, $2, node!(tree, $span, Ident { symbol: $1?.span() })) }
   ;
 
 LiteralInt -> Result<AstRef>:
-    '-' Trivia LiteralUInt Trivia { node!(tree, $span, LiteralInteger { value: -($3?) }) }
-  | '+'  Trivia LiteralUInt  Trivia { node!(tree, $span, LiteralInteger { value: $3? }) }
+    '-' Trivia LiteralUInt Trivia { 
+      trivia!(right trivia_tree, $4, node!(tree, $span, LiteralInteger { value: -($3?) }))
+    }
+  | '+'  Trivia LiteralUInt  Trivia { 
+      trivia!(right trivia_tree, $4, node!(tree, $span, LiteralInteger { value: $3? }))
+    }
   | LiteralUInt Trivia { node!(tree, $span, LiteralInteger {value: $1? }) };
 
 LiteralUInt -> Result<BigInt>:
@@ -189,5 +197,15 @@ macro_rules! node {
 macro_rules! infix {
   ($tree:ident, $span:ident, $lhs:expr, $rhs:expr, $op:expr) => {
     node!($tree, $span, ExprInfix { lhs: $lhs?, rhs: $rhs?, op: $op })
+  }
+}
+
+macro_rules! trivia {
+  (left $trivia_map:ident, $trivia:expr, $node:expr) => {
+    $node
+  };
+
+  (right $trivia_map:ident, $trivia:expr, $node:expr) => {
+    $node
   }
 }
