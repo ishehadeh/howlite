@@ -6,8 +6,10 @@ use std::fmt::Debug;
 
 mod infix;
 mod literals;
+mod prefix;
 pub use infix::*;
 pub use literals::*;
+pub use prefix::*;
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(tag = "type"))]
@@ -33,7 +35,8 @@ pub enum AstNodeData {
     Block(Block),
     StmtIf(StmtIf),
     ExprCall(ExprCall),
-    Expr(ExprInfix),
+    ExprInfix(ExprInfix),
+    ExprPrefix(ExprPrefix),
 
     StmtLet(StmtLet),
     StmtWhile(StmtWhile),
@@ -277,7 +280,8 @@ impl_ast_intos!(
     Block(Block),
     StmtIf(StmtIf),
     ExprCall(ExprCall),
-    Expr(ExprInfix),
+    ExprInfix(ExprInfix),
+    ExprPrefix(ExprPrefix),
     StructLiteral(StructLiteral),
     StmtLet(StmtLet),
     StmtWhile(StmtWhile),

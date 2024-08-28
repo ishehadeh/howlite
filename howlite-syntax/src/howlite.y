@@ -34,7 +34,7 @@ ExprInfixLogic -> Result<AstRef>:
       infix!(tree, $span, $1, trivia!(right trivia_tree, $5, $4), InfixOp::LogicalAnd)
   }
   | ExprInfixLogic '||' Trivia ExprInfixCompare {
-      infix!(tree, $span, $1, trivia!(right trivia_tree, $5, $4), InfixOp::LogicalAnd)
+      infix!(tree,  $span, $1, trivia!(right trivia_tree, $5, $4), InfixOp::LogicalAnd)
     }
   | ExprInfixCompare { $1 }
   ;
@@ -86,10 +86,31 @@ ExprInfixMul -> Result<AstRef>:
   | ExprInfixMul '/' Trivia Term {
       infix!(tree, $span, $1, trivia!(right trivia_tree, $5, $4), InfixOp::Div)
     }
-  | Term { $1 }
+  | ExprPrefix { $1 }
   ;
 
 /// END: Infix Expressions
+
+
+/// BEGIN: Prefix Expressions
+
+ExprPrefix -> Result<AstRef>:
+  '-' Trivia Term { 
+      trivia!(left trivia_tree, $2, node!(tree, $span, ExprPrefix { op: PrefixOp::Minus, rhs: $3? }))
+    }
+  | '+' Trivia Term { 
+      trivia!(left trivia_tree, $2, node!(tree, $span, ExprPrefix { op: PrefixOp::Plus, rhs: $3? }))
+    }
+  | '~' Trivia Term { 
+      trivia!(left trivia_tree, $2, node!(tree, $span, ExprPrefix { op: PrefixOp::BitNot, rhs: $3? }))
+    }
+  | '!' Trivia Term { 
+      trivia!(left trivia_tree, $2, node!(tree, $span, ExprPrefix { op: PrefixOp::LogicalNot, rhs: $3? }))
+    }
+  | Term { $1 }
+  ;
+
+/// END: Prefix Expressions
 
 Term -> Result<AstRef>:
   LiteralInt { $1 }
@@ -106,13 +127,15 @@ Ident -> Result<AstRef>:
   ;
 
 LiteralInt -> Result<AstRef>:
-    '-' Trivia LiteralUInt Trivia { 
+    '-' Trivia LiteralUInt Trivia {
       trivia!(right trivia_tree, $4, node!(tree, $span, LiteralInteger { value: -($3?) }))
     }
-  | '+'  Trivia LiteralUInt  Trivia { 
+  | '+'  Trivia LiteralUInt  Trivia {
       trivia!(right trivia_tree, $4, node!(tree, $span, LiteralInteger { value: $3? }))
     }
-  | LiteralUInt Trivia { node!(tree, $span, LiteralInteger {value: $1? }) };
+  | LiteralUInt Trivia { 
+      trivia!(right trivia_tree, $4, node!(tree, $span, LiteralInteger {value: $1? }))
+    };
 
 LiteralUInt -> Result<BigInt>:
     'UINT2'  { Ok(must_parse_int_radix::<2>($lexer.span_str($1?.span()))) }
