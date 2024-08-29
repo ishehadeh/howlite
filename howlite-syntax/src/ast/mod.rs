@@ -7,9 +7,11 @@ use std::fmt::Debug;
 mod infix;
 mod literals;
 mod prefix;
+mod ty_expr;
 pub use infix::*;
 pub use literals::*;
 pub use prefix::*;
+pub use ty_expr::*;
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(tag = "type"))]
@@ -48,8 +50,9 @@ pub enum AstNodeData {
 
     // Types
     TyRef(TyRef),
+    TyExprUnion(TyExprUnion),
     TyStruct(TyStruct),
-    StructMember(StructMember),
+    StructMember(TyStructMember),
     TyNumberRange(TyNumberRange),
     TyArray(TyArray),
     TyBool(TyBool),
@@ -93,61 +96,6 @@ pub struct TyParam {
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone, PartialEq)]
-pub struct TyArray {
-    pub element_ty: NodeId<AstNode>,
-    pub length: u32,
-}
-
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Debug, Clone, PartialEq)]
-pub struct StructMember {
-    pub mutable: bool,
-    pub name: String,
-    pub ty: NodeId<AstNode>,
-}
-
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Debug, Clone, PartialEq)]
-pub struct TyRef {
-    pub name: String,
-    pub parameters: Vec<NodeId<AstNode>>,
-}
-
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Debug, Clone, PartialEq)]
-pub struct TyStruct {
-    pub members: Vec<NodeId<AstNode>>,
-}
-
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Debug, Clone, PartialEq)]
-pub struct TyNumberRange {
-    pub inclusive_low: String,
-    pub inclusive_high: String,
-}
-
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Debug, Clone, PartialEq)]
-pub struct TyBool {}
-
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Debug, Clone, PartialEq)]
-pub struct TyUnit {}
-
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Debug, Clone, PartialEq)]
-#[cfg_attr(feature = "serde", serde(tag = "type"))]
-pub enum Ty {
-    TyRef(TyRef),
-    Struct(TyStruct),
-    NumberRange(TyNumberRange),
-    Array(TyArray),
-    Bool(TyBool),
-    Unit(TyUnit),
-}
-
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Debug, Clone, PartialEq)]
 pub struct Repaired {
     pub tree: Option<NodeId<AstNode>>,
 }
@@ -176,7 +124,7 @@ pub struct ExprCall {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone, PartialEq)]
 pub struct StmtLet {
-    pub name: String,
+    pub name: NodeId<AstNode>,
     pub ty: NodeId<AstNode>,
     pub mutable: bool,
     pub value: NodeId<AstNode>,
@@ -291,12 +239,13 @@ impl_ast_intos!(
     TyRef(TyRef),
     TyStruct(TyStruct),
     StructLiteralMember(StructLiteralMember),
-    StructMember(StructMember),
+    StructMember(TyStructMember),
     TyNumberRange(TyNumberRange),
     TyArray(TyArray),
     TyBool(TyBool),
     TyUnit(TyUnit),
-    TyParam(TyParam)
+    TyParam(TyParam),
+    TyExprUnion(TyExprUnion)
 );
 
 impl Node for AstNode {}

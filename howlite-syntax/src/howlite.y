@@ -1,8 +1,7 @@
 %start Program
 %parse-param tree: &crate::treeslab::TreeSlab<AstNode> 
 %%
-Program -> Result<AstRef>:
-  ExprInfix { $1 };
+Program -> Result<AstRef>: ExprLet { $1 };
 
 TriviaSeries -> Result<Trivia>:
     TriviaSeries TriviaPeice {
@@ -17,6 +16,69 @@ Trivia -> Result<Option<Trivia>>:
     TriviaSeries { Ok(Some($1?)) }
   | %empty { Ok(None) }
   ;
+
+TriviaRequired -> Result<Option<Trivia>>:
+    TriviaSeries { Ok(Some($1?)) }
+  ;
+
+
+/// BEGIN: Block Expression
+
+ExprBlock -> Result<AstRef>:
+    '{' Trivia ExprBlockStmtList ';' Trivia '}' Trivia {
+      // TODO: which node do we associate the inner trivia with?
+      trivia!(left trivia_tree, $7,
+        node!(tree, $span, Block {
+          returns: false,
+          statements: $3?
+        }))
+    }
+  | '{' Trivia ExprBlockStmtList '}' Trivia {
+    trivia!(left trivia_tree, $7,
+        node!(tree, $span, Block {
+          returns: true,
+          statements: $3?
+        }))
+    }
+  ;
+
+ExprBlockStmtList -> Result<Vec<AstRef>>:
+    ExprBlockStmtList ';' Trivia Expr {
+      let mut arr = $1?;
+      arr.push(trivia!(left trivia_tree, $3, $4));
+      Ok(arr)
+    }
+  | Expr { Ok(vec![$1?]) }
+  ;
+
+/// BEGIN: Full Expressions
+
+Expr -> Result<AstRef>:
+    ExprInfix { $1 }
+  | ExprLet { $1 }
+  ;
+
+/// END: Full Expression
+
+
+/// BEGIN: Let Expression
+ExprLet -> Result<AstRef>:
+    'let' TriviaRequired Ident ':' Trivia TyExpr '=' Trivia ExprSimple { 
+      node!(tree, $span, StmtLet {
+        name: trivia!(left trivia_tree, $2, $3),
+        ty: trivia!(left trivia_tree, $5, $6),
+        value: trivia!(left, trivia_tree, $8, $9),
+        mutable: false,
+      })
+    }
+  ;
+
+// Like Expr, but force keyword and assign expressions to be in parens.
+ExprSimple -> Result<AstRef>: ExprInfixLogic;
+
+/// END: Let Expression
+
+
 
 /// BEGIN: Infix Expressions
 
@@ -94,7 +156,7 @@ ExprInfixMul -> Result<AstRef>:
 
 /// BEGIN: Prefix Expressions
 
-ExprPrefix -> Result<AstRef>:
+ExprPrefixOnly -> Result<AstRef>:
   '-' Trivia Term { 
       trivia!(left trivia_tree, $2, node!(tree, $span, ExprPrefix { op: PrefixOp::Minus, rhs: $3? }))
     }
@@ -107,8 +169,9 @@ ExprPrefix -> Result<AstRef>:
   | '!' Trivia Term { 
       trivia!(left trivia_tree, $2, node!(tree, $span, ExprPrefix { op: PrefixOp::LogicalNot, rhs: $3? }))
     }
-  | Term { $1 }
   ;
+
+ExprPrefix -> Result<AstRef>: ExprPrefixOnly { $1 } | Term { $1 };
 
 /// END: Prefix Expressions
 
@@ -127,22 +190,105 @@ Ident -> Result<AstRef>:
   ;
 
 LiteralInt -> Result<AstRef>:
-    '-' Trivia LiteralUInt Trivia {
-      trivia!(right trivia_tree, $4, node!(tree, $span, LiteralInteger { value: -($3?) }))
-    }
-  | '+'  Trivia LiteralUInt  Trivia {
-      trivia!(right trivia_tree, $4, node!(tree, $span, LiteralInteger { value: $3? }))
-    }
-  | LiteralUInt Trivia { 
+    _UInt Trivia { 
       trivia!(right trivia_tree, $4, node!(tree, $span, LiteralInteger {value: $1? }))
-    };
+    }
+  ;
 
-LiteralUInt -> Result<BigInt>:
+
+// Helper rule for BigInts, simplifies LiteralInt grammar
+_UInt -> Result<BigInt>:
     'UINT2'  { Ok(must_parse_int_radix::<2>($lexer.span_str($1?.span()))) }
   | 'UINT8'  { Ok(must_parse_int_radix::<8>($lexer.span_str($1?.span()))) }
   | 'UINT10' { Ok(must_parse_int_radix::<10>($lexer.span_str($1?.span()))) }
   | 'UINT16' { Ok(must_parse_int_radix::<16>($lexer.span_str($1?.span()))) };
  
+/// BEGIN: Types
+TyExpr -> Reuslt<AstRef>:
+    TyExprUnion { $1 }
+  ;
+
+TyExprUnion -> Reuslt<AstRef>:
+    TyExprUnion "|" Trivia TyTerm {
+      node!(tree, $span, TyExprUnion { 
+        lhs: $1?,
+        rhs: trivia!(left trivia_tree, $3, $4),
+      })
+    }
+  | TyTerm { $1 }
+  ;
+
+TyIntegerRangeTerm -> Result<AstRef>:
+    LiteralInt { $1 }
+  | ExprPrefixOnly { $1 }
+  | ExprBlock { $1 }
+  ;
+
+TyIntegerRange -> Reuslt<AstRef>:
+    TyIntegerRangeTerm { 
+      let number = $1?;
+      node!(tree, $span, TyNumberRange { lo: number.clone(), hi: number })
+    }
+  | TyIntegerRangeTerm '..' Trivia TyIntegerRangeTerm {
+      node!(tree, $span, TyNumberRange { lo: $1?, hi: trivia!(left trivia_tree, $4) })
+    }
+  ;
+
+TyArray -> Result<AstRef>: 
+    '[' Trivia TyExpr ';' Trivia LiteralInt ']' Trivia {
+      trivia!(right trivia_tree, $8,
+        node!(tree, $span, TyArray { 
+          element_ty: trivia!(left trivia_tree, $2, $3),
+          length: trivia!(left trivia_tree, $5, $6)
+        }))
+    }
+  ;
+
+//TySlice -> Result<AstRef>:
+//    '&[' Trivia TyExpr ';' Trivia TyExpr ']'
+
+TyRef -> Result<AstRef>:
+    '&' Trivia TyTerm {
+      node!(tree, $span, TyRef { 
+        lhs: $1?,
+        rhs: trivia!(left trivia_tree, $3, $4),
+      })
+    }
+  ;
+
+/*
+TyParamList -> Result<Vec<NodeId<AstNode>>>:
+    TyParam { Ok(vec![$1?]) }
+  | TyParam ',' Trivia TyParam {
+      let mut arr = $1?;
+      arr.push(trivia!(left, trivia_tree, $3, $4));
+      Ok(arr)
+    }
+  ;
+*/
+
+TyNamed -> Result<AstRef>:
+    Ident {
+      trivia!(right trivia_tree, $2,
+        node!(tree, $span, TyNamed { 
+          name: $1?,
+          parameters: vec![],
+        })
+      )
+    }
+  ;
+
+TyTerm -> Reuslt<AstRef>:
+    TyIntegerRange { $1 }
+  | '(' Trivia TyExpr ')' { trivia!(left trivia_tree, $2, $3) }
+  | TyRef { $1 }
+  | TyArray { $1 }
+  | TyNamed { $1 }
+  | 'unit' Trivia { trivia!(right, trivia_tree, $2, node!(tree, $span, TyUnit {})) }
+  ;
+
+/// END: Types
+
 TriviaPeice -> Result<TriviaPeice>:
   Newline { $1 }
   | Space { $1 }
