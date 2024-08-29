@@ -1,0 +1,11 @@
+{
+    let a: 0 = 0;
+    let b: 0..100 = 50;
+    let c: -100..+100 = 0;
+    let d: TypeT = t;
+    let e: 0 | 2 | 4 | 6 = 2;
+    let f: [0..255; 10] = arr;
+    let g: &TypeT = t;
+    let h: &(TypeT) = t;
+    let h: &[0..255; 0..255] = t;
+}

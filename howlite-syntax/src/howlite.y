@@ -1,25 +1,17 @@
 %start Program
 %parse-param tree: &crate::treeslab::TreeSlab<AstNode> 
 %%
-Program -> Result<AstRef>: ExprLet { $1 };
+Program -> Result<AstRef>: Expr { $1 };
 
-TriviaSeries -> Result<Trivia>:
-    TriviaSeries TriviaPeice {
-      let mut trivia = $1?;
-      trivia.peices.push($2?);
-      Ok(trivia)
-  }
-  | TriviaPeice { Ok(Trivia { peices: vec![$1?] }) }
+/// BEGIN: Full Expressions
+
+Expr -> Result<AstRef>:
+    ExprInfix { $1 }
+  | ExprLet { $1 }
+  | ExprBlock { $1 }
   ;
 
-Trivia -> Result<Option<Trivia>>:
-    TriviaSeries { Ok(Some($1?)) }
-  | %empty { Ok(None) }
-  ;
-
-TriviaRequired -> Result<Option<Trivia>>:
-    TriviaSeries { Ok(Some($1?)) }
-  ;
+/// END: Full Expression
 
 
 /// BEGIN: Block Expression
@@ -50,16 +42,6 @@ ExprBlockStmtList -> Result<Vec<AstRef>>:
     }
   | Expr { Ok(vec![$1?]) }
   ;
-
-/// BEGIN: Full Expressions
-
-Expr -> Result<AstRef>:
-    ExprInfix { $1 }
-  | ExprLet { $1 }
-  ;
-
-/// END: Full Expression
-
 
 /// BEGIN: Let Expression
 ExprLet -> Result<AstRef>:
@@ -244,8 +226,15 @@ TyArray -> Result<AstRef>:
     }
   ;
 
-//TySlice -> Result<AstRef>:
-//    '&[' Trivia TyExpr ';' Trivia TyExpr ']'
+TySlice -> Result<AstRef>:
+    '&[' Trivia TyExpr ';' Trivia TyExpr ']' Trivia {
+      trivia!(right trivia_tree, $8,
+        node!(tree, $span, TySlice { 
+          element_ty: trivia!(left trivia_tree, $2, $3),
+          length_ty: trivia!(left trivia_tree, $5, $6)
+        }))
+    }
+  ;
 
 TyRef -> Result<AstRef>:
     '&' Trivia TyTerm {
@@ -280,14 +269,39 @@ TyNamed -> Result<AstRef>:
 
 TyTerm -> Reuslt<AstRef>:
     TyIntegerRange { $1 }
-  | '(' Trivia TyExpr ')' { trivia!(left trivia_tree, $2, $3) }
+  | '(' Trivia TyExpr ')' Trivia { 
+      // TODO: how to assoc final trivia
+      trivia!(left trivia_tree, $2, $3)
+    }
   | TyRef { $1 }
+  | TySlice { $1 }
   | TyArray { $1 }
   | TyNamed { $1 }
   | 'unit' Trivia { trivia!(right, trivia_tree, $2, node!(tree, $span, TyUnit {})) }
   ;
 
 /// END: Types
+
+/// BEGIN: Trivia
+
+Trivia -> Result<Option<Trivia>>:
+    TriviaSeries { Ok(Some($1?)) }
+  | %empty { Ok(None) }
+  ;
+
+TriviaRequired -> Result<Option<Trivia>>:
+    TriviaSeries { Ok(Some($1?)) }
+  ;
+
+TriviaSeries -> Result<Trivia>:
+    TriviaSeries TriviaPeice {
+      let mut trivia = $1?;
+      trivia.peices.push($2?);
+      Ok(trivia)
+  }
+  | TriviaPeice { Ok(Trivia { peices: vec![$1?] }) }
+  ;
+
 
 TriviaPeice -> Result<TriviaPeice>:
   Newline { $1 }
@@ -317,6 +331,8 @@ MultiLineComment -> Result<TriviaPeice>:
   'COMMENT-MULTILINE' {
     Ok(TriviaPeice::new($span, TriviaData::Comment(CommentKind::MultiLine)))
   };
+
+/// END: Trivia
 
 %%
 
