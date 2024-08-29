@@ -55,9 +55,10 @@ pub enum AstNodeData {
     StructMember(TyStructMember),
     TyNumberRange(TyNumberRange),
     TyArray(TyArray),
-    TyBool(TyBool),
     TyUnit(TyUnit),
     TyParam(TyParam),
+    TySlice(TySlice),
+    TyNamed(TyNamed),
 }
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -242,10 +243,11 @@ impl_ast_intos!(
     StructMember(TyStructMember),
     TyNumberRange(TyNumberRange),
     TyArray(TyArray),
-    TyBool(TyBool),
     TyUnit(TyUnit),
     TyParam(TyParam),
-    TyExprUnion(TyExprUnion)
+    TyExprUnion(TyExprUnion),
+    TySlice(TySlice),
+    TyNamed(TyNamed)
 );
 
 impl Node for AstNode {}

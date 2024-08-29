@@ -1,3 +1,4 @@
+use logos::Span;
 use num_bigint::BigInt;
 
 use crate::treeslab::NodeId;
@@ -8,7 +9,7 @@ use super::AstNode;
 #[derive(Debug, Clone, PartialEq)]
 pub struct TyArray {
     pub element_ty: NodeId<AstNode>,
-    pub length: BigInt,
+    pub length: NodeId<AstNode>,
 }
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
