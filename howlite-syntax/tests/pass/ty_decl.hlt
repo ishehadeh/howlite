@@ -1,0 +1,9 @@
+type A = 0..2;
+type Arr1<{T0: A}> = [T0; 1];
+type UnionArr<{T0: A, T1: A}> = [T1 | T0; 1];
+type Array<{T: A, N: 0..255}> = &[T; N];
+
+type alias AAlias = 0..2;
+type alias Arr1Alias<{T0: A}> = [T0; 1];
+type alias UnionArrAlias<{T0: A, T1: A}> = [T1 | T0; 1];
+type alias ArrayAlias<{T: A, N: 0..255}> = &[T; N];

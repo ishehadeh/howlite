@@ -131,7 +131,8 @@ pub struct Program {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone, PartialEq)]
 pub struct DefType {
-    pub name: String,
+    pub name: Span,
+    pub alias: bool,
     pub ty: NodeId<AstNode>,
     pub ty_params: Vec<NodeId<AstNode>>,
 }
