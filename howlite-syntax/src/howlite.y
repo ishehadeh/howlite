@@ -245,24 +245,53 @@ TyRef -> Result<AstRef>:
   ;
 
 /*
-TyParamList -> Result<Vec<NodeId<AstNode>>>:
-    TyParam { Ok(vec![$1?]) }
-  | TyParam ',' Trivia TyParam {
+TyParamDecl -> Result<NodeId<AstNode>>:
+    IDENT Trivia ':' Trivia TyExpr {
+      trivia!(right trivia_tree, $2,
+        node!(tree, $span,
+          TyParam {
+            name: $1?.span(),
+            super_ty: trivia!(left trivia_tree, $4, $5?),
+            default_ty: None
+          }
+        )
+      )
+    }
+  ;
+
+TyParamDeclList -> Result<Vec<NodeId<AstNode>>>:
+    TyParamDecl { Ok(vec![$1?]) }
+  | TyParamDeclList ',' Trivia TyParamDecl {
       let mut arr = $1?;
-      arr.push(trivia!(left, trivia_tree, $3, $4?));
+      arr.push(trivia!(left trivia_tree, $3, $4?));
       Ok(arr)
     }
   ;
 */
 
+TyParamList -> Result<Vec<NodeId<AstNode>>>:
+    TyExpr { Ok(vec![$1?]) }
+  | TyParamList ',' Trivia TyExpr {
+      let mut arr = $1?;
+      arr.push(trivia!(left trivia_tree, $3, $4?));
+      Ok(arr)
+    }
+  ;
+
 TyNamed -> Result<AstRef>:
     Ident {
-      trivia!(right trivia_tree, $2,
+      node!(tree, $span, TyNamed { 
+        name: $1?,
+        parameters: vec![],
+      })
+    }
+  | Ident '<{' Trivia TyParamList '}>' Trivia {
+      // TODO: inner trivia
+      trivia!(right trivia_tree, $6,
         node!(tree, $span, TyNamed { 
           name: $1?,
           parameters: vec![],
-        })
-      )
+        }))
     }
   ;
 

@@ -88,15 +88,6 @@ pub struct Param {
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone, PartialEq)]
-pub struct TyParam {
-    pub name: String,
-    pub super_ty: NodeId<AstNode>,
-
-    pub default_ty: Option<NodeId<AstNode>>,
-}
-
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Debug, Clone, PartialEq)]
 pub struct Repaired {
     pub tree: Option<NodeId<AstNode>>,
 }

@@ -1,5 +1,4 @@
-use logos::Span;
-use num_bigint::BigInt;
+use lrpar::Span;
 
 use crate::treeslab::NodeId;
 
@@ -60,6 +59,14 @@ pub struct TyNumberRange {
     pub hi: NodeId<AstNode>,
 }
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Debug, Clone, PartialEq)]
+pub struct TyParam {
+    pub name: Span,
+    pub super_ty: NodeId<AstNode>,
+
+    pub default_ty: Option<NodeId<AstNode>>,
+}
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone, PartialEq)]
 pub struct TyUnit {}
