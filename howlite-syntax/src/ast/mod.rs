@@ -90,15 +90,15 @@ pub struct Repaired {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone, PartialEq)]
 pub struct FieldAccess {
-    pub field: Ident,
-    pub object: NodeId<AstNode>,
+    pub field: Span,
+    pub lhs: NodeId<AstNode>,
 }
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone, PartialEq)]
 pub struct ArrayAccess {
     pub index: NodeId<AstNode>,
-    pub object: NodeId<AstNode>,
+    pub lhs: NodeId<AstNode>,
 }
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]

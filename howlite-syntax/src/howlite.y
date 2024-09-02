@@ -336,10 +336,32 @@ ExprPrefix -> Result<AstRef>: ExprPrefixOnly { $1 } | Term { $1 };
 
 /// END: Prefix Expressions
 
+ExprFieldAccess -> Result<AstRef>:
+    Term '.' IDENT Trivia {
+      trivia!(right trivia_tree, $4,
+        node!(tree, $span, FieldAccess {
+          lhs: $1?,
+          field: $3?.span(),
+        }))
+    }
+  ;
+
+ExprArrayAccess -> Result<AstRef>:
+    Term '[' Trivia Expr ']' Trivia {
+      trivia!(right trivia_tree, $6,
+        node!(tree, $span, ArrayAccess {
+          lhs: $1?,
+          index: trivia!(left trivia_tree, $3, $4?),
+        }))
+    }
+  ;
+
 Term -> Result<AstRef>:
   LiteralInt { $1 }
   | Ident { $1 }
   | ExprCall { $1 }
+  | ExprArrayAccess { $1 }
+  | ExprFieldAccess { $1 }
   | '(' Trivia ExprInfix ')' Trivia { 
     trivia!(
       left trivia_tree, $2, trivia!(right trivia_tree, $5, $3)
