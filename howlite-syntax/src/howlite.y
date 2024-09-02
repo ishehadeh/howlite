@@ -201,6 +201,44 @@ ExprSimple -> Result<AstRef>: ExprInfixLogic { $1 };
 
 /// END: Let Expression
 
+/// BEGIN: Call Expression
+
+ExprCall -> Result<AstRef>:
+    Term '(' Trivia ExprCallParamListOpt ')' {
+      // TODO: inner trivia
+      node!(tree, $span, ExprCall {
+        callee: $1?,
+        params: $4?,
+        ty_params: vec![]
+      })
+    }
+  | Term '<{' Trivia TyParamList '}>' Trivia '(' Trivia ExprCallParamListOpt ')' {
+      // TODO: inner trivia
+      node!(tree, $span, ExprCall {
+        callee: $1?,
+        params: $9?,
+        ty_params: $4?, // TODO: inner trivia
+      })
+    }
+  ;
+
+ExprCallParamListOpt -> Result<Vec<AstRef>>:
+    ExprCallParamList { $1 }
+  | %empty { Ok(vec![]) }
+  ;
+
+ExprCallParamList -> Result<Vec<AstRef>>:
+  // TODO: allow trailing comma.
+    Expr { Ok(vec![$1?]) }
+  | ExprCallParamList ',' Trivia Expr {
+      let mut arr = $1?;
+      arr.push(trivia!(left trivia_tree, $3, $4?));
+      Ok(arr)
+    }
+  ;
+
+/// END: Call Expression
+
 
 
 /// BEGIN: Infix Expressions
@@ -301,6 +339,7 @@ ExprPrefix -> Result<AstRef>: ExprPrefixOnly { $1 } | Term { $1 };
 Term -> Result<AstRef>:
   LiteralInt { $1 }
   | Ident { $1 }
+  | ExprCall { $1 }
   | '(' Trivia ExprInfix ')' Trivia { 
     trivia!(
       left trivia_tree, $2, trivia!(right trivia_tree, $5, $3)

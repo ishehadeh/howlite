@@ -104,8 +104,9 @@ pub struct ArrayAccess {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprCall {
-    pub function_name: String,
-    pub paramaters: Vec<NodeId<AstNode>>,
+    pub callee: NodeId<AstNode>,
+    pub ty_params: Vec<NodeId<AstNode>>,
+    pub params: Vec<NodeId<AstNode>>,
 }
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
