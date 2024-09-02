@@ -26,6 +26,24 @@ Decl -> Result<NodeId<AstNode>>:
   | DefFunc { $1 }
   | DefExternFunc { $1 }
   | DefExternVar { $1 }
+  | DefImport { $1 }
+  | DefGlobal { $1 }
+  ;
+
+DefImport -> Result<NodeId<AstNode>>:
+    'use' TriviaRequired 'STRING' Trivia ';' Trivia {
+      trivia!(right trivia_tree, $6,
+        node!(tree, $span, DefImport {
+          file: $3?.span(),
+          identifiers: None,
+        }))
+    }
+  ;
+
+DefGlobal -> Result<NodeId<AstNode>>:
+    ExprLet ';' Trivia {
+      $1 // TODO: inner trivia
+    }
   ;
 
 DeclTy -> Result<NodeId<AstNode>>:

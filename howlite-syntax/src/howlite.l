@@ -9,6 +9,7 @@ if 'if'
 else 'else'
 while 'while'
 extern 'extern'
+use 'use'
 
 [_a-zA-Z][_a-zA-Z0-9]*         "IDENT"
 0x[0-9a-fA-F](_?[0-9a-fA-F])*  "UINT16"

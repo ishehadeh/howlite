@@ -33,7 +33,7 @@ pub struct DefExternVar {
 #[derive(Debug, Clone, PartialEq)]
 pub struct DefImport {
     pub file: Span,
-    pub identifiers: Vec<NodeId<AstNode>>,
+    pub identifiers: Option<Vec<NodeId<AstNode>>>,
 }
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
