@@ -17,11 +17,11 @@ pub use ty_expr::*;
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(tag = "type"))]
-// TODO split this into several enum types "ValueNode", "DefinitionNode", "Statement"
 #[derive(Debug, Clone, PartialEq)]
 pub enum AstNodeData {
-    // TODO convert this to usize
     LiteralInteger(LiteralInteger),
+    LiteralChar(LiteralChar),
+    LiteralString(LiteralString),
     LiteralArray(LiteralArray),
     StructLiteral(StructLiteral),
     StructLiteralMember(StructLiteralMember),
@@ -30,8 +30,7 @@ pub enum AstNodeData {
     FieldAccess(FieldAccess),
     ArrayAccess(ArrayAccess),
 
-    /// A repaired node is one where an error occured but parsing was still able to be completed
-    /// This is typically used for non-critical errors like 1 + 1 + 1 instead of 1 + (1 + 1)
+    /// FIXME: with the new parser generator (grmtools) we may not need this
     Repaired(Repaired),
 
     DefFunc(DefFunc),
@@ -181,6 +180,8 @@ macro_rules! impl_ast_intos {
 
 impl_ast_intos!(
     LiteralInteger(LiteralInteger),
+    LiteralChar(LiteralChar),
+    LiteralString(LiteralString),
     LiteralArray(LiteralArray),
     Ident(Ident),
     FieldAccess(FieldAccess),

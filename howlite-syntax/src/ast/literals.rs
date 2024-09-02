@@ -1,3 +1,4 @@
+use lrpar::Span;
 use num_bigint::BigInt;
 
 use crate::treeslab::NodeId;
@@ -8,6 +9,18 @@ use super::{AstNode, Ident};
 #[derive(Debug, Clone, PartialEq)]
 pub struct LiteralInteger {
     pub value: BigInt,
+}
+
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Debug, Clone, PartialEq)]
+pub struct LiteralChar {
+    pub value: Span,
+}
+
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Debug, Clone, PartialEq)]
+pub struct LiteralString {
+    pub value: Span,
 }
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]

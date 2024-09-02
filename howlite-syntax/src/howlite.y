@@ -360,7 +360,9 @@ ExprArrayAccess -> Result<AstRef>:
   ;
 
 Term -> Result<AstRef>:
-  LiteralInt { $1 }
+    LiteralInt { $1 }
+  | LiteralString { $1 }
+  | LiteralChar { $1 }
   | Ident { $1 }
   | ExprCall { $1 }
   | ExprArrayAccess { $1 }
@@ -379,6 +381,20 @@ Ident -> Result<AstRef>:
 LiteralInt -> Result<AstRef>:
     _UInt Trivia { 
       trivia!(right trivia_tree, $4, node!(tree, $span, LiteralInteger {value: $1? }))
+    }
+  ;
+
+LiteralChar -> Result<AstRef>:
+    'CHAR' Trivia {
+      // TODO: should have a separate production to handle any invalid char 'CHAR' only matches valid sequences
+      trivia!(right trivia_tree, $2, node!(tree, $span, LiteralChar { value: $1?.span() }))
+    }
+  ;
+
+LiteralString -> Result<AstRef>:
+    'STRING' Trivia {
+      // TODO: should have a separate production to handle any invalid char 'STRNG' only matches valid sequences
+      trivia!(right trivia_tree, $2, node!(tree, $span, LiteralString { value: $1?.span() }))
     }
   ;
 
