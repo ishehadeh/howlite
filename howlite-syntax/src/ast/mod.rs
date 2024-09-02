@@ -35,6 +35,7 @@ pub enum AstNodeData {
 
     DefFunc(DefFunc),
     DefParam(DefParam),
+    DefImport(DefImport),
     Block(Block),
     ExprIf(ExprIf),
     ExprCall(ExprCall),
@@ -46,7 +47,8 @@ pub enum AstNodeData {
     StmtWhile(ExprWhile),
 
     DefType(DefType),
-    DefExtern(DefExtern),
+    DefExternFunc(DefExternFunc),
+    DefExternVar(DefExternVar),
 
     Program(Program),
 
@@ -206,7 +208,7 @@ impl_ast_intos!(
     StmtLet(StmtLet),
     StmtWhile(ExprWhile),
     DefType(DefType),
-    DefExtern(DefExtern),
+    DefExternFunc(DefExternFunc),
     Program(Program),
     TyRef(TyRef),
     TyStruct(TyStruct),
@@ -219,7 +221,9 @@ impl_ast_intos!(
     TyParam(TyParam),
     TyExprUnion(TyExprUnion),
     TySlice(TySlice),
-    TyNamed(TyNamed)
+    TyNamed(TyNamed),
+    DefImport(DefImport),
+    DefExternVar(DefExternVar)
 );
 
 impl Node for AstNode {}

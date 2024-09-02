@@ -15,10 +15,25 @@ pub struct DefType {
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone, PartialEq)]
-pub struct DefExtern {
+pub struct DefExternFunc {
     pub name: Span,
     pub params: Vec<NodeId<AstNode>>,
+    pub ty_params: Vec<NodeId<AstNode>>,
     pub return_ty: NodeId<AstNode>,
+}
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Debug, Clone, PartialEq)]
+pub struct DefExternVar {
+    pub name: Span,
+    pub mutable: bool,
+    pub ty: NodeId<AstNode>,
+}
+
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Debug, Clone, PartialEq)]
+pub struct DefImport {
+    pub file: Span,
+    pub identifiers: Vec<NodeId<AstNode>>,
 }
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]

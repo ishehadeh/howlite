@@ -24,6 +24,8 @@ DeclList -> Result<Vec<NodeId<AstNode>>>:
 Decl -> Result<NodeId<AstNode>>:
     DeclTy { $1 }
   | DefFunc { $1 }
+  | DefExternFunc { $1 }
+  | DefExternVar { $1 }
   ;
 
 DeclTy -> Result<NodeId<AstNode>>:
@@ -109,6 +111,40 @@ DefFunc -> Result<NodeId<AstNode>>:
         return_ty: trivia!(left trivia_tree, $15, $16?),
         body: $17?
       })
+    }
+  ;
+
+DefExternFunc -> Result<NodeId<AstNode>>:
+    // TODO: outer & inner trivia
+    'extern' TriviaRequired 'func' TriviaRequired IDENT Trivia '(' Trivia DefFuncParamList ')' Trivia ':' Trivia TyExpr ';' Trivia {
+      trivia!(left trivia_tree, $16,
+        node!(tree, $span, DefExternFunc {
+          name: $5?.span(),
+          params: $9?,
+          ty_params: vec![],
+          return_ty: trivia!(left trivia_tree, $13, $14?),
+        }))
+    }
+  | 'extern' TriviaRequired 'func' TriviaRequired IDENT Trivia '<{' Trivia TyParamDeclList '}>' '(' Trivia DefFuncParamList ')' Trivia ':' Trivia TyExpr ';' Trivia {
+      trivia!(left trivia_tree, $20,
+        node!(tree, $span, DefExternFunc {
+          name: $5?.span(),
+          params: $13?,
+          ty_params: $9?,
+          return_ty: trivia!(left trivia_tree, $17, $18?),
+        }))
+    }
+  ;
+
+DefExternVar -> Result<NodeId<AstNode>>:
+    'extern' TriviaRequired 'let' TriviaRequired IDENT Trivia ':' Trivia TyExpr ';' Trivia {
+      // TODO: inner trivia
+      trivia!(left trivia_tree, $10,
+        node!(tree, $span, DefExternVar {
+          name: $5?.span(),
+          ty: trivia!(left trivia_tree, $8, $9?),
+          mutable: false,
+        }))
     }
   ;
 
