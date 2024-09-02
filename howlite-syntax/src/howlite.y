@@ -139,11 +139,20 @@ DefExternFunc -> Result<NodeId<AstNode>>:
 DefExternVar -> Result<NodeId<AstNode>>:
     'extern' TriviaRequired 'let' TriviaRequired IDENT Trivia ':' Trivia TyExpr ';' Trivia {
       // TODO: inner trivia
-      trivia!(left trivia_tree, $10,
+      trivia!(left trivia_tree, $11,
         node!(tree, $span, DefExternVar {
           name: $5?.span(),
           ty: trivia!(left trivia_tree, $8, $9?),
           mutable: false,
+        }))
+    }
+  | 'extern' TriviaRequired 'let' TriviaRequired 'mut' TriviaRequired IDENT Trivia ':' Trivia TyExpr ';' Trivia {
+      // TODO: inner trivia
+      trivia!(left trivia_tree, $13,
+        node!(tree, $span, DefExternVar {
+          name: $7?.span(),
+          ty: trivia!(left trivia_tree, $10, $11?),
+          mutable: true,
         }))
     }
   ;
@@ -224,12 +233,21 @@ ExprBlockStmtList -> Result<Vec<AstRef>>:
 
 /// BEGIN: Let Expression
 ExprLet -> Result<AstRef>:
-    'let' TriviaRequired Ident ':' Trivia TyExpr '=' Trivia ExprSimple { 
-      node!(tree, $span, StmtLet {
-        name: trivia!(left trivia_tree, $2, $3?),
-        ty: trivia!(left trivia_tree, $5, $6?),
-        value: trivia!(left trivia_tree, $8, $9?),
+    // TODO: (both productions) inner trivia
+    'let' TriviaRequired IDENT Trivia ':' Trivia TyExpr '=' Trivia ExprSimple { 
+      node!(tree, $span, ExprLet {
+        name: $3?.span(),
+        ty: trivia!(left trivia_tree, $6, $7?),
+        value: trivia!(left trivia_tree, $9, $10?),
         mutable: false,
+      })
+    }
+  | 'let' TriviaRequired 'mut' TriviaRequired IDENT TriviaRequired ':' Trivia TyExpr '=' Trivia ExprSimple { 
+      node!(tree, $span, ExprLet {
+        name: $5?.span(),
+        ty: trivia!(left trivia_tree, $8, $9?),
+        value: trivia!(left trivia_tree, $11, $12?),
+        mutable: true,
       })
     }
   ;

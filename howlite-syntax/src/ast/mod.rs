@@ -43,7 +43,7 @@ pub enum AstNodeData {
     ExprPrefix(ExprPrefix),
     ExprTypeConstruction(ExprTypeConstruction),
 
-    StmtLet(StmtLet),
+    ExprLet(ExprLet),
     StmtWhile(ExprWhile),
 
     DefType(DefType),
@@ -113,8 +113,8 @@ pub struct ExprCall {
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone, PartialEq)]
-pub struct StmtLet {
-    pub name: NodeId<AstNode>,
+pub struct ExprLet {
+    pub name: Span,
     pub ty: NodeId<AstNode>,
     pub mutable: bool,
     pub value: NodeId<AstNode>,
@@ -205,7 +205,7 @@ impl_ast_intos!(
     ExprInfix(ExprInfix),
     ExprPrefix(ExprPrefix),
     LiteralStruct(LiteralStruct),
-    StmtLet(StmtLet),
+    ExprLet(ExprLet),
     StmtWhile(ExprWhile),
     DefType(DefType),
     DefExternFunc(DefExternFunc),
