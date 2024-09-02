@@ -1,9 +1,15 @@
+use "test.hlt";
+
+extern let a: bool;
+extern func abc(): 0..100;
+let b: bool = false;
+
 
 // functions are declared using the keyword "func"
 func add(a: int, b: int): int {
     // notice that unlike many other c-like languages,
     // if statements do not require the expression be be surrounded in parentheses
-    
+
     if INT_MAX - abs(a) < abs(b) {
         a + b
     } else {

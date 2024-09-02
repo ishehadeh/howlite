@@ -324,21 +324,23 @@ ExprWhile -> Result<AstRef>:
 /// BEGIN: Call Expression
 
 ExprCall -> Result<AstRef>:
-    Term '(' Trivia ExprCallParamListOpt ')' {
+    Term '(' Trivia ExprCallParamListOpt ')' Trivia {
       // TODO: inner trivia
-      node!(tree, $span, ExprCall {
-        callee: $1?,
-        params: $4?,
-        ty_params: vec![]
-      })
+      trivia!(right trivia_tree, $6,
+        node!(tree, $span, ExprCall {
+          callee: $1?,
+          params: $4?,
+          ty_params: vec![]
+        }))
     }
-  | Term '<{' Trivia TyParamList '}>' Trivia '(' Trivia ExprCallParamListOpt ')' {
+  | Term '<{' Trivia TyParamList '}>' Trivia '(' Trivia ExprCallParamListOpt ')' Trivia {
       // TODO: inner trivia
-      node!(tree, $span, ExprCall {
-        callee: $1?,
-        params: $9?,
-        ty_params: $4?, // TODO: inner trivia
-      })
+      trivia!(right trivia_tree, $11,
+        node!(tree, $span, ExprCall {
+          callee: $1?,
+          params: $9?,
+          ty_params: $4?, // TODO: inner trivia
+        }))
     }
   ;
 
