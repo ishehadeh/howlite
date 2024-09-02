@@ -9,6 +9,7 @@ pub enum PrefixOp {
     Minus,
     Plus,
     BitNot,
+    Deref,
 }
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]

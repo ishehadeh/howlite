@@ -330,6 +330,9 @@ ExprPrefixOnly -> Result<AstRef>:
   | '!' Trivia Term { 
       trivia!(left trivia_tree, $2, node!(tree, $span, ExprPrefix { op: PrefixOp::LogicalNot, rhs: $3? }))
     }
+  | '*' Trivia Term {
+      trivia!(left trivia_tree, $2, node!(tree, $span, ExprPrefix { op: PrefixOp::Deref, rhs: $3? }))
+  }
   ;
 
 ExprPrefix -> Result<AstRef>: ExprPrefixOnly { $1 } | Term { $1 };
