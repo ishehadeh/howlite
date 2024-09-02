@@ -96,8 +96,18 @@ DefFunc -> Result<NodeId<AstNode>>:
       node!(tree, $span, DefFunc {
         name: $3?.span(),
         params: $7?,
+        ty_params: vec![],
         return_ty: trivia!(left trivia_tree, $11, $12?),
         body: $13?
+      })
+    }
+  | 'func' TriviaRequired IDENT Trivia '<{' Trivia TyParamDeclList '}>' '(' Trivia DefFuncParamList ')' Trivia ':' Trivia TyExpr ExprBlock {
+      node!(tree, $span, DefFunc {
+        name: $3?.span(),
+        params: $11?,
+        ty_params: $7?, // TODO: lhs trivia
+        return_ty: trivia!(left trivia_tree, $15, $16?),
+        body: $17?
       })
     }
   ;

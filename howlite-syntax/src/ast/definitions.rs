@@ -26,6 +26,7 @@ pub struct DefExtern {
 pub struct DefFunc {
     pub name: Span,
     pub params: Vec<NodeId<AstNode>>,
+    pub ty_params: Vec<NodeId<AstNode>>,
     pub return_ty: NodeId<AstNode>,
     pub body: NodeId<AstNode>,
 }
