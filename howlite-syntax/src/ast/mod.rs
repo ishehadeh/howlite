@@ -4,10 +4,12 @@ use lrpar::Span;
 
 use std::fmt::Debug;
 
+mod definitions;
 mod infix;
 mod literals;
 mod prefix;
 mod ty_expr;
+pub use definitions::*;
 pub use infix::*;
 pub use literals::*;
 pub use prefix::*;
@@ -32,8 +34,8 @@ pub enum AstNodeData {
     /// This is typically used for non-critical errors like 1 + 1 + 1 instead of 1 + (1 + 1)
     Repaired(Repaired),
 
-    DefFunction(DefFunction),
-    Param(Param),
+    DefFunc(DefFunc),
+    DefParam(DefParam),
     Block(Block),
     StmtIf(StmtIf),
     ExprCall(ExprCall),
@@ -81,13 +83,6 @@ impl AstNode {
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone, PartialEq)]
-pub struct Param {
-    pub name: String,
-    pub typ: NodeId<AstNode>,
-}
-
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Debug, Clone, PartialEq)]
 pub struct Repaired {
     pub tree: Option<NodeId<AstNode>>,
 }
@@ -130,23 +125,6 @@ pub struct Program {
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone, PartialEq)]
-pub struct DefType {
-    pub name: Span,
-    pub alias: bool,
-    pub ty: NodeId<AstNode>,
-    pub ty_params: Vec<NodeId<AstNode>>,
-}
-
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Debug, Clone, PartialEq)]
-pub struct DefExtern {
-    pub name: String,
-    pub params: Vec<NodeId<AstNode>>,
-    pub return_ty: NodeId<AstNode>,
-}
-
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Debug, Clone, PartialEq)]
 pub struct StmtIf {
     pub condition: NodeId<AstNode>,
     pub body: NodeId<AstNode>,
@@ -183,15 +161,6 @@ pub struct Ident {
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone, PartialEq)]
-pub struct DefFunction {
-    pub name: String,
-    pub params: Vec<NodeId<AstNode>>,
-    pub return_ty: NodeId<AstNode>,
-    pub body: NodeId<AstNode>,
-}
-
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Debug, Clone, PartialEq)]
 pub struct StmtWhile {
     pub condition: NodeId<AstNode>,
     pub body: NodeId<AstNode>,
@@ -216,8 +185,8 @@ impl_ast_intos!(
     FieldAccess(FieldAccess),
     ArrayAccess(ArrayAccess),
     Repaired(Repaired),
-    DefFunction(DefFunction),
-    Param(Param),
+    DefFunc(DefFunc),
+    DefParam(DefParam),
     Block(Block),
     StmtIf(StmtIf),
     ExprCall(ExprCall),

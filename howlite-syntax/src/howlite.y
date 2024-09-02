@@ -2,15 +2,15 @@
 %parse-param tree: &crate::treeslab::TreeSlab<AstNode> 
 %%
 Program -> Result<AstRef>: 
-    DeclList { node!(tree, $span, Program { declarations: $1 }) }
-  | Expr { $1 };
+    Trivia DeclList { node!(tree, $span, Program { definitions: $2? }) }
+  ;
 
 DeclList -> Result<Vec<NodeId<AstNode>>>:
-    DeclTy { vec![$1?] }
-  | DeclList DeclTy { 
+    Decl { Ok(vec![$1?]) }
+  | DeclList Decl { 
       let mut arr = $1?;
       arr.push($2?);
-      arr
+      Ok(arr)
     }
   ;
 
@@ -20,6 +20,11 @@ DeclList -> Result<Vec<NodeId<AstNode>>>:
 //  - "func"
 //  - "use"
 //  - "extern"
+
+Decl -> Result<NodeId<AstNode>>:
+    DeclTy { $1 }
+  | DefFunc { $1 }
+  ;
 
 DeclTy -> Result<NodeId<AstNode>>:
     'type' TriviaRequired 'IDENT' Trivia '<{' Trivia TyParamDeclList '}>' Trivia '=' Trivia TyExpr ';' Trivia {
@@ -64,20 +69,6 @@ DeclTy -> Result<NodeId<AstNode>>:
     }
   ;
 
-TyParamDecl -> Result<NodeId<AstNode>>:
-    IDENT Trivia ':' Trivia TyExpr {
-      trivia!(right trivia_tree, $2,
-        node!(tree, $span,
-          TyParam {
-            name: $1?.span(),
-            super_ty: trivia!(left trivia_tree, $4, $5?),
-            default_ty: None
-          }
-        )
-      )
-    }
-  ;
-
 TyParamDeclList -> Result<Vec<NodeId<AstNode>>>:
     TyParamDecl { Ok(vec![$1?]) }
   | TyParamDeclList ',' Trivia TyParamDecl {
@@ -86,6 +77,59 @@ TyParamDeclList -> Result<Vec<NodeId<AstNode>>>:
       Ok(arr)
     }
   ;
+
+TyParamDecl -> Result<NodeId<AstNode>>:
+    IDENT Trivia ':' Trivia TyExpr {
+      node!(tree, $span,
+        TyParam {
+          name: $1?.span(),
+          super_ty: trivia!(left trivia_tree, $4, $5?),
+          default_ty: None
+        }
+      )
+    }
+  ;
+
+DefFunc -> Result<NodeId<AstNode>>:
+    // TODO: (both productions) inner trivia
+    'func' TriviaRequired IDENT Trivia '(' Trivia DefFuncParamList ')' Trivia ':' Trivia TyExpr ExprBlock {
+      node!(tree, $span, DefFunc {
+        name: $3?.span(),
+        params: $7?,
+        return_ty: trivia!(left trivia_tree, $11, $12?),
+        body: $13?
+      })
+    }
+  ;
+
+
+DefFuncParamList -> Result<Vec<AstRef>>:
+    DefFuncParam { Ok(vec![$1?]) }
+  | DefFuncParamList ',' Trivia DefFuncParam {
+      let mut arr = $1?;
+      arr.push(trivia!(right trivia_tree, $4, trivia!(left trivia_tree, $3, $4?)));
+      Ok(arr)
+    }
+  | %empty { Ok(vec![]) }
+  ;
+
+DefFuncParam -> Result<AstRef>:
+    'mut' IDENT Trivia ':' Trivia TyExpr {
+      node!(tree, $span, DefParam {
+        mutable: true,
+        ty: trivia!(left trivia_tree, $5, $6?),
+        name: $1?.span()
+      })
+    }
+  | IDENT Trivia ':' Trivia TyExpr {
+      node!(tree, $span, DefParam {
+        mutable: false,
+        ty: trivia!(left trivia_tree, $4, $5?),
+        name: $1?.span()
+      })
+    }
+  ;
+
 
 
 /// END: Top-Level Declarations
@@ -287,28 +331,22 @@ TyExprUnion -> Result<AstRef>:
   | TyTerm { $1 }
   ;
 
-TyStruct -> Result<Vec<AstRef>>:
+TyStruct -> Result<AstRef>:
     '{' Trivia TyStructMemberList '}' Trivia {
         // TODO: inner trivia
-        trivia!(right, $5,
+        trivia!(right trivia_tree, $5,
           node!(tree, $span, TyStruct {
-            members: $3?.span()
+            members: $3?
           }))
     }
   ;
 
 TyStructMemberList -> Result<Vec<AstRef>>:
-    TyStructMember { vec![trivia!(right trivia_tree, $1, $2)] }
-  | TyStructMemberList ',' Trivia TyStructMember ',' Trivia {
-    // TODO: outer trivia
-      let mut arr = $1?;
-      arr.push(trivia!(right, trivia_tree, $4, trivia!(left trivia_tree, $3, $4)));
-      arr
-    }
+    TyStructMember { Ok(vec![$1?]) }
   | TyStructMemberList ',' Trivia TyStructMember {
       let mut arr = $1?;
-      arr.push(trivia!(right, trivia_tree, $4, trivia!(left trivia_tree, $3, $4)));
-      arr
+      arr.push(trivia!(right trivia_tree, $4, trivia!(left trivia_tree, $3, $4?)));
+      Ok(arr)
     }
   ;
 
@@ -316,7 +354,7 @@ TyStructMember -> Result<AstRef>:
     'mut' IDENT Trivia ':' Trivia TyExpr {
       node!(tree, $span, TyStructMember {
         mutable: true,
-        ty: trivia!(left trivia_tree, $4, $5?),
+        ty: trivia!(left trivia_tree, $5, $6?),
         name: $1?.span()
       })
     }
@@ -469,8 +507,7 @@ MultiLineComment -> Result<TriviaPeice>:
 
 %%
 
-use crate::{Trivia, TriviaData, TriviaPeice, NewlineKind, treeslab, treeslab::NodeId, CommentKind, ast::*};
-use lrpar::{Span, NonStreamingLexer, LexerTypes};
+use crate::{Trivia, TriviaData, TriviaPeice, NewlineKind, treeslab::NodeId, CommentKind, ast::*};
 use num_bigint::{BigInt, Sign};
 
 pub type Result<T, E = Box<dyn std::error::Error>> = std::result::Result<T, E>;

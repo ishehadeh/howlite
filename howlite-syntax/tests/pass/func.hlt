@@ -1,0 +1,6 @@
+
+
+func return_true(): bool { true }
+func add(a: 0..100, b: 0..100): 0..200 {
+    a + b
+}
