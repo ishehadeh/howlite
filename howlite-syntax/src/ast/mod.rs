@@ -36,14 +36,14 @@ pub enum AstNodeData {
     DefFunc(DefFunc),
     DefParam(DefParam),
     Block(Block),
-    StmtIf(StmtIf),
+    ExprIf(ExprIf),
     ExprCall(ExprCall),
     ExprInfix(ExprInfix),
     ExprPrefix(ExprPrefix),
     ExprTypeConstruction(ExprTypeConstruction),
 
     StmtLet(StmtLet),
-    StmtWhile(StmtWhile),
+    StmtWhile(ExprWhile),
 
     DefType(DefType),
     DefExtern(DefExtern),
@@ -126,10 +126,10 @@ pub struct Program {
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone, PartialEq)]
-pub struct StmtIf {
+pub struct ExprIf {
     pub condition: NodeId<AstNode>,
-    pub body: NodeId<AstNode>,
-    pub else_: Option<NodeId<AstNode>>,
+    pub success: NodeId<AstNode>,
+    pub failure: Option<NodeId<AstNode>>,
 }
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -162,7 +162,7 @@ pub struct Ident {
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone, PartialEq)]
-pub struct StmtWhile {
+pub struct ExprWhile {
     pub condition: NodeId<AstNode>,
     pub body: NodeId<AstNode>,
 }
@@ -198,13 +198,13 @@ impl_ast_intos!(
     DefFunc(DefFunc),
     DefParam(DefParam),
     Block(Block),
-    StmtIf(StmtIf),
+    ExprIf(ExprIf),
     ExprCall(ExprCall),
     ExprInfix(ExprInfix),
     ExprPrefix(ExprPrefix),
     LiteralStruct(LiteralStruct),
     StmtLet(StmtLet),
-    StmtWhile(StmtWhile),
+    StmtWhile(ExprWhile),
     DefType(DefType),
     DefExtern(DefExtern),
     Program(Program),

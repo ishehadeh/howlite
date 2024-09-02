@@ -149,7 +149,9 @@ DefFuncParam -> Result<AstRef>:
 Expr -> Result<AstRef>:
     ExprInfix { $1 }
   | ExprLet { $1 }
+  | ExprIf { $1 }
   | ExprBlock { $1 }
+  | ExprWhile { $1 }
   ;
 
 /// END: Full Expression
@@ -201,6 +203,52 @@ ExprSimple -> Result<AstRef>: ExprInfixLogic { $1 };
 
 /// END: Let Expression
 
+/// BEGIN: If Expression
+
+ExprIf -> Result<AstRef>:
+    'if' TriviaRequired Expr ExprBlock ExprElse {
+      node!(tree, $span, ExprIf {
+        condition: trivia!(left trivia_tree, $2, $3?),
+        success: $4?,
+        failure: Some($5?)
+      })
+    }
+  | 'if' TriviaRequired Expr ExprBlock {
+      node!(tree, $span, ExprIf {
+        condition: trivia!(left trivia_tree, $2, $3?),
+        success: $4?,
+        failure: None,
+      })
+    }
+  ;
+
+ExprElse -> Result<AstRef>:
+    'else' Trivia ExprBlock { 
+      trivia!(left trivia_tree, $2, $3)
+    }
+  | 'else' TriviaRequired ExprIf {
+      trivia!(left trivia_tree, $2, $3)
+    }
+  ;
+
+/// END: If Expression
+
+
+/// BEGIN: While Expression
+
+ExprWhile -> Result<AstRef>:
+    'while' TriviaRequired Expr ExprBlock {
+      node!(tree, $span, ExprWhile {
+        condition: trivia!(left trivia_tree, $2, $3?),
+        body: $4?,
+      })
+    }
+  ;
+
+/// END: While Expression
+
+
+
 /// BEGIN: Call Expression
 
 ExprCall -> Result<AstRef>:
@@ -238,7 +286,6 @@ ExprCallParamList -> Result<Vec<AstRef>>:
   ;
 
 /// END: Call Expression
-
 
 
 /// BEGIN: Infix Expressions
