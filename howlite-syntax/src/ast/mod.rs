@@ -23,8 +23,8 @@ pub enum AstNodeData {
     LiteralChar(LiteralChar),
     LiteralString(LiteralString),
     LiteralArray(LiteralArray),
-    StructLiteral(StructLiteral),
-    StructLiteralMember(StructLiteralMember),
+    LiteralStruct(LiteralStruct),
+    LiteralStructMember(LiteralStructMember),
 
     Ident(Ident),
     FieldAccess(FieldAccess),
@@ -40,6 +40,7 @@ pub enum AstNodeData {
     ExprCall(ExprCall),
     ExprInfix(ExprInfix),
     ExprPrefix(ExprPrefix),
+    ExprTypeConstruction(ExprTypeConstruction),
 
     StmtLet(StmtLet),
     StmtWhile(StmtWhile),
@@ -166,6 +167,13 @@ pub struct StmtWhile {
     pub body: NodeId<AstNode>,
 }
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Debug, Clone, PartialEq)]
+pub struct ExprTypeConstruction {
+    pub ty: NodeId<AstNode>,
+    pub value: NodeId<AstNode>,
+}
+
 macro_rules! impl_ast_intos {
     ($($enum_node:ident($node_name:ident)),*) => {
         $(
@@ -194,7 +202,7 @@ impl_ast_intos!(
     ExprCall(ExprCall),
     ExprInfix(ExprInfix),
     ExprPrefix(ExprPrefix),
-    StructLiteral(StructLiteral),
+    LiteralStruct(LiteralStruct),
     StmtLet(StmtLet),
     StmtWhile(StmtWhile),
     DefType(DefType),
@@ -202,7 +210,8 @@ impl_ast_intos!(
     Program(Program),
     TyRef(TyRef),
     TyStruct(TyStruct),
-    StructLiteralMember(StructLiteralMember),
+    LiteralStructMember(LiteralStructMember),
+    ExprTypeConstruction(ExprTypeConstruction),
     StructMember(TyStructMember),
     TyNumberRange(TyNumberRange),
     TyArray(TyArray),

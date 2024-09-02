@@ -363,6 +363,9 @@ Term -> Result<AstRef>:
     LiteralInt { $1 }
   | LiteralString { $1 }
   | LiteralChar { $1 }
+  | LiteralStruct { $1 }
+  | LiteralArray { $1 }
+  | ExprTypeConstruction { $1 }
   | Ident { $1 }
   | ExprCall { $1 }
   | ExprArrayAccess { $1 }
@@ -395,6 +398,86 @@ LiteralString -> Result<AstRef>:
     'STRING' Trivia {
       // TODO: should have a separate production to handle any invalid char 'STRNG' only matches valid sequences
       trivia!(right trivia_tree, $2, node!(tree, $span, LiteralString { value: $1?.span() }))
+    }
+  ;
+
+ExprTypeConstruction -> Result<AstRef>:
+    '[' Trivia TyExpr ']' Trivia '(' Trivia Expr ')' Trivia {
+      trivia!(right trivia_tree, $10,
+        node!(tree, $span,
+          ExprTypeConstruction { 
+            ty: trivia!(left trivia_tree, $2, $3?),
+            value: $8?
+          }))
+    }
+  ;
+
+
+LiteralStruct -> Result<AstRef>:
+    '[' Trivia TyExpr ']' Trivia '{' Trivia LiteralStructMemberListOpt '}' Trivia {
+      trivia!(right trivia_tree, $10,
+        node!(tree, $span,
+          LiteralStruct { 
+            struct_ty: trivia!(left trivia_tree, $2, $3?),
+            members: $8?
+          }))
+    }
+  ;
+
+LiteralStructMemberListOpt -> Result<Vec<AstRef>>:
+    LiteralStructMemberList ',' Trivia { 
+      /* TODO: outer trivia */
+      $1
+    }
+  | LiteralStructMemberList { $1 }
+  | %empty { Ok(vec![]) }
+  ;
+
+LiteralStructMemberList -> Result<Vec<AstRef>>:
+    LiteralStructMember { Ok(vec![$1?]) }
+  | LiteralStructMemberList ',' Trivia LiteralStructMember {
+      let mut arr = $1?;
+      arr.push(trivia!(left trivia_tree, $3, $4?));
+      Ok(arr)
+    }
+  ;
+
+LiteralStructMember -> Result<AstRef>:
+    IDENT Trivia ':' Trivia Expr {
+      node!(tree, $span, LiteralStructMember {
+        field: $1?.span(),
+        value: trivia!(left trivia_tree, $4, $5?)
+      })
+    }
+  ;
+
+
+LiteralArray -> Result<AstRef>:
+    '[' Trivia TyExpr ']' Trivia '[' Trivia LiteralArrayValueListOpt ']' Trivia {
+      trivia!(right trivia_tree, $10,
+        node!(tree, $span,
+          LiteralArray { 
+            values_ty: trivia!(left trivia_tree, $2, $3?),
+            values: $8?
+          }))
+    }
+  ;
+
+LiteralArrayValueListOpt -> Result<Vec<AstRef>>:
+    LiteralArrayValueList ',' Trivia { 
+      /* TODO: outer trivia */
+      $1
+    }
+  | LiteralArrayValueList { $1 }
+  | %empty { Ok(vec![]) }
+  ;
+
+LiteralArrayValueList -> Result<Vec<AstRef>>:
+    Expr { Ok(vec![$1?]) }
+  | LiteralArrayValueList ',' Trivia Expr {
+      let mut arr = $1?;
+      arr.push(trivia!(left trivia_tree, $3, $4?));
+      Ok(arr)
     }
   ;
 
@@ -435,7 +518,7 @@ TyStructMemberList -> Result<Vec<AstRef>>:
     TyStructMember { Ok(vec![$1?]) }
   | TyStructMemberList ',' Trivia TyStructMember {
       let mut arr = $1?;
-      arr.push(trivia!(right trivia_tree, $4, trivia!(left trivia_tree, $3, $4?)));
+      arr.push(trivia!(right trivia_tree, $3, $4?));
       Ok(arr)
     }
   ;

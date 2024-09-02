@@ -55,6 +55,6 @@ func     "func"
 \n            "LF"
 [ ]+          "SPACE"
 \t+           "TAB"
-//[\x31-\xfe \t]*                   "COMMENT-LINE"
-/\*([\x31-\xfe \t\n]|(\r\n))*\*/    "COMMENT-MULTILINE"
+//[\pL\pM\pN\pS\pP\p{Zs}]*                   "COMMENT-LINE"
+/\*[\pL\pM\pN\pS\pP\p{Zs}\p{Zl}]*\*/    "COMMENT-MULTILINE"
 

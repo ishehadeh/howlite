@@ -1,0 +1,17 @@
+// Bool definitions
+type True = 1..255;
+type False = 0;
+
+type alias Bool = True | False;
+
+type A<{N: -100..100}> = { n: N };
+//bool defs end
+
+func main(): A<{5..10}> {
+
+    let true: True = (1);
+    let false: False = (0);
+
+    // construct an array of type 0..5
+    let obj: 5 = [A<{0..5}>] { n: 0 };
+}
