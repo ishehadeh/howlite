@@ -287,6 +287,48 @@ TyExprUnion -> Result<AstRef>:
   | TyTerm { $1 }
   ;
 
+TyStruct -> Result<Vec<AstRef>>:
+    '{' Trivia TyStructMemberList '}' Trivia {
+        // TODO: inner trivia
+        trivia!(right, $5,
+          node!(tree, $span, TyStruct {
+            members: $3?.span()
+          }))
+    }
+  ;
+
+TyStructMemberList -> Result<Vec<AstRef>>:
+    TyStructMember { vec![trivia!(right trivia_tree, $1, $2)] }
+  | TyStructMemberList ',' Trivia TyStructMember ',' Trivia {
+    // TODO: outer trivia
+      let mut arr = $1?;
+      arr.push(trivia!(right, trivia_tree, $4, trivia!(left trivia_tree, $3, $4)));
+      arr
+    }
+  | TyStructMemberList ',' Trivia TyStructMember {
+      let mut arr = $1?;
+      arr.push(trivia!(right, trivia_tree, $4, trivia!(left trivia_tree, $3, $4)));
+      arr
+    }
+  ;
+
+TyStructMember -> Result<AstRef>:
+    'mut' IDENT Trivia ':' Trivia TyExpr {
+      node!(tree, $span, TyStructMember {
+        mutable: true,
+        ty: trivia!(left trivia_tree, $4, $5?),
+        name: $1?.span()
+      })
+    }
+  | IDENT Trivia ':' Trivia TyExpr {
+      node!(tree, $span, TyStructMember {
+        mutable: false,
+        ty: trivia!(left trivia_tree, $4, $5?),
+        name: $1?.span()
+      })
+    }
+  ;
+
 TyIntegerRangeTerm -> Result<AstRef>:
     LiteralInt { $1 }
   | ExprPrefixOnly { $1 }
@@ -366,6 +408,7 @@ TyTerm -> Result<AstRef>:
   | TyRef { $1 }
   | TySlice { $1 }
   | TyArray { $1 }
+  | TyStruct { $1 }
   | TyNamed { $1 }
   | 'unit' Trivia { trivia!(right trivia_tree, $2, node!(tree, $span, TyUnit {})) }
   ;
