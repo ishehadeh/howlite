@@ -1,6 +1,6 @@
 use lrpar::Span;
 
-use crate::treeslab::NodeId;
+use crate::tree::NodeId;
 
 use super::AstNode;
 

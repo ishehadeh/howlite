@@ -1,5 +1,5 @@
 %start Program
-%parse-param tree: &crate::treeslab::TreeSlab<AstNode> 
+%parse-param tree: &crate::tree::TreeBuilder<AstNode> 
 %%
 Program -> Result<AstRef>: 
     Trivia DeclList { node!(tree, $span, Program { definitions: $2? }) }
@@ -801,7 +801,7 @@ MultiLineComment -> Result<TriviaPeice>:
 
 %%
 
-use crate::{Trivia, TriviaData, TriviaPeice, NewlineKind, treeslab::NodeId, CommentKind, ast::*};
+use crate::{Trivia, TriviaData, TriviaPeice, NewlineKind, tree::NodeId, CommentKind, ast::*};
 use num_bigint::{BigInt, Sign};
 
 pub type Result<T, E = Box<dyn std::error::Error>> = std::result::Result<T, E>;

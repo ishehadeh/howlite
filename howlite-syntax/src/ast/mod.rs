@@ -1,4 +1,4 @@
-use crate::treeslab::{Node, NodeId};
+use crate::tree::NodeId;
 
 use lrpar::Span;
 
@@ -225,5 +225,3 @@ impl_ast_intos!(
     DefImport(DefImport),
     DefExternVar(DefExternVar)
 );
-
-impl Node for AstNode {}

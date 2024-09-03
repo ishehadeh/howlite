@@ -1,7 +1,7 @@
 use lrpar::Span;
 use num_bigint::BigInt;
 
-use crate::treeslab::NodeId;
+use crate::tree::NodeId;
 
 use super::AstNode;
 
