@@ -4,11 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-logos = "0.14.0"
 cfgrammar = "=0.13.7"
 lrlex = "=0.13.7"
 lrpar = "=0.13.7"
-thiserror = { version = "1.0.56" }
 num-bigint = "=0.4.6"
 
 [build-dependencies]
