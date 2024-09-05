@@ -1,36 +1,4 @@
-use crate::{
-    environment::Environment,
-    IntegerSet,
-};
-
-macro_rules! _iset_helper {
-    (@range [$($args:expr),*,] -> $x:literal .. $y:literal, $($rest:tt)*) => {
-        _iset_helper!(@range [crate::integer::IntegerRange::new($x, $y), $($args),*] -> $($rest)*)
-    };
-
-    (@range [$($args:expr),*,] -> $x:literal, $($rest:tt)*) => {
-        _iset_helper!(@range [crate::integer::IntegerRange::new($x, $x), $($args),*] -> $($rest)*)
-    };
-
-    (@range [$($args:expr),*,] -> $x:literal .. $y:literal) => {
-         vec![crate::integer::IntegerRange::new($x, $y), $($args),*]
-    };
-
-    (@range [$($args:expr),*,] -> $x:literal) => {
-        vec![crate::integer::IntegerRange::new($x, $x), $($args),*]
-    };
-
-    (@range [$($args:expr),*,] ->) => {
-        vec![$($args),*]
-    };
-}
-
-macro_rules! iset {
-    ($($args:tt)*) => {
-        IntegerSet::new(_iset_helper!(@range [,] -> $($args)*))
-    };
-
-}
+use crate::{environment::Environment, iset, IntegerSet};
 
 macro_rules! constraints {
     (using $env:expr; let $($var:ident = { $($val:tt)* } ),*; ensure $($constraints:tt)*) => {

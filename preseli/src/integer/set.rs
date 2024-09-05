@@ -2,6 +2,38 @@ use std::{cmp::Ordering, ops::Mul};
 
 use super::{num_bigint::BigInt, IntegerRange};
 
+#[doc(hidden)]
+#[macro_export]
+macro_rules! _iset_helper {
+    (@range [$($args:expr),*,] -> $x:literal .. $y:literal, $($rest:tt)*) => {
+        $crate::_iset_helper!(@range [$crate::integer::IntegerRange::new($x, $y), $($args),*] -> $($rest)*)
+    };
+
+    (@range [$($args:expr),*,] -> $x:literal, $($rest:tt)*) => {
+        $crate::_iset_helper!(@range [$crate::integer::IntegerRange::new($x, $x), $($args),*] -> $($rest)*)
+    };
+
+    (@range [$($args:expr),*,] -> $x:literal .. $y:literal) => {
+         vec![$crate::integer::IntegerRange::new($x, $y), $($args),*]
+    };
+
+    (@range [$($args:expr),*,] -> $x:literal) => {
+        vec![$crate::integer::IntegerRange::new($x, $x), $($args),*]
+    };
+
+    (@range [$($args:expr),*,] ->) => {
+        vec![$($args),*]
+    };
+}
+
+#[macro_export]
+macro_rules! iset {
+    ($($args:tt)*) => {
+        IntegerSet::new($crate::_iset_helper!(@range [,] -> $($args)*))
+    };
+
+}
+
 #[derive(Clone, Default, PartialEq, Eq, Debug, Hash)]
 pub struct IntegerSet {
     ranges: Vec<IntegerRange>,
