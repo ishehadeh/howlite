@@ -29,7 +29,7 @@ macro_rules! _iset_helper {
 #[macro_export]
 macro_rules! iset {
     ($($args:tt)*) => {
-        IntegerSet::new($crate::_iset_helper!(@range [,] -> $($args)*))
+        $crate::IntegerSet::new($crate::_iset_helper!(@range [,] -> $($args)*))
     };
 
 }
