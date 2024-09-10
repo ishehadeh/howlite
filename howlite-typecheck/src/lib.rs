@@ -17,6 +17,12 @@ pub use preseli::IntegerSet;
 
 mod access_path;
 mod construct_macros;
+mod errors;
+mod util;
+
+use util::try_collect::TryCollect;
+
+pub use errors::AccessError;
 pub mod ty_struct;
 pub use access_path::{AccessPath, AccessPathElem};
 use smallvec::SmallVec;
@@ -89,6 +95,23 @@ impl<SymbolT: Eq> Ty<SymbolT> {
             Ty::Reference(_) => 4,
             Ty::Union(u) => u.tys.iter().map(|f| f.sizeof()).max().unwrap_or(0),
         }
+    }
+
+    pub fn access_field(&self, path: SymbolT) -> Result<Ty<SymbolT>, AccessError> {
+        let struc = match self {
+            Ty::Struct(s) => vec![s.clone()],
+            Ty::Union(u) => u
+                .tys
+                .iter()
+                .map(|t| {
+                    t.as_struct()
+                        .clone()
+                        .ok_or(AccessError::NonStructUnionVariant)
+                })
+                .try_collect_poly()?,
+            _ => return Result::Err(AccessError::IllegalFieldAccess),
+        };
+        todo!();
     }
 }
 
