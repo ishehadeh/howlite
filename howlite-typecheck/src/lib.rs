@@ -16,6 +16,8 @@ use std::rc::Rc;
 pub use preseli::IntegerSet;
 
 pub mod ty_struct;
+mod construct_macros;
+
 use smallvec::SmallVec;
 pub use ty_struct::TyStruct;
 

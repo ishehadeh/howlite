@@ -150,39 +150,9 @@ impl<SymbolT: Eq> StructCursor<SymbolT> {
 
 #[cfg(test)]
 mod test {
-    use crate::{ty_struct::AccessPath, Ty, TyStruct};
     use preseli::iset;
 
-    macro_rules! t_struct {
-        ($($field:expr => $ty:expr),* ,) => {
-            t_struct! {
-                $($field => $ty),*
-            }
-        };
-
-        (
-            $($field:expr => $ty:expr),*
-        ) => {
-            Ty::Struct(std::rc::Rc::new($crate::TyStruct {
-                fields: smallvec::smallvec![
-                    $($crate::ty_struct::StructField {
-                        name: $field,
-                        ty: $ty
-                    }),*
-                ]
-            }))
-        };
-    }
-
-    macro_rules! t_int {
-        ($($toks:tt)*) => {
-            $crate::Ty::Int({
-                $crate::TyInt {
-                    values: preseli::iset!($($toks)*)
-                }
-            })
-        };
-    }
+    use crate::{t_array, t_int, t_struct, ty_struct::AccessPath, Ty, TyStruct};
 
     #[test]
     pub fn construction() {
@@ -254,7 +224,7 @@ mod test {
             },
         };
         let a_struc_ty = t_struct! {
-        "c" => t_int!(0),
+        "c" => t_array! [ t_int!(0); 1 ],
         "b" => t_struct! {
             "d" => t_int!(1),
             "f" => t_int!(2),
