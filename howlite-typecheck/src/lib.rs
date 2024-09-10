@@ -231,7 +231,10 @@ impl<SymbolT: Symbol> Ty<SymbolT> {
         }
     }
 
-    fn is_compatible_with(&self, other: &Ty<SymbolT>) -> Result<(), IncompatibleError<SymbolT>> {
+    pub fn is_compatible_with(
+        &self,
+        other: &Ty<SymbolT>,
+    ) -> Result<(), IncompatibleError<SymbolT>> {
         match (self, other) {
             (Ty::Int(subset), Ty::Int(superset)) => {
                 if subset.values.is_subset_of(&superset.values) {
@@ -241,6 +244,22 @@ impl<SymbolT: Symbol> Ty<SymbolT> {
                         subset: subset.clone(),
                         superset: superset.clone(),
                     })
+                }
+            }
+            (Ty::Array(superset), Ty::Array(subset)) => {
+                subset
+                    .element_ty
+                    .is_compatible_with(&superset.element_ty)
+                    .map_err(|error| IncompatibleError::IncompatibleElement {
+                        error: Box::new(error),
+                    })?;
+                if superset.length < subset.length {
+                    Err(IncompatibleError::ArrayTooShort {
+                        subset_arr: subset.clone(),
+                        superset_arr: superset.clone(),
+                    })
+                } else {
+                    Ok(())
                 }
             }
             (Ty::Struct(superset), Ty::Struct(subset)) => {
@@ -295,7 +314,7 @@ impl<SymbolT: Symbol> Ty<SymbolT> {
 
                     subset_offset += sub_field.ty.sizeof();
                 }
-                if errors.len() > 0 {
+                if !errors.is_empty() {
                     Err(IncompatibleError::StructIncompatibility {
                         subset_struct: subset.clone(),
                         superset_struct: superset.clone(),
@@ -364,7 +383,7 @@ mod test {
     }
 
     #[test]
-    fn compat() {
+    fn compat_struct() {
         let s1 = t_struct! {
             "a" => t_int!(0),
             "b" => t_int!(0)
@@ -378,5 +397,13 @@ mod test {
             s1.is_compatible_with(&s2).unwrap_err(),
             IncompatibleError::StructIncompatibility { .. }
         ));
+    }
+
+    #[test]
+    fn compat_array() {
+        let a1: Ty<()> = t_array![t_int!(0..10); 10];
+        let a2 = t_array![t_int!(0..5); 5];
+
+        a1.is_compatible_with(&a2).unwrap();
     }
 }

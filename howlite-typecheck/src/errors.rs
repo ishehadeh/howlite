@@ -1,6 +1,6 @@
 use std::{collections::HashMap, rc::Rc};
 
-use crate::{Symbol, Ty, TyInt, TyStruct};
+use crate::{Symbol, Ty, TyArray, TyInt, TyStruct};
 
 #[derive(thiserror::Error, miette::Diagnostic, Debug)]
 pub enum AccessError {
@@ -44,6 +44,17 @@ pub enum IncompatibleError<SymbolT: Symbol> {
 
     #[error("integer set {:?} is not a subset of {:?}. (not a in superset: {:?})", subset.values, superset.values, { let mut excl = subset.values.clone(); excl.subtract(&superset.values); excl} )]
     IntegerSubsetError { subset: TyInt, superset: TyInt },
+
+    #[error("array is too short, got {:?} expected at least {:?}", subset_arr.length, superset_arr.length)]
+    ArrayTooShort {
+        subset_arr: Rc<TyArray<SymbolT>>,
+        superset_arr: Rc<TyArray<SymbolT>>,
+    },
+
+    #[error("collection element types are incompatible: {:?}", error)]
+    IncompatibleElement {
+        error: Box<IncompatibleError<SymbolT>>,
+    },
 
     #[error("incompatible structures, field mismatches: {bad_fields:?}. When comparing {subset_struct:?} and {superset_struct:?}")]
     StructIncompatibility {
