@@ -20,6 +20,7 @@ mod construct_macros;
 mod errors;
 mod util;
 
+use ty_struct::StructField;
 use util::try_collect::TryCollect;
 
 pub use errors::AccessError;
@@ -60,7 +61,7 @@ pub struct TyUnion<SymbolT: Eq> {
     pub tys: SmallVec<[Ty<SymbolT>; 16]>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Ty<SymbolT: Eq> {
     Int(TyInt),
     Struct(Rc<TyStruct<SymbolT>>),
@@ -68,6 +69,19 @@ pub enum Ty<SymbolT: Eq> {
     Slice(Rc<TySlice<SymbolT>>),
     Reference(Rc<TyReference<SymbolT>>),
     Union(Rc<TyUnion<SymbolT>>),
+}
+
+impl<SymbolT: Eq> Clone for Ty<SymbolT> {
+    fn clone(&self) -> Self {
+        match self {
+            Self::Int(arg0) => Self::Int(arg0.clone()),
+            Self::Struct(arg0) => Self::Struct(arg0.clone()),
+            Self::Array(arg0) => Self::Array(arg0.clone()),
+            Self::Slice(arg0) => Self::Slice(arg0.clone()),
+            Self::Reference(arg0) => Self::Reference(arg0.clone()),
+            Self::Union(arg0) => Self::Union(arg0.clone()),
+        }
+    }
 }
 
 impl<SymbolT: Eq> Ty<SymbolT> {
@@ -97,8 +111,8 @@ impl<SymbolT: Eq> Ty<SymbolT> {
         }
     }
 
-    pub fn access_field(&self, path: SymbolT) -> Result<Ty<SymbolT>, AccessError> {
-        let struc = match self {
+    pub fn access_field(&self, access_symbol: SymbolT) -> Result<Ty<SymbolT>, AccessError> {
+        let strucs = match self {
             Ty::Struct(s) => vec![s.clone()],
             Ty::Union(u) => u
                 .tys
@@ -111,7 +125,36 @@ impl<SymbolT: Eq> Ty<SymbolT> {
                 .try_collect_poly()?,
             _ => return Result::Err(AccessError::IllegalFieldAccess),
         };
-        todo!();
+        let fields_with_offset: Vec<(usize, &StructField<SymbolT>)> = strucs
+            .iter()
+            .map(|s| {
+                let mut offset = 0;
+                for field in &s.fields {
+                    if field.name == access_symbol {
+                        return Ok((offset, field));
+                    }
+                    offset += field.ty.sizeof();
+                }
+
+                Err(AccessError::FieldMissingInUnionVariant)
+            })
+            .try_collect_poly()?;
+
+        let req_offset = fields_with_offset[0].0;
+        let mut union_tys: SmallVec<[Ty<SymbolT>; 16]> = SmallVec::new();
+        for (offset, struc_field) in fields_with_offset {
+            if offset != req_offset {
+                return Err(AccessError::FieldMisaligned);
+            }
+
+            union_tys.push(struc_field.ty.clone())
+        }
+
+        if union_tys.len() == 1 {
+            Ok(union_tys[0].clone())
+        } else {
+            Ok(Ty::Union(Rc::new(TyUnion { tys: union_tys })))
+        }
     }
 }
 
