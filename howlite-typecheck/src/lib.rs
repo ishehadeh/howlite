@@ -75,4 +75,20 @@ impl<SymbolT: Eq> Ty<SymbolT> {
             _ => None,
         }
     }
+
+    pub fn sizeof(&self) -> usize {
+        // TODO: this assumes 32 bit, make some way to chance that...
+        match self {
+            Ty::Int(_) => 4,
+            Ty::Struct(s) => s.fields.iter().map(|f| f.ty.sizeof()).sum(),
+            Ty::Array(arr) => arr.element_ty.sizeof() * arr.length,
+            Ty::Slice(_) => 8,
+            Ty::Reference(_) => 4,
+            Ty::Union(u) => u.tys.iter().map(|f| f.sizeof()).max().unwrap_or(0),
+        }
+    }
+}
+
+pub trait IntRepr {
+    fn sizeof(i: &TyInt) -> usize;
 }
