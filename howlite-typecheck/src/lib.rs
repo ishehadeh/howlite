@@ -161,3 +161,28 @@ impl<SymbolT: Eq> Ty<SymbolT> {
 pub trait IntRepr {
     fn sizeof(i: &TyInt) -> usize;
 }
+#[cfg(test)]
+mod test {
+    use crate::{t_int, t_struct, t_union};
+
+    #[test]
+    fn field_access() {
+        let s1 = t_struct! {
+            "a" => t_int!(0)
+        };
+        let s2 = t_struct! {
+            "a" => t_int!(2)
+        };
+
+        let a1 = s1.access_field("a").unwrap();
+        assert_eq!(a1, t_int!(0));
+
+        let a2 = s2.access_field("a").unwrap();
+        assert_eq!(a2, t_int!(2));
+
+        let u1 = t_union!(s1, s2);
+
+        let a3 = u1.access_field("a").unwrap();
+        assert_eq!(a3, t_union!(t_int!(0), t_int!(2)));
+    }
+}
