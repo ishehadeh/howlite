@@ -14,4 +14,18 @@ pub enum AccessError {
 
     #[error("cannot access index on non-slice, non-array type")]
     IllegalIndexAccess,
+
+    #[error("unions may only be indexed if they contain only slices, or only arrays, not both")]
+    MixedSliceAndArrayUnion,
+
+    #[error("unions may not be indexed if they do not contain only arrays, or only slices")]
+    NonIndexableUnion,
+
+    #[error(
+        "union of arrays and slices must all have elements of the same size in order to index them"
+    )]
+    MixedSeriesElementSizeUnion,
+
+    #[error("index out of range")]
+    OutOfRange,
 }

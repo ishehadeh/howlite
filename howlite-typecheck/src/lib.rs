@@ -13,6 +13,7 @@
 //!
 use std::rc::Rc;
 
+use preseli::integer::num_bigint::BigInt;
 pub use preseli::IntegerSet;
 
 mod access_path;
@@ -48,7 +49,7 @@ pub struct TyArray<SymbolT: Eq> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TySlice<SymbolT: Eq> {
-    pub length_ty: Ty<SymbolT>,
+    pub index_set: IntegerSet,
     pub element_ty: Ty<SymbolT>,
 }
 
@@ -84,20 +85,32 @@ impl<SymbolT: Eq> Clone for Ty<SymbolT> {
     }
 }
 
-impl<SymbolT: Eq> Ty<SymbolT> {
-    pub fn as_struct(&self) -> Option<Rc<TyStruct<SymbolT>>> {
-        match self {
-            Ty::Struct(r) => Some(r.clone()),
-            _ => None,
+macro_rules! _impl_as {
+    ($fn_name:ident($variant:path) => $t:ty) => {
+        pub fn $fn_name(&self) -> Option<$t> {
+            match self {
+                $variant(r) => Some(r.clone()),
+                _ => None,
+            }
         }
-    }
+    };
 
-    pub fn as_int(&self) -> Option<&TyInt> {
-        match self {
-            Ty::Int(r) => Some(r),
-            _ => None,
+    ($fn_name:ident(& $variant:path) => $t:ty) => {
+        pub fn $fn_name(&self) -> Option<$t> {
+            match self {
+                $variant(r) => Some(&r),
+                _ => None,
+            }
         }
-    }
+    };
+}
+impl<SymbolT: Eq> Ty<SymbolT> {
+    _impl_as!(as_struct(Ty::Struct) => Rc<TyStruct<SymbolT>>);
+    _impl_as!(as_int(&Ty::Int) => &TyInt);
+    _impl_as!(as_array(Ty::Array) => Rc<TyArray<SymbolT>>);
+    _impl_as!(as_slice(Ty::Slice) => Rc<TySlice<SymbolT>>);
+    _impl_as!(as_union(Ty::Union) => Rc<TyUnion<SymbolT>>);
+    _impl_as!(as_reference(Ty::Reference) => Rc<TyReference<SymbolT>>);
 
     pub fn sizeof(&self) -> usize {
         // TODO: this assumes 32 bit, make some way to chance that...
@@ -156,6 +169,66 @@ impl<SymbolT: Eq> Ty<SymbolT> {
             Ok(Ty::Union(Rc::new(TyUnion { tys: union_tys })))
         }
     }
+
+    pub fn access_index(&self, index: impl Into<BigInt>) -> Result<Ty<SymbolT>, AccessError> {
+        let index = index.into();
+
+        let ty_index = match self {
+            Ty::Array(s) => vec![(
+                s.element_ty.clone(),
+                IntegerSet::new_from_tuples(&[(0, s.length.saturating_sub(1))]),
+            )],
+            Ty::Slice(s) => vec![(s.element_ty.clone(), s.index_set.clone())],
+            Ty::Union(u) => {
+                // we can't mix slices and arrays here (slices have additional indirection)
+                let req_arr = u.tys[0].as_array().is_some();
+
+                let mut acc = Vec::new();
+                for x in &u.tys {
+                    match x {
+                        Ty::Array(s) => {
+                            if !req_arr {
+                                return Result::Err(AccessError::MixedSliceAndArrayUnion);
+                            }
+                            acc.push((
+                                s.element_ty.clone(),
+                                IntegerSet::new_from_tuples(&[(0, s.length.saturating_sub(1))]),
+                            ));
+                        }
+                        Ty::Slice(s) => {
+                            if req_arr {
+                                return Result::Err(AccessError::MixedSliceAndArrayUnion);
+                            }
+                            acc.push((s.element_ty.clone(), s.index_set.clone()));
+                        }
+                        _ => return Result::Err(AccessError::MixedSliceAndArrayUnion),
+                    }
+                }
+                acc
+            }
+            _ => return Result::Err(AccessError::IllegalFieldAccess),
+        };
+
+        let req_size = ty_index[0].0.sizeof();
+        let mut union_tys: SmallVec<[_; 16]> = SmallVec::with_capacity(ty_index.len());
+        for (ty, index_set) in ty_index {
+            if ty.sizeof() != req_size {
+                return Err(AccessError::MixedSeriesElementSizeUnion);
+            }
+
+            if !index_set.contains(&index) {
+                return Err(AccessError::OutOfRange);
+            }
+
+            union_tys.push(ty);
+        }
+
+        if union_tys.len() == 1 {
+            Ok(union_tys[0].clone())
+        } else {
+            Ok(Ty::Union(Rc::new(TyUnion { tys: union_tys })))
+        }
+    }
 }
 
 pub trait IntRepr {
@@ -163,7 +236,7 @@ pub trait IntRepr {
 }
 #[cfg(test)]
 mod test {
-    use crate::{t_int, t_struct, t_union};
+    use crate::{t_array, t_int, t_struct, t_union, Ty};
 
     #[test]
     fn field_access() {
@@ -184,5 +257,22 @@ mod test {
 
         let a3 = u1.access_field("a").unwrap();
         assert_eq!(a3, t_union!(t_int!(0), t_int!(2)));
+    }
+
+    #[test]
+    fn array_access() {
+        let a1: Ty<()> = t_array! [ t_int!(0..10); 10 ];
+        let a2: Ty<()> = t_array! [ t_int!(20..25); 15 ];
+
+        let x1 = a1.access_index(1).unwrap();
+        assert_eq!(x1, t_int!(0..10));
+
+        let x2 = a2.access_index(2).unwrap();
+        assert_eq!(x2, t_int!(20..25));
+
+        let u1 = t_union!(a1, a2);
+
+        let x3 = u1.access_index(9).unwrap();
+        assert_eq!(x3, t_union!(t_int!(0..10), t_int!(20..25)));
     }
 }
