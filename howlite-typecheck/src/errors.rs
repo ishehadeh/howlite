@@ -1,3 +1,7 @@
+use std::{collections::HashMap, rc::Rc};
+
+use crate::{Symbol, Ty, TyInt, TyStruct};
+
 #[derive(thiserror::Error, miette::Diagnostic, Debug)]
 pub enum AccessError {
     #[error("cannot access field on non-struct type")]
@@ -28,4 +32,38 @@ pub enum AccessError {
 
     #[error("index out of range")]
     OutOfRange,
+}
+
+#[derive(thiserror::Error, miette::Diagnostic, Debug)]
+pub enum IncompatibleError<SymbolT: Symbol> {
+    #[error("expected {expected:?}, found {found:?}")]
+    UnexpectedTyKind {
+        expected: Ty<SymbolT>,
+        found: Ty<SymbolT>,
+    },
+
+    #[error("integer set {:?} is not a subset of {:?}. (not a in superset: {:?})", subset.values, superset.values, { let mut excl = subset.values.clone(); excl.subtract(&superset.values); excl} )]
+    IntegerSubsetError { subset: TyInt, superset: TyInt },
+
+    #[error("incompatible structures, field mismatches: {bad_fields:?}. When comparing {subset_struct:?} and {superset_struct:?}")]
+    StructIncompatibility {
+        subset_struct: Rc<TyStruct<SymbolT>>,
+        superset_struct: Rc<TyStruct<SymbolT>>,
+        bad_fields: Vec<(SymbolT, StructIncompatibility<SymbolT>)>,
+    },
+}
+
+#[derive(thiserror::Error, miette::Diagnostic, Debug)]
+pub enum StructIncompatibility<SymbolT: Symbol> {
+    #[error("expected at offset {expected_offset}, found at offset {found_offset}")]
+    BadOffset {
+        found_offset: usize,
+        expected_offset: usize,
+    },
+
+    #[error("field missing")]
+    MissingField,
+
+    #[error("incompatible field types: {error:?}")]
+    IncompatibleField { error: IncompatibleError<SymbolT> },
 }

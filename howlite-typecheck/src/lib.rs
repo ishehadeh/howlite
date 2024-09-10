@@ -11,8 +11,9 @@
 //! - References (Slice, Reference)
 //!
 //!
-use std::rc::Rc;
+use std::{collections::HashMap, rc::Rc};
 
+use errors::{IncompatibleError, StructIncompatibility};
 use preseli::integer::num_bigint::BigInt;
 pub use preseli::IntegerSet;
 
@@ -42,28 +43,28 @@ pub struct TyInt {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TyArray<SymbolT: Eq> {
+pub struct TyArray<SymbolT: Symbol> {
     pub length: usize,
     pub element_ty: Ty<SymbolT>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TySlice<SymbolT: Eq> {
+pub struct TySlice<SymbolT: Symbol> {
     pub index_set: IntegerSet,
     pub element_ty: Ty<SymbolT>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TyReference<SymbolT: Eq> {
+pub struct TyReference<SymbolT: Symbol> {
     pub referenced_ty: Ty<SymbolT>,
 }
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TyUnion<SymbolT: Eq> {
+pub struct TyUnion<SymbolT: Symbol> {
     pub tys: SmallVec<[Ty<SymbolT>; 16]>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum Ty<SymbolT: Eq> {
+pub enum Ty<SymbolT: Symbol> {
     Int(TyInt),
     Struct(Rc<TyStruct<SymbolT>>),
     Array(Rc<TyArray<SymbolT>>),
@@ -72,7 +73,7 @@ pub enum Ty<SymbolT: Eq> {
     Union(Rc<TyUnion<SymbolT>>),
 }
 
-impl<SymbolT: Eq> Clone for Ty<SymbolT> {
+impl<SymbolT: Symbol> Clone for Ty<SymbolT> {
     fn clone(&self) -> Self {
         match self {
             Self::Int(arg0) => Self::Int(arg0.clone()),
@@ -104,7 +105,7 @@ macro_rules! _impl_as {
         }
     };
 }
-impl<SymbolT: Eq> Ty<SymbolT> {
+impl<SymbolT: Symbol> Ty<SymbolT> {
     _impl_as!(as_struct(Ty::Struct) => Rc<TyStruct<SymbolT>>);
     _impl_as!(as_int(&Ty::Int) => &TyInt);
     _impl_as!(as_array(Ty::Array) => Rc<TyArray<SymbolT>>);
@@ -229,14 +230,100 @@ impl<SymbolT: Eq> Ty<SymbolT> {
             Ok(Ty::Union(Rc::new(TyUnion { tys: union_tys })))
         }
     }
+
+    fn is_compatible_with(&self, other: &Ty<SymbolT>) -> Result<(), IncompatibleError<SymbolT>> {
+        match (self, other) {
+            (Ty::Int(subset), Ty::Int(superset)) => {
+                if subset.values.is_subset_of(&superset.values) {
+                    Ok(())
+                } else {
+                    Err(IncompatibleError::IntegerSubsetError {
+                        subset: subset.clone(),
+                        superset: superset.clone(),
+                    })
+                }
+            }
+            (Ty::Struct(superset), Ty::Struct(subset)) => {
+                // forall field in subset there exists a field in superset with the same offset, size, and a compatible type.
+
+                let mut superset_fields_by_offset =
+                    SmallVec::<[(usize, StructField<SymbolT>); 8]>::with_capacity(
+                        superset.fields.len(),
+                    );
+                for field in &superset.fields {
+                    superset_fields_by_offset.push((
+                        superset_fields_by_offset
+                            .last()
+                            .map(|(offset, field)| offset + field.ty.sizeof())
+                            .unwrap_or(0),
+                        field.clone(),
+                    ))
+                }
+
+                let mut subset_offset = 0;
+                let mut errors = Vec::new();
+                for sub_field in &subset.fields {
+                    let super_field_offset = superset_fields_by_offset
+                        .iter()
+                        .find(|(_, field)| field.name == sub_field.name);
+                    match super_field_offset {
+                        Some((super_offset, super_field)) => {
+                            if *super_offset != subset_offset {
+                                errors.push((
+                                    super_field.name.clone(),
+                                    StructIncompatibility::BadOffset {
+                                        found_offset: *super_offset,
+                                        expected_offset: subset_offset,
+                                    },
+                                ))
+                            } else if let Err(error) =
+                                super_field.ty.is_compatible_with(&sub_field.ty)
+                            {
+                                errors.push((
+                                    super_field.name.clone(),
+                                    StructIncompatibility::IncompatibleField { error },
+                                ))
+                            }
+                        }
+                        None => {
+                            errors.push((
+                                sub_field.name.clone(),
+                                StructIncompatibility::MissingField,
+                            ));
+                        }
+                    }
+
+                    subset_offset += sub_field.ty.sizeof();
+                }
+                if errors.len() > 0 {
+                    Err(IncompatibleError::StructIncompatibility {
+                        subset_struct: subset.clone(),
+                        superset_struct: superset.clone(),
+                        bad_fields: errors,
+                    })
+                } else {
+                    Ok(())
+                }
+            }
+
+            _ => Err(IncompatibleError::UnexpectedTyKind {
+                expected: other.clone(),
+                found: self.clone(),
+            }),
+        }
+    }
 }
 
 pub trait IntRepr {
     fn sizeof(i: &TyInt) -> usize;
 }
+pub trait Symbol: Eq + std::fmt::Debug + Clone {}
+
+impl<T> Symbol for T where T: Eq + std::fmt::Debug + Clone {}
+
 #[cfg(test)]
 mod test {
-    use crate::{t_array, t_int, t_struct, t_union, Ty};
+    use crate::{errors::IncompatibleError, t_array, t_int, t_struct, t_union, Ty};
 
     #[test]
     fn field_access() {
@@ -274,5 +361,22 @@ mod test {
 
         let x3 = u1.access_index(9).unwrap();
         assert_eq!(x3, t_union!(t_int!(0..10), t_int!(20..25)));
+    }
+
+    #[test]
+    fn compat() {
+        let s1 = t_struct! {
+            "a" => t_int!(0),
+            "b" => t_int!(0)
+        };
+        let s2 = t_struct! {
+            "b" => t_int!(0),
+            "a" => t_int!(0)
+        };
+
+        assert!(matches!(
+            s1.is_compatible_with(&s2).unwrap_err(),
+            IncompatibleError::StructIncompatibility { .. }
+        ));
     }
 }

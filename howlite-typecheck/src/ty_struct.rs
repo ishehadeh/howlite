@@ -3,26 +3,26 @@ use std::rc::Rc;
 use super::AccessPath;
 use smallvec::{smallvec, SmallVec};
 
-use crate::Ty;
+use crate::{Symbol, Ty};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StructField<SymbolT: Eq> {
+pub struct StructField<SymbolT: Symbol> {
     pub name: SymbolT,
     pub ty: Ty<SymbolT>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TyStruct<SymbolT: Eq> {
+pub struct TyStruct<SymbolT: Symbol> {
     pub fields: SmallVec<[StructField<SymbolT>; 8]>,
 }
 
-impl<SymbolT: Eq> TyStruct<SymbolT> {
+impl<SymbolT: Symbol> TyStruct<SymbolT> {
     pub fn iter(&self) -> impl DoubleEndedIterator<Item = &StructField<SymbolT>> {
         self.fields.iter()
     }
 }
 
-impl<SymbolT: Eq + Clone> TyStruct<SymbolT> {
+impl<SymbolT: Symbol> TyStruct<SymbolT> {
     pub fn cursor(rc: Rc<Self>) -> StructCursor<SymbolT> {
         StructCursor {
             past: smallvec![(0, rc)],
@@ -76,12 +76,12 @@ impl<SymbolT: Eq + Clone> TyStruct<SymbolT> {
     }
 }
 
-pub struct StructCursor<SymbolT: Eq> {
+pub struct StructCursor<SymbolT: Symbol> {
     past: SmallVec<[(usize, Rc<TyStruct<SymbolT>>); 4]>,
     next_index: usize,
 }
 
-impl<SymbolT: Eq> StructCursor<SymbolT> {
+impl<SymbolT: Symbol> StructCursor<SymbolT> {
     pub fn advance(&mut self) -> Option<&[(usize, Rc<TyStruct<SymbolT>>)]> {
         // update the history with the last returned index
 
@@ -119,7 +119,7 @@ impl<SymbolT: Eq> StructCursor<SymbolT> {
 mod test {
     use preseli::iset;
 
-    use crate::{t_array, t_int, t_struct, ty_struct::AccessPath, Ty, TyStruct};
+    use crate::{t_array, t_int, t_struct, ty_struct::AccessPath, TyStruct};
 
     #[test]
     pub fn construction() {
