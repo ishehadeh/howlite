@@ -15,9 +15,10 @@ use std::rc::Rc;
 
 pub use preseli::IntegerSet;
 
-pub mod ty_struct;
+mod access_path;
 mod construct_macros;
-
+pub mod ty_struct;
+pub use access_path::{AccessPath, AccessPathElem};
 use smallvec::SmallVec;
 pub use ty_struct::TyStruct;
 
