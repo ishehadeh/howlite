@@ -231,12 +231,9 @@ impl<SymbolT: Symbol> Ty<SymbolT> {
         }
     }
 
-    pub fn is_compatible_with(
-        &self,
-        other: &Ty<SymbolT>,
-    ) -> Result<(), IncompatibleError<SymbolT>> {
+    pub fn is_assignable_to(&self, other: &Ty<SymbolT>) -> Result<(), IncompatibleError<SymbolT>> {
         match (self, other) {
-            (Ty::Int(subset), Ty::Int(superset)) => {
+            (Ty::Int(superset), Ty::Int(subset)) => {
                 if subset.values.is_subset_of(&superset.values) {
                     Ok(())
                 } else {
@@ -247,21 +244,50 @@ impl<SymbolT: Symbol> Ty<SymbolT> {
                 }
             }
             (Ty::Array(superset), Ty::Array(subset)) => {
+                if subset.element_ty.sizeof() != superset.element_ty.sizeof() {
+                    return Err(IncompatibleError::SeriesElementsWrongSize {
+                        subset_size: subset.element_ty.sizeof(),
+                        superset_size: superset.element_ty.sizeof(),
+                    });
+                }
                 subset
                     .element_ty
-                    .is_compatible_with(&superset.element_ty)
+                    .is_assignable_to(&superset.element_ty)
                     .map_err(|error| IncompatibleError::IncompatibleElement {
                         error: Box::new(error),
                     })?;
-                if superset.length < subset.length {
-                    Err(IncompatibleError::ArrayTooShort {
-                        subset_arr: subset.clone(),
-                        superset_arr: superset.clone(),
+                if subset.length <= superset.length {
+                    Err(IncompatibleError::IncompatibleIndices {
+                        subset_indicies: IntegerSet::new_from_tuples(&[(0, subset.length)]),
+                        superset_indicies: IntegerSet::new_from_tuples(&[(0, superset.length)]),
                     })
                 } else {
                     Ok(())
                 }
             }
+            (Ty::Slice(superset), Ty::Slice(subset)) => {
+                if subset.element_ty.sizeof() != superset.element_ty.sizeof() {
+                    return Err(IncompatibleError::SeriesElementsWrongSize {
+                        subset_size: subset.element_ty.sizeof(),
+                        superset_size: superset.element_ty.sizeof(),
+                    });
+                }
+                subset
+                    .element_ty
+                    .is_assignable_to(&superset.element_ty)
+                    .map_err(|error| IncompatibleError::IncompatibleElement {
+                        error: Box::new(error),
+                    })?;
+                if subset.index_set.is_subset_of(&superset.index_set) {
+                    Err(IncompatibleError::IncompatibleIndices {
+                        subset_indicies: subset.index_set.clone(),
+                        superset_indicies: superset.index_set.clone(),
+                    })
+                } else {
+                    Ok(())
+                }
+            }
+
             (Ty::Struct(superset), Ty::Struct(subset)) => {
                 // forall field in subset there exists a field in superset with the same offset, size, and a compatible type.
 
@@ -296,7 +322,7 @@ impl<SymbolT: Symbol> Ty<SymbolT> {
                                     },
                                 ))
                             } else if let Err(error) =
-                                super_field.ty.is_compatible_with(&sub_field.ty)
+                                super_field.ty.is_assignable_to(&sub_field.ty)
                             {
                                 errors.push((
                                     super_field.name.clone(),
@@ -342,7 +368,7 @@ impl<T> Symbol for T where T: Eq + std::fmt::Debug + Clone {}
 
 #[cfg(test)]
 mod test {
-    use crate::{errors::IncompatibleError, t_array, t_int, t_struct, t_union, Ty};
+    use crate::{errors::IncompatibleError, t_array, t_int, t_slice, t_struct, t_union, Ty};
 
     #[test]
     fn field_access() {
@@ -394,7 +420,7 @@ mod test {
         };
 
         assert!(matches!(
-            s1.is_compatible_with(&s2).unwrap_err(),
+            s1.is_assignable_to(&s2).unwrap_err(),
             IncompatibleError::StructIncompatibility { .. }
         ));
     }
@@ -404,6 +430,22 @@ mod test {
         let a1: Ty<()> = t_array![t_int!(0..10); 10];
         let a2 = t_array![t_int!(0..5); 5];
 
-        a1.is_compatible_with(&a2).unwrap();
+        a2.is_assignable_to(&a1).unwrap();
+
+        let a3: Ty<()> = t_array![t_int!(0..10); 9];
+
+        a1.is_assignable_to(&a3).unwrap_err();
+    }
+
+    #[test]
+    fn compat_slice() {
+        let a1: Ty<()> = t_slice![t_int!(0..10); 0..10];
+        let a2 = t_slice![t_int!(0..5); 0..5];
+
+        a2.is_assignable_to(&a1).unwrap();
+
+        let a3: Ty<()> = t_array![t_int!(0..10); 9];
+
+        a1.is_assignable_to(&a3).unwrap_err();
     }
 }

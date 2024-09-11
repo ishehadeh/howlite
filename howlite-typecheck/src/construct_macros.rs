@@ -1,4 +1,5 @@
 //! Module for conventient syntax for constructing type trees.
+
 pub use preseli;
 
 #[macro_export]
@@ -49,6 +50,16 @@ macro_rules! t_union {
     ($($ty:expr),*) => {
         $crate::Ty::Union(std::rc::Rc::new($crate::TyUnion {
             tys: smallvec::smallvec![$($ty),*]
+        }))
+    };
+}
+
+#[macro_export]
+macro_rules! t_slice {
+    ($ty:expr ; $($toks:tt)*) => {
+        $crate::Ty::Slice(std::rc::Rc::new($crate::TySlice {
+            index_set: preseli::iset!($($toks)*),
+            element_ty: $ty,
         }))
     };
 }

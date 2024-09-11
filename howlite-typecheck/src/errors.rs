@@ -1,5 +1,7 @@
 use std::{collections::HashMap, rc::Rc};
 
+use preseli::IntegerSet;
+
 use crate::{Symbol, Ty, TyArray, TyInt, TyStruct};
 
 #[derive(thiserror::Error, miette::Diagnostic, Debug)]
@@ -45,15 +47,25 @@ pub enum IncompatibleError<SymbolT: Symbol> {
     #[error("integer set {:?} is not a subset of {:?}. (not a in superset: {:?})", subset.values, superset.values, { let mut excl = subset.values.clone(); excl.subtract(&superset.values); excl} )]
     IntegerSubsetError { subset: TyInt, superset: TyInt },
 
-    #[error("array is too short, got {:?} expected at least {:?}", subset_arr.length, superset_arr.length)]
-    ArrayTooShort {
-        subset_arr: Rc<TyArray<SymbolT>>,
-        superset_arr: Rc<TyArray<SymbolT>>,
+    #[error("series indicies are incompatible: expected indicies {:?}, got {:?}, (missing: {:?})", subset_indicies, superset_indicies, { let mut excl = subset_indicies.clone(); excl.subtract(&superset_indicies); excl})]
+    IncompatibleIndices {
+        subset_indicies: IntegerSet,
+        superset_indicies: IntegerSet,
     },
 
     #[error("collection element types are incompatible: {:?}", error)]
     IncompatibleElement {
         error: Box<IncompatibleError<SymbolT>>,
+    },
+
+    #[error(
+        "Series elements are not the same size, expected {:?}, found {:?}",
+        subset_size,
+        superset_size
+    )]
+    SeriesElementsWrongSize {
+        subset_size: usize,
+        superset_size: usize,
     },
 
     #[error("incompatible structures, field mismatches: {bad_fields:?}. When comparing {subset_struct:?} and {superset_struct:?}")]

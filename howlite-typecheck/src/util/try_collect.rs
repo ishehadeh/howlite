@@ -23,7 +23,7 @@ where
     type Item = T;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(_) = self.err {
+        if self.err.is_some() {
             None
         } else {
             match self.inner.next() {
@@ -53,5 +53,3 @@ where
         err.map_or(Ok(collection), |err| Err(err))
     }
 }
-
-
