@@ -47,7 +47,7 @@ pub enum IncompatibleError<SymbolT: Symbol> {
     #[error("integer set {:?} is not a subset of {:?}. (not a in superset: {:?})", subset.values, superset.values, { let mut excl = subset.values.clone(); excl.subtract(&superset.values); excl} )]
     IntegerSubsetError { subset: TyInt, superset: TyInt },
 
-    #[error("series indicies are incompatible: expected indicies {:?}, got {:?}, (missing: {:?})", subset_indicies, superset_indicies, { let mut excl = subset_indicies.clone(); excl.subtract(&superset_indicies); excl})]
+    #[error("series indicies are incompatible: expected indicies {:?}, got {:?}, (missing: {:?})", subset_indicies, superset_indicies, { let mut excl = subset_indicies.clone(); excl.subtract(superset_indicies); excl})]
     IncompatibleIndices {
         subset_indicies: IntegerSet,
         superset_indicies: IntegerSet,

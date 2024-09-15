@@ -11,7 +11,7 @@
 //! - References (Slice, Reference)
 //!
 //!
-use std::{collections::HashMap, rc::Rc};
+use std::rc::Rc;
 
 use errors::{IncompatibleError, StructIncompatibility};
 use preseli::integer::num_bigint::BigInt;

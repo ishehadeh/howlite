@@ -58,7 +58,7 @@ where
             return Some(curr);
         }
 
-        return self.next();
+        self.next()
     }
 }
 

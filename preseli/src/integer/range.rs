@@ -230,7 +230,7 @@ impl IntegerRange {
         _: B,
         shift_ref: BigInt,
     ) -> Option<Mutation> {
-        if shift_ref.abs() >= self.size().abs() || &shift_ref == &BigInt::ZERO {
+        if shift_ref.abs() >= self.size().abs() || shift_ref == BigInt::ZERO {
             None
         } else if B::IS_LO {
             Some(Mutation::BoundLo {
