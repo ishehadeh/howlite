@@ -6,5 +6,3 @@ edition = "2021"
 [dependencies]
 num-traits = "*"
 num-integer = "*"
-malachite = "*"
-smallvec = "*"
