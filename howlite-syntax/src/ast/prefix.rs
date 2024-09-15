@@ -2,7 +2,7 @@ use crate::tree::NodeId;
 
 use super::AstNode;
 
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PrefixOp {
     LogicalNot,
@@ -12,7 +12,7 @@ pub enum PrefixOp {
     Deref,
 }
 
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprPrefix {
     pub op: PrefixOp,

@@ -2,7 +2,7 @@ use crate::tree::NodeId;
 
 use super::AstNode;
 
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum InfixOp {
     Add,
@@ -29,7 +29,7 @@ pub enum InfixOp {
     LogicalAnd,
 }
 
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprInfix {
     pub lhs: NodeId<AstNode>,

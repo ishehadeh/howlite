@@ -73,6 +73,10 @@ impl IntegerSet {
             .is_ok()
     }
 
+    #[allow(
+        clippy::mut_range_bound,
+        reason = "we keep a rolling start index, for the inner iteration. after mutation the inner loop (which uses this bound) breaks."
+    )]
     pub fn is_subset_of(&self, other: &IntegerSet) -> bool {
         assert!(self.is_normal());
         assert!(other.is_normal());
@@ -86,7 +90,8 @@ impl IntegerSet {
                 }
                 if r0.is_subrange_of(&other.ranges[i]) {
                     start_idx = i;
-                    found = true
+                    found = true;
+                    break;
                 }
             }
 

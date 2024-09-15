@@ -15,8 +15,8 @@ pub use literals::*;
 pub use prefix::*;
 pub use ty_expr::*;
 
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serde", serde(tag = "type"))]
+
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum AstNodeData {
     LiteralInteger(LiteralInteger),
@@ -65,7 +65,7 @@ pub enum AstNodeData {
     TyNamed(TyNamed),
 }
 
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct AstNode {
     pub span: Span,
@@ -83,27 +83,27 @@ impl AstNode {
 
 // TODO make StructMember and AnonType a proper part of the AST
 
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Repaired {
     pub tree: Option<NodeId<AstNode>>,
 }
 
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct FieldAccess {
     pub field: Span,
     pub lhs: NodeId<AstNode>,
 }
 
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct ArrayAccess {
     pub index: NodeId<AstNode>,
     pub lhs: NodeId<AstNode>,
 }
 
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprCall {
     pub callee: NodeId<AstNode>,
@@ -111,7 +111,7 @@ pub struct ExprCall {
     pub params: Vec<NodeId<AstNode>>,
 }
 
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprLet {
     pub name: Span,
@@ -120,13 +120,13 @@ pub struct ExprLet {
     pub value: NodeId<AstNode>,
 }
 
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Program {
     pub definitions: Vec<NodeId<AstNode>>,
 }
 
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprIf {
     pub condition: NodeId<AstNode>,
@@ -134,7 +134,7 @@ pub struct ExprIf {
     pub failure: Option<NodeId<AstNode>>,
 }
 
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Block {
     /// Indicates that the value of the final value in `statements` should be the value of this block.
@@ -156,20 +156,20 @@ pub struct Block {
     pub statements: Vec<NodeId<AstNode>>,
 }
 
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Ident {
     pub symbol: Span,
 }
 
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprWhile {
     pub condition: NodeId<AstNode>,
     pub body: NodeId<AstNode>,
 }
 
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprTypeConstruction {
     pub ty: NodeId<AstNode>,
