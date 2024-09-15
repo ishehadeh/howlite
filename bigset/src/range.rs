@@ -1,4 +1,4 @@
-use crate::ops;
+use crate::ops::{self, Bounded};
 
 #[derive(Clone, Debug)]
 pub struct Range<T: std::cmp::Ord> {
@@ -18,17 +18,18 @@ impl<T: std::cmp::Ord> Range<T> {
             Some(Range { lo, hi })
         }
     }
+    pub fn into_tuple(self) -> (T, T) {
+        (self.lo, self.hi)
+    }
+}
 
-    pub fn lo(&self) -> &T {
+impl<T: std::cmp::Ord> ops::Bounded<T> for Range<T> {
+    fn lo(&self) -> &T {
         &self.lo
     }
 
-    pub fn hi(&self) -> &T {
+    fn hi(&self) -> &T {
         &self.hi
-    }
-
-    pub fn into_tuple(self) -> (T, T) {
-        (self.lo, self.hi)
     }
 }
 

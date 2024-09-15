@@ -1,5 +1,6 @@
 //! Module for conventient syntax for constructing type trees.
 
+#[allow(unused_imports, reason = "we use this import in the module's macros")]
 pub use preseli;
 
 #[macro_export]

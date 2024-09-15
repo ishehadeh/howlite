@@ -6,6 +6,11 @@ where
     fn includes(&self, element: ElementT) -> bool;
 }
 
+pub trait Bounded<ElementT: Eq> {
+    fn lo(&self) -> &ElementT;
+    fn hi(&self) -> &ElementT;
+}
+
 pub trait SetMut<ElementT: Eq>
 where
     Self: Sized,

@@ -1,8 +1,8 @@
-use std::{collections::HashMap, rc::Rc};
+use std::rc::Rc;
 
 use preseli::IntegerSet;
 
-use crate::{Symbol, Ty, TyArray, TyInt, TyStruct};
+use crate::{Symbol, Ty, TyInt, TyStruct};
 
 #[derive(thiserror::Error, miette::Diagnostic, Debug)]
 pub enum AccessError {

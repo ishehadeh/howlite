@@ -1,77 +1,153 @@
 use std::ops::{Add, Mul, Sub};
 
-use crate::ops::Subset;
+use num_integer::Integer;
 
-pub struct StepRange<I: num_integer::Integer> {
-    start: I,
-    repetitions: I,
+use crate::ops::{Bounded, Intersect, Set, Subset};
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StepRange<I: Integer + Clone> {
+    lo: I,
+    hi: I,
     step: I,
 }
 
-impl<I: num_integer::Integer> StepRange<I> {
-    pub fn try_new(start: I, repetitions: I, step: I) -> Option<StepRange<I>> {
-        if step <= I::zero() || repetitions <= I::zero() {
+impl<I: Integer + Clone> StepRange<I> {
+    #[inline]
+    pub fn try_new(lo: I, hi: I, step: I) -> Option<StepRange<I>> {
+        if step <= I::zero() || lo > hi || !(hi.clone() - lo.clone()).is_multiple_of(&step) {
             None
         } else {
-            Some(StepRange {
-                start,
-                repetitions,
-                step,
-            })
+            Some(StepRange { lo, hi, step })
         }
     }
 
-    pub fn new(start: I, repetitions: I, step: I) -> StepRange<I> {
-        Self::try_new(start, repetitions, step).expect("invalid range parameters")
+    #[inline]
+    pub fn new(lo: I, hi: I, step: I) -> StepRange<I> {
+        Self::try_new(lo, hi, step).expect("invalid range parameters")
+    }
+
+    pub fn step(&self) -> &I {
+        &self.step
+    }
+
+    pub fn with_lo(self, lo: I) -> Self {
+        Self::new(lo, self.hi, self.step)
+    }
+
+    pub fn with_hi(self, hi: I) -> Self {
+        Self::new(self.lo, hi, self.step)
+    }
+
+    /// Returns true if the step and offset of this range and `other` are compatible.
+    /// If true then if these ranges lo/hi ranges intersect the two ranges have intersecting values.
+    pub fn might_intersect(&self, other: &StepRange<I>) -> bool {
+        // 1 - check that the steps are compatible
+        //  i.e: there exists N such that every N elements in RHS there exists an element in SELF.
+        if !self.step.is_multiple_of(&other.step) {
+            return false;
+        }
+
+        // 2 - check that ranges have a compatible offset
+        //  i.e. they aren't striped. e.g. step=5 & start=1 isn't compatible with step=5 & start = 0
+        // TODO: can we avoid calls to clone here?
+        let lo_offset = self.lo.clone() - other.lo.clone();
+        lo_offset.is_zero() || lo_offset.is_multiple_of(&other.step)
+    }
+}
+
+impl<I> Intersect for StepRange<I>
+where
+    I: Integer + Clone,
+{
+    type Output = Option<StepRange<I>>;
+
+    fn intersect(self, rhs: Self) -> Self::Output {
+        if self.might_intersect(&rhs) {
+            StepRange::try_new(
+                self.lo.max(rhs.lo),
+                self.hi.min(rhs.hi),
+                self.step.max(rhs.step),
+            )
+        } else {
+            None
+        }
+    }
+}
+
+impl<I> Set<I> for StepRange<I>
+where
+    I: Integer + Clone,
+{
+    fn includes(&self, element: I) -> bool {
+        element >= self.lo
+            && element <= self.hi
+            && (element - self.lo.clone()).is_multiple_of(&self.step)
+    }
+}
+
+impl<'a, I> Set<&'a I> for StepRange<I>
+where
+    I: Integer + Clone,
+{
+    fn includes(&self, element: &'a I) -> bool {
+        element >= self.lo()
+            && element <= self.hi()
+            && (element.clone() - self.lo.clone()).is_multiple_of(&self.step)
     }
 }
 
 impl<'a, I> Subset for &'a StepRange<I>
 where
-    I: num_integer::Integer,
-    &'a I: Add<&'a I, Output = I> + Sub<&'a I, Output = I> + Mul<&'a I, Output = I>,
+    I: Integer + Clone,
 {
     #[inline]
     fn subset_of(self, rhs: Self) -> bool {
-        // 1 - first make sure the superset spans over at least the start of this range
-        if rhs.start > self.start {
-            return false;
-        }
-
-        // 2 - check that the steps are compatible
-        //  i.e: there exists N such that every N elements in RHS there exists an element in SELF.
-        if !self.step.is_multiple_of(&rhs.step) {
-            return false;
-        }
-
-        // 3 - make sure this superset spans over the end of this range
-        if &rhs.repetitions * &rhs.step < &self.repetitions * &self.step {
-            return false;
-        }
-
-        // 4 - check that ranges have a compatible offset
-        //  i.e. they aren't striped. e.g. step=5 & start=1 isn't compatible with step=5 & start = 0
-        let lo_offset = &self.start - &rhs.start;
-        lo_offset.is_zero() || lo_offset.is_multiple_of(&rhs.step)
+        self.might_intersect(rhs) && rhs.lo <= self.lo && rhs.hi >= self.hi
     }
 
     #[inline]
     fn strict_subset_of(self, rhs: Self) -> bool {
-        self.start != rhs.start && self.repetitions != rhs.repetitions && self.subset_of(rhs)
+        self.lo != rhs.lo && self.hi != rhs.hi && self.subset_of(rhs)
+    }
+}
+
+impl<I> Bounded<I> for StepRange<I>
+where
+    I: Integer + Clone,
+{
+    fn lo(&self) -> &I {
+        &self.lo
+    }
+
+    fn hi(&self) -> &I {
+        &self.hi
+    }
+}
+
+impl<'a, I> Bounded<I> for &'a StepRange<I>
+where
+    I: Integer + Clone,
+{
+    fn lo(&self) -> &I {
+        &self.lo
+    }
+
+    fn hi(&self) -> &I {
+        &self.hi
     }
 }
 
 #[test]
 fn simple() {
     let a = StepRange::new(0, 100, 1);
-    let b = StepRange::new(0, 10, 5);
+    let b = StepRange::new(0, 50, 5);
     assert!(!a.subset_of(&b));
     assert!(b.subset_of(&a));
 
-    let c = StepRange::new(0, 20, 3);
-    let d = StepRange::new(5, 3, 9);
+    let c = StepRange::new(0, 60, 3);
+    let d = StepRange::new(5, 32, 9);
     assert!(!d.subset_of(&c));
 
-    let e = StepRange::new(3, 3, 9);
+    let e = StepRange::new(3, 30, 9);
     assert!(e.subset_of(&c));
 }
