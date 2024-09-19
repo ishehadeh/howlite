@@ -172,6 +172,8 @@ where
     pub fn normalize(&mut self) {
         self.sort();
         self.compact_all();
+        // TODO: compact should keep sort
+        self.sort();
         self.merge_all();
     }
 
@@ -213,23 +215,38 @@ where
     I: RangeValue + std::fmt::Debug,
 {
     fn subset_of(self, rhs: Self) -> bool {
-        for range in &self.ranges {
-            let mut start = range.lo().clone();
-            for other in rhs
-                .iter_within_partial(range)
-                .filter(|x| range.step().is_multiple_of(x.step()))
-            {
-                if other.lo() > &start {
-                    // some part of our range was skipped, so this isn't a subset.
-                    return false;
+        for r in &self.ranges {
+            let mut lo = r.lo().clone();
+            let mut excl = vec![];
+            for s in &rhs.ranges {
+                if s.includes(&lo) {
+                    if r.step().is_multiple_of(s.step()) {
+                        lo = r.first_element_after(s.hi().clone());
+                    } else if s.step().is_multiple_of(r.step()) {
+                        excl.push(StepRange::new(lo.clone(), s.hi().clone(), s.step().clone()));
+                    } else {
+                        lo = lo + r.step().clone()
+                    }
+                    dbg!(&r, &s, &lo);
                 }
-
-                start = other.hi().clone() + range.step().clone();
             }
-            if &start < range.hi() {
+
+            if &lo < r.hi() {
+                if !excl.is_empty() {
+                    'a: while &lo < r.hi() {
+                        for r in &excl {
+                            if r.includes(&lo) {
+                                lo = lo + r.step().clone();
+                                continue 'a;
+                            }
+                        }
+                        return false;
+                    }
+                }
                 return false;
             }
         }
+
         true
     }
 
@@ -251,7 +268,7 @@ where
 
 #[test]
 fn simple() {
-    let a = StripeSet::new(vec![StepRange::new(0, 10, 2), StepRange::new(15, 20, 1)]);
+    let a = StripeSet::new(vec![StepRange::new(0, 12, 2), StepRange::new(15, 20, 1)]);
     let b = StripeSet::new(vec![StepRange::new(0, 18, 6)]);
     assert!(b.subset_of(&a));
     assert!(!a.subset_of(&b));
@@ -282,6 +299,13 @@ fn insert() {
         a.ranges,
         vec![StepRange::new(0, 14, 2), StepRange::new(15, 25, 1)]
     );
+}
+
+#[test]
+fn subset() {
+    let a = StripeSet::new(vec![StepRange::new(0, 6, 2), StepRange::new(10, 22, 6)]);
+    let b = StripeSet::new(vec![StepRange::new(6, 14, 4)]);
+    assert!(b.subset_of(&a));
 }
 
 #[test]
