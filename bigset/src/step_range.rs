@@ -1,15 +1,29 @@
+use std::fmt::Debug;
+
 use num_integer::Integer;
 
 use crate::ops::{Bounded, Intersect, Set, Subset};
 
+#[cfg(test)]
+pub trait RangeValue: Integer + Clone + Debug {}
+
+#[cfg(not(test))]
+pub trait RangeValue: Integer + Clone {}
+
+#[cfg(test)]
+impl<T> RangeValue for T where T: Integer + Clone + Debug {}
+
+#[cfg(not(test))]
+impl<T> RangeValue for T where T: Integer + Clone {}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StepRange<I: Integer + Clone> {
+pub struct StepRange<I: RangeValue> {
     lo: I,
     hi: I,
     step: I,
 }
 
-impl<I: Integer + Clone> StepRange<I> {
+impl<I: RangeValue> StepRange<I> {
     #[inline]
     pub fn try_new(lo: I, hi: I, step: I) -> Option<StepRange<I>> {
         if step <= I::zero() || lo > hi || !(hi.clone() - lo.clone()).is_multiple_of(&step) {
@@ -52,12 +66,12 @@ impl<I: Integer + Clone> StepRange<I> {
 
     /// return the first element in step_range below `n`
     pub fn first_element_before(&self, n: I) -> I {
-        n.prev_multiple_of(&self.step) - self.offset_inv()
+        (n - I::one()).prev_multiple_of(&self.step) + self.offset()
     }
 
     /// return the first element in step_range below `n`
     pub fn first_element_after(&self, n: I) -> I {
-        n.next_multiple_of(&self.step) + self.offset()
+        (n + I::one()).next_multiple_of(&self.step) + self.offset()
     }
 
     pub fn compactify(self, other: &StepRange<I>) -> Option<Self> {
@@ -99,7 +113,7 @@ impl<I: Integer + Clone> StepRange<I> {
 
 impl<I> Intersect for StepRange<I>
 where
-    I: Integer + Clone,
+    I: RangeValue,
 {
     type Output = Option<StepRange<I>>;
 
@@ -118,7 +132,7 @@ where
 
 impl<I> Set<I> for StepRange<I>
 where
-    I: Integer + Clone,
+    I: RangeValue,
 {
     fn includes(&self, element: I) -> bool {
         element >= self.lo
@@ -129,7 +143,7 @@ where
 
 impl<'a, I> Set<&'a I> for StepRange<I>
 where
-    I: Integer + Clone,
+    I: RangeValue,
 {
     fn includes(&self, element: &'a I) -> bool {
         element >= self.lo()
@@ -140,7 +154,7 @@ where
 
 impl<'a, I> Subset for &'a StepRange<I>
 where
-    I: Integer + Clone,
+    I: RangeValue,
 {
     #[inline]
     fn subset_of(self, rhs: Self) -> bool {
@@ -155,7 +169,7 @@ where
 
 impl<I> Bounded<I> for StepRange<I>
 where
-    I: Integer + Clone,
+    I: RangeValue,
 {
     fn lo(&self) -> &I {
         &self.lo
@@ -168,7 +182,7 @@ where
 
 impl<'a, I> Bounded<I> for &'a StepRange<I>
 where
-    I: Integer + Clone,
+    I: RangeValue,
 {
     fn lo(&self) -> &I {
         &self.lo

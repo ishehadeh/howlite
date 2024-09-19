@@ -6,17 +6,17 @@ use num_integer::Integer;
 use crate::{
     ops::{Bounded, Set, Subset, Union},
     range::Range,
-    step_range::StepRange,
+    step_range::{RangeValue, StepRange},
 };
 
 #[derive(Clone, Debug)]
-pub struct StripeSet<I: Integer + Clone> {
+pub struct StripeSet<I: RangeValue> {
     ranges: Vec<StepRange<I>>,
 }
 
 impl<T2, I> PartialEq<T2> for StripeSet<I>
 where
-    I: Integer + Clone,
+    I: RangeValue,
     for<'a> &'a StripeSet<I>: Subset<&'a T2>,
     for<'b> &'b T2: Subset<&'b StripeSet<I>>,
 {
@@ -27,7 +27,7 @@ where
 
 pub struct StripeSetBoundedIter<'a, I, B, I2>
 where
-    I: Integer + Clone + PartialOrd<I2>,
+    I: RangeValue + PartialOrd<I2>,
     B: Bounded<I2>,
     I2: PartialOrd<I> + Eq,
 {
@@ -42,7 +42,7 @@ where
 
 impl<'a, I, B, I2> Iterator for StripeSetBoundedIter<'a, I, B, I2>
 where
-    I: Integer + Clone + PartialOrd<I2> + std::fmt::Debug,
+    I: RangeValue + PartialOrd<I2>,
     B: Bounded<I2>,
     I2: PartialOrd<I> + Eq,
 {
@@ -79,7 +79,7 @@ where
 
 impl<I> StripeSet<I>
 where
-    I: Integer + Clone + std::fmt::Debug,
+    I: RangeValue,
 {
     pub fn new(ranges: Vec<StepRange<I>>) -> Self {
         let mut a = Self { ranges };
@@ -89,7 +89,7 @@ where
 
     pub fn iter_within<B, I2>(&self, bounds: B) -> StripeSetBoundedIter<'_, I, B, I2>
     where
-        I: Integer + Clone + PartialOrd<I2>,
+        I: RangeValue + PartialOrd<I2>,
         B: Bounded<I2>,
         I2: PartialOrd<I> + Eq,
     {
@@ -104,7 +104,7 @@ where
 
     pub fn iter_within_partial<B, I2>(&self, bounds: B) -> StripeSetBoundedIter<'_, I, B, I2>
     where
-        I: Integer + Clone + PartialOrd<I2>,
+        I: RangeValue + PartialOrd<I2>,
         B: Bounded<I2>,
         I2: PartialOrd<I> + Eq,
     {
@@ -126,17 +126,24 @@ where
         let mut insertion_point = 0;
         for (i, el) in self.ranges.iter().enumerate() {
             if let Some(new_el) = &remaining {
-                if el.lo() > new_el.hi() {
+                if el.hi() < new_el.lo() {
                     // we assume the ranges are sorted, so non overlapping ranges are sorted by bounds
-                    insertion_point = i;
+                    insertion_point = i + 1;
                     continue;
                 } else if el.lo() > new_el.hi() {
-                    break;
-                }
-                if el.step() < new_el.step() {
-                    insertion_point = i;
+                    insertion_point = i + 1;
+                    if el.step() <= new_el.step() {
+                        break;
+                    }
                     continue;
                 }
+                if el.step() > new_el.step() {
+                    insertion_point = i + 1;
+
+                    continue;
+                }
+
+                insertion_point = i;
             } else {
                 break;
             }
@@ -162,14 +169,14 @@ where
             Ordering::Greater
         } else {
             // otherwise sort by step
-            a.step().cmp(b.step())
+            b.step().cmp(a.step())
         }
     }
 }
 
 impl<I> Set<I> for StripeSet<I>
 where
-    I: Integer + Clone,
+    I: RangeValue,
 {
     fn includes(&self, element: I) -> bool {
         for range in &self.ranges {
@@ -187,18 +194,15 @@ where
 
 impl<'a, I> Subset<&'a StripeSet<I>> for &'a StripeSet<I>
 where
-    I: Integer + Clone + std::fmt::Debug,
+    I: RangeValue + std::fmt::Debug,
 {
     fn subset_of(self, rhs: Self) -> bool {
         for range in &self.ranges {
             let mut start = range.lo().clone();
             for other in rhs
                 .iter_within_partial(range)
-                .map(|x| dbg!(x))
                 .filter(|x| range.step().is_multiple_of(x.step()))
-                .map(|y| dbg!(y))
             {
-                dbg!(&other, &range);
                 if other.lo() > &start {
                     // some part of our range was skipped, so this isn't a subset.
                     return false;
@@ -206,7 +210,6 @@ where
 
                 start = other.hi().clone() + range.step().clone();
             }
-            dbg!(&start);
             if &start < range.hi() {
                 return false;
             }
@@ -221,7 +224,7 @@ where
 
 impl<I> Union<StripeSet<I>> for StripeSet<I>
 where
-    I: Integer + Clone + std::fmt::Debug,
+    I: RangeValue,
 {
     type Output = StripeSet<I>;
 
@@ -243,12 +246,26 @@ fn insert() {
     let mut a = StripeSet::new(vec![StepRange::new(0, 10, 2), StepRange::new(15, 20, 1)]);
     a.add_range(StepRange::new(10, 18, 2));
     assert_eq!(
-        a,
-        StripeSet::new(vec![
+        a.ranges,
+        vec![
             StepRange::new(0, 10, 2),
-            StepRange::new(10, 14, 2),
+            StepRange::new(12, 14, 2),
             StepRange::new(15, 20, 1)
-        ])
+        ]
+    );
+
+    let mut a = StripeSet::new(vec![]);
+
+    a.add_range(StepRange::new(10, 18, 2));
+    a.add_range(StepRange::new(0, 10, 2));
+    a.add_range(StepRange::new(15, 20, 1));
+    assert_eq!(
+        a.ranges,
+        vec![
+            StepRange::new(0, 8, 2),
+            StepRange::new(10, 18, 2),
+            StepRange::new(15, 20, 1)
+        ]
     );
 }
 
