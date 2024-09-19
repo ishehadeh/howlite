@@ -14,6 +14,17 @@ pub struct StripeSet<I: Integer + Clone> {
     ranges: Vec<StepRange<I>>,
 }
 
+impl<T2, I> PartialEq<T2> for StripeSet<I>
+where
+    I: Integer + Clone,
+    for<'a> &'a StripeSet<I>: Subset<&'a T2>,
+    for<'b> &'b T2: Subset<&'b StripeSet<I>>,
+{
+    fn eq(&self, other: &T2) -> bool {
+        self.subset_of(other) && other.subset_of(self)
+    }
+}
+
 pub struct StripeSetBoundedIter<'a, I, B, I2>
 where
     I: Integer + Clone + PartialOrd<I2>,
@@ -115,7 +126,7 @@ where
         let mut insertion_point = 0;
         for (i, el) in self.ranges.iter().enumerate() {
             if let Some(new_el) = &remaining {
-                if el.hi() > new_el.lo() {
+                if el.lo() > new_el.hi() {
                     // we assume the ranges are sorted, so non overlapping ranges are sorted by bounds
                     insertion_point = i;
                     continue;
@@ -225,6 +236,20 @@ fn simple() {
     let b = StripeSet::new(vec![StepRange::new(0, 18, 6)]);
     assert!(b.subset_of(&a));
     assert!(!a.subset_of(&b));
+}
+
+#[test]
+fn insert() {
+    let mut a = StripeSet::new(vec![StepRange::new(0, 10, 2), StepRange::new(15, 20, 1)]);
+    a.add_range(StepRange::new(10, 18, 2));
+    assert_eq!(
+        a,
+        StripeSet::new(vec![
+            StepRange::new(0, 10, 2),
+            StepRange::new(10, 14, 2),
+            StepRange::new(15, 20, 1)
+        ])
+    );
 }
 
 #[test]
