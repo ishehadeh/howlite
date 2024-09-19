@@ -75,7 +75,7 @@ impl<I: RangeValue> StepRange<I> {
 
     /// return the first element in step_range below `n`
     pub fn first_element_before(&self, n: I) -> I {
-        (n - I::one()).prev_multiple_of(&self.step) + self.offset()
+        (n - I::one()).prev_multiple_of(&self.step) - self.offset()
     }
 
     /// return the first element in step_range below `n`

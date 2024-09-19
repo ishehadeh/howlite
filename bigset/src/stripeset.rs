@@ -134,13 +134,15 @@ where
                         && !(r.lo() > self.ranges[i].hi() || r.hi() < self.ranges[i].lo())
                 })
                 .count();
+            let mut index_to_compact = i;
             for n in (i + 1)..j {
                 {
                     let (i_slice, j_slice) = self.ranges.split_at_mut(n);
-                    i_slice[i].compactify_mut(&j_slice[0]);
+                    i_slice[index_to_compact].compactify_mut(&j_slice[0]);
                 }
-                if self.ranges[i].lo() > self.ranges[n].hi() {
+                if self.ranges[index_to_compact].lo() > self.ranges[n].hi() {
                     self.ranges.swap(i, n);
+                    index_to_compact = n;
                 }
             }
             i += 1;
