@@ -1,11 +1,7 @@
-use std::{cmp::Ordering, marker::PhantomData, ops::RemAssign};
-
-use bumpalo::Bump;
-use num_integer::Integer;
+use std::{cmp::Ordering, marker::PhantomData};
 
 use crate::{
     ops::{Bounded, Set, Subset, Union},
-    range::Range,
     step_range::{RangeValue, StepRange},
 };
 
