@@ -29,11 +29,55 @@ impl<I: Integer + Clone> StepRange<I> {
     }
 
     pub fn with_lo(self, lo: I) -> Self {
-        Self::new(lo, self.hi, self.step)
+        assert!(lo <= self.hi);
+        let l = (lo - self.hi.clone()).next_multiple_of(&self.step);
+        Self::new(l + self.hi.clone(), self.hi, self.step)
     }
 
     pub fn with_hi(self, hi: I) -> Self {
-        Self::new(self.lo, hi, self.step)
+        assert!(hi >= self.lo);
+        let h = (hi - self.lo.clone()).prev_multiple_of(&self.step);
+        Self::new(self.lo.clone(), h + self.lo, self.step)
+    }
+
+    /// offset from an multiple of `step`. i.e. `lo % step``
+    pub fn offset(&self) -> I {
+        self.lo().mod_floor(self.step())
+    }
+
+    /// self.step - self.offset
+    pub fn offset_inv(&self) -> I {
+        self.step().clone() - self.offset()
+    }
+
+    /// return the first element in step_range below `n`
+    pub fn first_element_before(&self, n: I) -> I {
+        n.prev_multiple_of(&self.step) - self.offset_inv()
+    }
+
+    /// return the first element in step_range below `n`
+    pub fn first_element_after(&self, n: I) -> I {
+        n.next_multiple_of(&self.step) + self.offset()
+    }
+
+    pub fn compactify(self, other: &StepRange<I>) -> Option<Self> {
+        if !self.step().is_multiple_of(&other.step) {
+            return Some(self);
+        }
+
+        let has_lo = other.includes(self.lo());
+        let has_hi = other.includes(self.hi());
+        if has_hi && has_lo {
+            None
+        } else if has_hi {
+            let new_hi = self.first_element_before(other.lo().clone());
+            StepRange::try_new(self.lo, new_hi, self.step)
+        } else if has_lo {
+            let new_lo = self.first_element_after(other.hi().clone());
+            StepRange::try_new(new_lo, self.hi, self.step)
+        } else {
+            Some(self)
+        }
     }
 
     /// Returns true if the step and offset of this range and `other` are compatible.
@@ -148,4 +192,39 @@ fn simple() {
 
     let e = StepRange::new(3, 30, 9);
     assert!(e.subset_of(&c));
+}
+
+#[test]
+fn bound_adjust() {
+    assert_eq!(StepRange::new(1, 7, 3).with_lo(3), StepRange::new(4, 7, 3));
+    assert_eq!(
+        StepRange::new(0, 12, 3).with_lo(4),
+        StepRange::new(6, 12, 3)
+    );
+    assert_eq!(
+        StepRange::new(0, 25, 5).with_lo(12),
+        StepRange::new(15, 25, 5)
+    );
+    assert_eq!(
+        StepRange::new(10, 25, 5).with_lo(25),
+        StepRange::new(25, 25, 5)
+    );
+
+    assert_eq!(StepRange::new(1, 7, 3).with_hi(5), StepRange::new(1, 4, 3));
+    assert_eq!(StepRange::new(0, 12, 3).with_hi(8), StepRange::new(0, 6, 3));
+    assert_eq!(
+        StepRange::new(5, 25, 5).with_hi(12),
+        StepRange::new(5, 10, 5)
+    );
+    assert_eq!(
+        StepRange::new(10, 25, 5).with_hi(10),
+        StepRange::new(10, 10, 5)
+    );
+}
+
+#[test]
+fn compactify() {
+    let a = StepRange::new(2, 26, 4);
+    let b = StepRange::new(10, 26, 2);
+    assert_eq!(a.compactify(&b), Some(StepRange::new(2, 6, 4)))
 }

@@ -1,0 +1,2 @@
+class StepRange:
+    step: int

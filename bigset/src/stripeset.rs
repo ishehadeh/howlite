@@ -1,12 +1,15 @@
-use std::{cmp::Ordering, marker::PhantomData};
+use std::{cmp::Ordering, marker::PhantomData, ops::RemAssign};
 
+use bumpalo::Bump;
 use num_integer::Integer;
 
 use crate::{
-    ops::{Bounded, Set, Subset},
+    ops::{Bounded, Set, Subset, Union},
+    range::Range,
     step_range::StepRange,
 };
 
+#[derive(Clone, Debug)]
 pub struct StripeSet<I: Integer + Clone> {
     ranges: Vec<StepRange<I>>,
 }
@@ -28,7 +31,7 @@ where
 
 impl<'a, I, B, I2> Iterator for StripeSetBoundedIter<'a, I, B, I2>
 where
-    I: Integer + Clone + PartialOrd<I2>,
+    I: Integer + Clone + PartialOrd<I2> + std::fmt::Debug,
     B: Bounded<I2>,
     I2: PartialOrd<I> + Eq,
 {
@@ -49,6 +52,7 @@ where
 
         self.index += 1;
         // curr completely within bounds
+
         if curr.lo() >= self.bounds.lo() && curr.hi() >= self.bounds.hi() {
             return Some(curr);
         }
@@ -64,7 +68,7 @@ where
 
 impl<I> StripeSet<I>
 where
-    I: Integer + Clone,
+    I: Integer + Clone + std::fmt::Debug,
 {
     pub fn new(ranges: Vec<StepRange<I>>) -> Self {
         let mut a = Self { ranges };
@@ -106,92 +110,48 @@ where
         self.ranges.sort_by(Self::cmp_range)
     }
 
-    fn consolidate(&mut self) {
-        let mut i = 0;
-        while i < self.ranges.len() - 1 {
-            if self.ranges[i].hi() > self.ranges[i + 1].lo() {
-                if self.ranges[i]
-                    .step()
-                    .is_multiple_of(self.ranges[i + 1].step())
-                {
-                    self.ranges[i + 1] = self.ranges[i + 1]
-                        .clone()
-                        .with_lo(self.ranges[i].lo().clone());
-                } else if self.ranges[i + 1]
-                    .step()
-                    .is_multiple_of(self.ranges[i].step())
-                {
-                    self.ranges[i] = self.ranges[i]
-                        .clone()
-                        .with_hi(self.ranges[i + 1].lo().clone());
+    pub fn add_range(&mut self, r: StepRange<I>) {
+        let mut remaining = Some(r);
+        let mut insertion_point = 0;
+        for (i, el) in self.ranges.iter().enumerate() {
+            if let Some(new_el) = &remaining {
+                if el.hi() > new_el.lo() {
+                    // we assume the ranges are sorted, so non overlapping ranges are sorted by bounds
+                    insertion_point = i;
+                    continue;
+                } else if el.lo() > new_el.hi() {
+                    break;
                 }
-            } else if self.ranges[i].subset_of(&self.ranges[i + 1]) {
-                self.ranges.remove(i);
+                if el.step() < new_el.step() {
+                    insertion_point = i;
+                    continue;
+                }
             } else {
-                i += 1;
+                break;
             }
+            remaining = remaining.and_then(|a| a.compactify(el));
+        }
+        if let Some(new_el) = remaining {
+            self.ranges.insert(insertion_point, new_el);
         }
     }
 
     pub fn normalize(&mut self) {
         self.sort();
-        self.consolidate();
+        // self.consolidate();
     }
 
     fn cmp_range(a: &StepRange<I>, b: &StepRange<I>) -> Ordering {
-        match (
-            a.lo().cmp(b.lo()),
-            a.hi().cmp(b.hi()),
-            a.step().cmp(b.step()),
-        ) {
-            // A |------------|
-            // B        |------------|
-            // OR
-            // A |------------|
-            // B                       |------------|
-            (Ordering::Less, Ordering::Less, _) => Ordering::Less,
-
-            // A         |------------|
-            // B |------------|
-            // OR
-            // A                      |------------|
-            // B |------------|
-            (Ordering::Greater, Ordering::Greater, _) => Ordering::Greater,
-
-            // SUPERSETS: supersets are always sorted before subsets
-            //  this forms a tree like structure.
-            //  during iteration, if  N - 1 does not contain N then N > N - 1
-            // -----------------------
-
-            // A |--------|
-            // B |------------|
-            // OR
-            // A    |------|
-            // B |------------|
-            // OR
-            // A      |-------|
-            // B |------------|
-            (Ordering::Equal, Ordering::Less, _) => Ordering::Greater,
-            (Ordering::Greater, Ordering::Less, _) => Ordering::Greater,
-            (Ordering::Greater, Ordering::Equal, _) => Ordering::Greater,
-
-            // A |------------|
-            // B |--------|
-            // OR
-            // A |------------|
-            // B    |------|
-            // OR
-            // A |------------|
-            // B      |-------|
-            (Ordering::Equal, Ordering::Greater, _) => Ordering::Less,
-            (Ordering::Less, Ordering::Greater, _) => Ordering::Less,
-            (Ordering::Less, Ordering::Equal, _) => Ordering::Less,
-
-            // if hi/lo match, sort by step
-            // lower steps go AFTER higher steps, to maintain subsetset ordering mentioned above
-            (Ordering::Equal, Ordering::Equal, Ordering::Less) => Ordering::Greater,
-            (Ordering::Equal, Ordering::Equal, Ordering::Greater) => Ordering::Less,
-            (Ordering::Equal, Ordering::Equal, Ordering::Equal) => Ordering::Equal,
+        // A |------------|
+        // B                       |------------|
+        if a.hi() < b.lo() {
+            // non-overlapping ranges are sorted in terms of their bounds
+            Ordering::Less
+        } else if a.lo() > b.hi() {
+            Ordering::Greater
+        } else {
+            // otherwise sort by step
+            a.step().cmp(b.step())
         }
     }
 }
@@ -223,8 +183,11 @@ where
             let mut start = range.lo().clone();
             for other in rhs
                 .iter_within_partial(range)
+                .map(|x| dbg!(x))
                 .filter(|x| range.step().is_multiple_of(x.step()))
+                .map(|y| dbg!(y))
             {
+                dbg!(&other, &range);
                 if other.lo() > &start {
                     // some part of our range was skipped, so this isn't a subset.
                     return false;
@@ -232,6 +195,7 @@ where
 
                 start = other.hi().clone() + range.step().clone();
             }
+            dbg!(&start);
             if &start < range.hi() {
                 return false;
             }
@@ -244,10 +208,163 @@ where
     }
 }
 
+impl<I> Union<StripeSet<I>> for StripeSet<I>
+where
+    I: Integer + Clone + std::fmt::Debug,
+{
+    type Output = StripeSet<I>;
+
+    fn union(self, rhs: StripeSet<I>) -> Self::Output {
+        StripeSet::new([self.ranges, rhs.ranges].concat())
+    }
+}
+
 #[test]
 fn simple() {
     let a = StripeSet::new(vec![StepRange::new(0, 10, 2), StepRange::new(15, 20, 1)]);
     let b = StripeSet::new(vec![StepRange::new(0, 18, 6)]);
     assert!(b.subset_of(&a));
     assert!(!a.subset_of(&b));
+}
+
+#[test]
+fn union() {
+    let a = StripeSet::new(vec![StepRange::new(0, 5, 1), StepRange::new(10, 20, 2)]);
+    let b = StripeSet::new(vec![StepRange::new(0, 18, 6)]);
+    let c = a.clone().union(b.clone());
+    dbg!(&c);
+    assert!(a.subset_of(&c));
+    assert!(b.subset_of(&c));
+}
+
+pub struct Stripe<I: Integer> {
+    pub offset: I,
+    pub start: I,
+    pub end: I,
+    pub step: I,
+}
+
+impl<I: Integer + Clone + std::fmt::Debug> Stripe<I> {
+    fn subset_of(&self, other: &Stripe<I>) -> bool {
+        let (step_div, step_mod) = self.step.div_mod_floor(&other.step);
+        let (offset_div, offset_mod) = if other.offset.is_zero() {
+            self.offset.div_mod_floor(&other.step)
+        } else {
+            self.offset.div_mod_floor(&other.offset)
+        };
+        dbg!(&step_div, &step_mod, &offset_div, &offset_mod);
+        if !step_mod.is_zero() || !offset_mod.is_zero() {
+            return false;
+        }
+        let adjusted_start_b = step_div.clone() * other.start.clone()
+            - (self.offset.clone() - other.offset.clone() * offset_div.clone());
+        let adjusted_end_b = step_div.clone() * other.end.clone()
+            - (self.offset.clone() - other.offset.clone() * offset_div.clone());
+        dbg!(&adjusted_start_b, &adjusted_end_b);
+        self.start >= adjusted_start_b && self.end <= adjusted_end_b
+    }
+}
+
+pub struct StripeTreeNode<'bump, I: Integer> {
+    pub step: I,
+    pub offset: I,
+    pub ranges: bumpalo::collections::Vec<'bump, Range<I>>,
+    pub children: bumpalo::collections::Vec<'bump, StripeTreeNode<'bump, I>>,
+}
+
+pub struct StripeTree<'bump, I: Integer> {
+    bumpalo: &'bump bumpalo::Bump,
+    root: StripeTreeNode<'bump, I>,
+}
+
+impl<'bump, I: Integer> StripeTree<'bump, I> {
+    pub fn new_in(alloc: &'bump bumpalo::Bump) -> StripeTree<'bump, I> {
+        StripeTree {
+            bumpalo: alloc,
+            root: StripeTreeNode {
+                step: I::one(),
+                offset: I::zero(),
+                ranges: bumpalo::collections::Vec::new_in(alloc),
+                children: bumpalo::collections::Vec::new_in(alloc),
+            },
+        }
+    }
+
+    pub fn coverage(&mut self, step: I, range: Range<I>) {}
+
+    pub fn add_node(&mut self, step: I, offset: I, range: Range<I>) {
+        Self::add_node_below(self.bumpalo, step, offset, range, &mut self.root)
+    }
+
+    fn add_node_below(
+        bump: &'bump bumpalo::Bump,
+        step: I,
+        offset: I,
+        range: Range<I>,
+        node: &mut StripeTreeNode<'bump, I>,
+    ) {
+        if node.step == step && offset == node.offset {
+            node.ranges.push(range);
+            return;
+        }
+        for (i, current) in node.children.iter_mut().enumerate() {
+            if current.step == step && offset == current.offset {
+                current.ranges.push(range);
+                return;
+            }
+            if current.step.is_multiple_of(&step)
+                && offset.mod_floor(&current.step) == current.offset
+            {
+                if current.step >= step {
+                    return Self::add_node_below(bump, step, offset, range, current);
+                } else {
+                    // TODO: add other children below current now.
+                    let old_current = std::mem::replace(
+                        current,
+                        StripeTreeNode {
+                            step,
+                            offset,
+                            ranges: bumpalo::vec![in &bump],
+                            children: bumpalo::vec![in &bump],
+                        },
+                    );
+                    current.children.push(old_current);
+                    return;
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn a() {
+    let a = Stripe {
+        offset: 1,
+        start: 1,
+        end: 2,
+        step: 10,
+    };
+    let b = Stripe {
+        offset: 1,
+        start: 1,
+        end: 2,
+        step: 5,
+    };
+
+    assert!(!a.subset_of(&b));
+
+    let c = Stripe {
+        offset: 0,
+        start: 0,
+        end: 3,
+        step: 6,
+    };
+    let d = Stripe {
+        offset: 0,
+        start: 0,
+        end: 10,
+        step: 3,
+    };
+
+    assert!(c.subset_of(&d));
 }
