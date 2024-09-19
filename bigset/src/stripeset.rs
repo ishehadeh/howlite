@@ -142,41 +142,37 @@ where
         }
     }
 
-    pub fn add_range(&mut self, r: StepRange<I>) {
-        let mut remaining = Some(r);
-        let mut insertion_point = 0;
-        for (i, el) in self.ranges.iter().enumerate() {
-            if let Some(new_el) = &remaining {
-                if el.hi() < new_el.lo() {
-                    // we assume the ranges are sorted, so non overlapping ranges are sorted by bounds
-                    insertion_point = i + 1;
-                    continue;
-                } else if el.lo() > new_el.hi() {
-                    insertion_point = i + 1;
-                    if el.step() <= new_el.step() {
-                        break;
-                    }
-                    continue;
+    pub fn merge_all(&mut self) {
+        let mut i = 0;
+        while i < self.ranges.len() {
+            let mut should_incr = true;
+            for j in (i + 1)..self.ranges.len() {
+                // TODO: size == 1 too!
+                if self.ranges[i].hi().clone() + self.ranges[i].step().clone()
+                    == self.ranges[j].lo().clone()
+                    && self.ranges[i].step() == self.ranges[j].step()
+                {
+                    let (_, new_hi, _) = self.ranges.remove(j).deconstruct();
+                    self.ranges[i].set_hi(new_hi);
+                    should_incr = false;
+                    break;
                 }
-                if el.step() > new_el.step() {
-                    insertion_point = i + 1;
-                    continue;
-                }
-
-                insertion_point = i;
-            } else {
-                break;
             }
-            remaining = remaining.and_then(|a| a.compactify(el));
+            if should_incr {
+                i += 1;
+            }
         }
-        if let Some(new_el) = remaining {
-            self.ranges.insert(insertion_point, new_el);
-        }
+    }
+
+    pub fn add_range(&mut self, r: StepRange<I>) {
+        self.ranges.push(r);
+        self.normalize();
     }
 
     pub fn normalize(&mut self) {
         self.sort();
         self.compact_all();
+        self.merge_all();
     }
 
     fn cmp_range(a: &StepRange<I>, b: &StepRange<I>) -> Ordering {
@@ -267,11 +263,7 @@ fn insert() {
     a.add_range(StepRange::new(10, 18, 2));
     assert_eq!(
         a.ranges,
-        vec![
-            StepRange::new(0, 10, 2),
-            StepRange::new(12, 14, 2),
-            StepRange::new(15, 20, 1)
-        ]
+        vec![StepRange::new(0, 14, 2), StepRange::new(15, 20, 1)]
     );
 
     let mut a = StripeSet::new(vec![]);
@@ -281,20 +273,14 @@ fn insert() {
     a.add_range(StepRange::new(15, 20, 1));
     assert_eq!(
         a.ranges,
-        vec![
-            StepRange::new(0, 8, 2),
-            StepRange::new(10, 18, 2),
-            StepRange::new(15, 20, 1)
-        ]
+        vec![StepRange::new(0, 14, 2), StepRange::new(15, 20, 1)]
     );
-    a.compact_all();
+
+    a.add_range(StepRange::new(20, 25, 1));
+
     assert_eq!(
         a.ranges,
-        vec![
-            StepRange::new(0, 8, 2),
-            StepRange::new(10, 14, 2),
-            StepRange::new(15, 20, 1)
-        ]
+        vec![StepRange::new(0, 14, 2), StepRange::new(15, 25, 1)]
     );
 }
 

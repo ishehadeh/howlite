@@ -42,6 +42,10 @@ impl<I: RangeValue> StepRange<I> {
         &self.step
     }
 
+    pub fn set_hi(&mut self, hi: I) {
+        self.hi = hi; // TODO: check invariants!
+    }
+
     pub fn with_lo(self, lo: I) -> Self {
         assert!(lo <= self.hi);
         let l = (lo - self.hi.clone()).next_multiple_of(&self.step);
@@ -52,6 +56,11 @@ impl<I: RangeValue> StepRange<I> {
         assert!(hi >= self.lo);
         let h = (hi - self.lo.clone()).prev_multiple_of(&self.step);
         Self::new(self.lo.clone(), h + self.lo, self.step)
+    }
+
+    /// deconstruct into (lo, hi, step)
+    pub fn deconstruct(self) -> (I, I, I) {
+        (self.lo, self.hi, self.step)
     }
 
     /// offset from an multiple of `step`. i.e. `lo % step``
@@ -101,6 +110,14 @@ impl<I: RangeValue> StepRange<I> {
         } else {
             None
         }
+    }
+
+    pub fn size(&self) -> I {
+        (self.hi().clone() - self.lo().clone()) / self.step().clone()
+    }
+
+    pub fn is_size_one(&self) -> bool {
+        self.hi() == self.lo()
     }
 
     /// Returns true if the step and offset of this range and `other` are compatible.
