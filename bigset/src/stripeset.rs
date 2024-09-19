@@ -121,6 +121,27 @@ where
         self.ranges.sort_by(Self::cmp_range)
     }
 
+    pub fn compact_all(&mut self) {
+        let mut i = 0;
+        let mut j = 0;
+        while i < self.ranges.len() {
+            j += self
+                .ranges
+                .iter()
+                .skip(j)
+                .take_while(|r| {
+                    r.step() <= self.ranges[i].step()
+                        && !(r.lo() > self.ranges[i].hi() || r.hi() < self.ranges[i].lo())
+                })
+                .count();
+            for n in (i + 1)..j {
+                let (i_slice, j_slice) = self.ranges.split_at_mut(n);
+                i_slice[i].compactify_mut(&j_slice[0]);
+            }
+            i += 1;
+        }
+    }
+
     pub fn add_range(&mut self, r: StepRange<I>) {
         let mut remaining = Some(r);
         let mut insertion_point = 0;
@@ -139,7 +160,6 @@ where
                 }
                 if el.step() > new_el.step() {
                     insertion_point = i + 1;
-
                     continue;
                 }
 
@@ -156,7 +176,7 @@ where
 
     pub fn normalize(&mut self) {
         self.sort();
-        // self.consolidate();
+        self.compact_all();
     }
 
     fn cmp_range(a: &StepRange<I>, b: &StepRange<I>) -> Ordering {
@@ -264,6 +284,15 @@ fn insert() {
         vec![
             StepRange::new(0, 8, 2),
             StepRange::new(10, 18, 2),
+            StepRange::new(15, 20, 1)
+        ]
+    );
+    a.compact_all();
+    assert_eq!(
+        a.ranges,
+        vec![
+            StepRange::new(0, 8, 2),
+            StepRange::new(10, 14, 2),
             StepRange::new(15, 20, 1)
         ]
     );

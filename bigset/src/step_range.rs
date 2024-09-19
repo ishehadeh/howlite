@@ -74,23 +74,32 @@ impl<I: RangeValue> StepRange<I> {
         (n + I::one()).next_multiple_of(&self.step) + self.offset()
     }
 
-    pub fn compactify(self, other: &StepRange<I>) -> Option<Self> {
+    /// compactify, and return true if the range is completey contained in other
+    pub fn compactify_mut(&mut self, other: &StepRange<I>) -> bool {
         if !self.step().is_multiple_of(&other.step) {
-            return Some(self);
+            return true;
         }
 
         let has_lo = other.includes(self.lo());
         let has_hi = other.includes(self.hi());
         if has_hi && has_lo {
-            None
+            false
         } else if has_hi {
-            let new_hi = self.first_element_before(other.lo().clone());
-            StepRange::try_new(self.lo, new_hi, self.step)
+            self.hi = self.first_element_before(other.lo().clone());
+            true
         } else if has_lo {
-            let new_lo = self.first_element_after(other.hi().clone());
-            StepRange::try_new(new_lo, self.hi, self.step)
+            self.lo = self.first_element_after(other.hi().clone());
+            true
         } else {
+            true
+        }
+    }
+
+    pub fn compactify(mut self, other: &StepRange<I>) -> Option<Self> {
+        if self.compactify_mut(other) {
             Some(self)
+        } else {
+            None
         }
     }
 
