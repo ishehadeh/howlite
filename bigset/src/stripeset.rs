@@ -135,8 +135,13 @@ where
                 })
                 .count();
             for n in (i + 1)..j {
-                let (i_slice, j_slice) = self.ranges.split_at_mut(n);
-                i_slice[i].compactify_mut(&j_slice[0]);
+                {
+                    let (i_slice, j_slice) = self.ranges.split_at_mut(n);
+                    i_slice[i].compactify_mut(&j_slice[0]);
+                }
+                if self.ranges[i].lo() > self.ranges[n].hi() {
+                    self.ranges.swap(i, n);
+                }
             }
             i += 1;
         }
@@ -172,8 +177,6 @@ where
     pub fn normalize(&mut self) {
         self.sort();
         self.compact_all();
-        // TODO: compact should keep sort
-        self.sort();
         self.merge_all();
     }
 
