@@ -83,6 +83,37 @@ where
         a
     }
 
+    pub fn arith_add(&self, other: &StripeSet<I>) -> Self {
+        let mut new = StripeSet::new(vec![]);
+        for a in &self.ranges {
+            for other_range in &other.ranges {
+                if &other_range.size() >= a.step() && other_range.step().is_one() {
+                    new.add_range(StepRange::new(
+                        a.lo().clone() + other_range.lo().clone(),
+                        a.hi().clone() + other_range.hi().clone(),
+                        I::one(),
+                    ))
+                } else {
+                    // range  that we have to expand
+                    let (explode_range, base_range) = if a.size() < other_range.size() {
+                        (a, other_range)
+                    } else {
+                        (other_range, a)
+                    };
+                    for el in explode_range {
+                        new.add_range(StepRange::new(
+                            base_range.lo().clone() + el.clone(),
+                            base_range.hi().clone() + el,
+                            base_range.step().clone(),
+                        ))
+                    }
+                }
+            }
+        }
+
+        new
+    }
+
     pub fn iter_within<B, I2>(&self, bounds: B) -> StripeSetBoundedIter<'_, I, B, I2>
     where
         I: RangeValue + PartialOrd<I2>,
@@ -160,6 +191,12 @@ where
                     should_incr = false;
                     break;
                 }
+
+                if self.ranges[i] == self.ranges[j] {
+                    self.ranges.remove(j);
+                    should_incr = false;
+                    break;
+                }
             }
             if should_incr {
                 i += 1;
@@ -188,7 +225,10 @@ where
             Ordering::Greater
         } else {
             // otherwise sort by step
-            b.step().cmp(a.step())
+            match b.step().cmp(a.step()) {
+                Ordering::Equal => a.lo().cmp(b.lo()),
+                lt_gt => lt_gt,
+            }
         }
     }
 }
@@ -317,4 +357,25 @@ fn union() {
     dbg!(&c);
     assert!(a.subset_of(&c));
     assert!(b.subset_of(&c));
+}
+
+#[test]
+fn arith() {
+    let a = StripeSet::new(vec![StepRange::new(0, 5, 1)]);
+    let b = StripeSet::new(vec![StepRange::new(0, 100, 10)]);
+    let c = a.arith_add(&b);
+    assert_eq!(
+        c.ranges,
+        vec![
+            StepRange::new(0, 100, 10),
+            StepRange::new(1, 101, 10),
+            StepRange::new(2, 102, 10),
+            StepRange::new(3, 103, 10),
+            StepRange::new(4, 104, 10),
+            StepRange::new(5, 105, 10)
+        ]
+    );
+
+    let d = c.arith_add(&a);
+    assert_eq!(d.ranges, vec![StepRange::new(0, 110, 1)])
 }

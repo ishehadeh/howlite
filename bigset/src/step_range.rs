@@ -16,11 +16,42 @@ impl<T> RangeValue for T where T: Integer + Clone + Debug {}
 #[cfg(not(test))]
 impl<T> RangeValue for T where T: Integer + Clone {}
 
+pub struct StepRangeIter<'a, I: RangeValue> {
+    range: &'a StepRange<I>,
+    x: I,
+}
+
+impl<'a, I: RangeValue> Iterator for StepRangeIter<'a, I> {
+    type Item = I;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.x > self.range.hi {
+            None
+        } else {
+            let val = self.x.clone();
+            self.x = self.range.step.clone() + self.x.clone();
+            Some(val)
+        }
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StepRange<I: RangeValue> {
     lo: I,
     hi: I,
     step: I,
+}
+
+impl<'a, I: RangeValue + 'a> IntoIterator for &'a StepRange<I> {
+    type Item = I;
+
+    type IntoIter = StepRangeIter<'a, I>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        StepRangeIter {
+            range: self,
+            x: self.lo.clone(),
+        }
+    }
 }
 
 impl<I: RangeValue> StepRange<I> {
@@ -110,6 +141,22 @@ impl<I: RangeValue> StepRange<I> {
         } else {
             None
         }
+    }
+
+    pub fn arith_add(self, other: StepRange<I>) -> StepRange<I> {
+        StepRange::new(
+            self.lo + other.lo,
+            self.hi + other.hi,
+            self.step + other.step,
+        )
+    }
+
+    pub fn arith_mul(self, other: StepRange<I>) -> StepRange<I> {
+        StepRange::new(
+            self.lo * other.lo,
+            self.hi * other.hi,
+            self.step * other.step,
+        )
     }
 
     pub fn size(&self) -> I {
