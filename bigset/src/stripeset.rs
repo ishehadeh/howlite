@@ -268,7 +268,7 @@ where
                     } else {
                         lo = lo + r.step().clone()
                     }
-                    dbg!(&r, &s, &lo);
+                    // dbg!(&r, &s, &lo);
                 }
             }
 
@@ -281,13 +281,20 @@ where
                                 continue 'a;
                             }
                         }
+                        dbg!("1");
                         return false;
                     }
+
+                    dbg!("4");
+                    continue;
                 }
+
+                dbg!("2", &lo, r.hi(), &lo < r.hi());
                 return false;
             }
         }
 
+        dbg!("3");
         true
     }
 
@@ -377,5 +384,5 @@ fn arith() {
     );
 
     let d = c.arith_add(&a);
-    assert_eq!(d.ranges, vec![StepRange::new(0, 110, 1)])
+    assert_eq!(d, StripeSet::new(vec![StepRange::new(0, 110, 1)]))
 }
