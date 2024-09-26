@@ -4,9 +4,6 @@ Howlite it is a low level programming language with exact integers as the fundam
 
 ## To-Do List & Timeline
 
-
-2024-09-25 Advising Appointment
-
 ### 2024-10-02
 
 - [ ] sunstone: `DynSet` with addition, union and intersection
