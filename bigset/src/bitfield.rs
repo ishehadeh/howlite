@@ -1,6 +1,12 @@
-use crate::ops::{self, IntersectMut, UnionMut};
+use crate::{
+    ops::{self, IntersectMut, UnionMut},
+    SetElement,
+};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+/// A BitField stores set elements using a series of bits. A natural number `x` is in the set if the `x`th bit in this series is `1`.
+///
+/// WIDTH is the number of bits in the set / 64 (e.g. WIDTH = 2 means 128 bit set)
 pub struct BitField<const WIDTH: usize = 1> {
     field: [u64; WIDTH],
 }
@@ -8,6 +14,15 @@ pub struct BitField<const WIDTH: usize = 1> {
 impl<const WIDTH: usize> BitField<WIDTH> {
     pub fn new() -> Self {
         Default::default()
+    }
+
+    pub fn from_slice(slice: &[usize]) -> Self {
+        let mut field: [u64; WIDTH] = [0; WIDTH];
+        for x in slice {
+            let (block, bit) = Self::elem_addr(*x);
+            field[block] |= 1 << bit as u64;
+        }
+        Self { field }
     }
 
     const fn elem_addr(el: usize) -> (usize, usize) {

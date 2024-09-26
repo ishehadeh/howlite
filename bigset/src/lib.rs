@@ -1,4 +1,5 @@
 pub mod bitfield;
+pub mod multi;
 pub mod ops;
 pub mod range;
 pub mod step_range;
@@ -7,18 +8,27 @@ pub mod stripeset;
 use std::{
     cell::RefCell,
     collections::{BTreeMap, VecDeque},
-    fmt::{write, Debug},
+    fmt::Debug,
     num::NonZeroUsize,
     ops::Bound,
-    sync::Arc,
 };
 
 use num_prime::{
     self,
     buffer::{NaiveBuffer, PrimeBufferExt},
     detail::{PrimalityBase, PrimalityRefBase},
-    Primality,
 };
+use num_traits::RefNum;
+
+pub trait SetElement:
+    RefNum<Self> + num_integer::Integer + Clone + PrimalityBase + Debug + TryFrom<usize>
+{
+}
+
+impl<I: RefNum<I> + num_integer::Integer + Clone + Debug + PrimalityBase + TryFrom<usize>>
+    SetElement for I
+{
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub enum StateRef {
@@ -43,14 +53,14 @@ impl State {
         Self(usize::MAX)
     }
 }
-#[derive(Clone)]
 pub struct FactorSet<
+    'primes,
     I: num_integer::Integer + PrimalityBase + Debug,
     PrimeBufT: for<'a> num_prime::PrimeBuffer<'a> = num_prime::buffer::NaiveBuffer,
 > where
     for<'r> &'r I: PrimalityRefBase<I>,
 {
-    primes: Arc<RefCell<PrimeBufT>>,
+    primes: &'primes RefCell<PrimeBufT>,
     states: BTreeMap<(State, I, usize), State>,
     initial_state: State,
     last_inserted_state: State,
@@ -58,9 +68,28 @@ pub struct FactorSet<
 }
 
 impl<
+        'primes,
         I: num_integer::Integer + PrimalityBase + Debug,
         PrimeBufT: for<'a> num_prime::PrimeBuffer<'a>,
-    > std::fmt::Debug for FactorSet<I, PrimeBufT>
+    > Clone for FactorSet<'primes, I, PrimeBufT>
+where
+    for<'r> &'r I: PrimalityRefBase<I>,
+{
+    fn clone(&self) -> Self {
+        Self {
+            primes: self.primes.clone(),
+            states: self.states.clone(),
+            initial_state: self.initial_state.clone(),
+            last_inserted_state: self.last_inserted_state.clone(),
+            counter: self.counter.clone(),
+        }
+    }
+}
+impl<
+        'primes,
+        I: num_integer::Integer + PrimalityBase + Debug,
+        PrimeBufT: for<'a> num_prime::PrimeBuffer<'a>,
+    > std::fmt::Debug for FactorSet<'primes, I, PrimeBufT>
 where
     for<'r> &'r I: PrimalityRefBase<I>,
 {
@@ -82,13 +111,14 @@ where
     }
 }
 impl<
+        'primes,
         I: num_integer::Integer + PrimalityBase + Debug,
         PrimeBufT: for<'a> num_prime::PrimeBuffer<'a>,
-    > FactorSet<I, PrimeBufT>
+    > FactorSet<'primes, I, PrimeBufT>
 where
     for<'r> &'r I: PrimalityRefBase<I>,
 {
-    pub fn new(primes: Arc<RefCell<PrimeBufT>>) -> FactorSet<I, PrimeBufT> {
+    pub fn new(primes: &'primes RefCell<PrimeBufT>) -> FactorSet<'primes, I, PrimeBufT> {
         FactorSet {
             states: Default::default(),
             primes,
@@ -262,8 +292,8 @@ where
 
 #[test]
 fn factor_set() {
-    let prime_buf = Arc::new(RefCell::new(NaiveBuffer::new()));
-    let mut set = FactorSet::new(prime_buf);
+    let prime_buf = RefCell::new(NaiveBuffer::new());
+    let mut set = FactorSet::new(&prime_buf);
     assert!(!set.includes(10000_usize));
     set.include(52_usize);
     set.include(9_usize);
