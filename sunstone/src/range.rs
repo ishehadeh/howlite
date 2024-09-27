@@ -1,3 +1,5 @@
+use std::ops::Sub;
+
 use crate::ops::{self, Bounded};
 
 #[derive(Clone, Debug)]
@@ -20,6 +22,15 @@ impl<T: std::cmp::Ord> Range<T> {
     }
     pub fn into_tuple(self) -> (T, T) {
         (self.lo, self.hi)
+    }
+}
+
+impl<T: std::cmp::Ord> Range<T>
+where
+    for<'a> &'a T: 'a + Sub<&'a T, Output = T>,
+{
+    pub fn len(&self) -> T {
+        &self.hi - &self.lo
     }
 }
 

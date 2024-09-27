@@ -18,15 +18,15 @@ use num_prime::{
     buffer::{NaiveBuffer, PrimeBufferExt},
     detail::{PrimalityBase, PrimalityRefBase},
 };
-use num_traits::RefNum;
+use num_traits::{RefNum, ToPrimitive};
 
 pub trait SetElement:
-    RefNum<Self> + num_integer::Integer + Clone + PrimalityBase + Debug + TryFrom<usize>
+    RefNum<Self> + num_integer::Integer + Clone + Debug + TryFrom<usize> + ToPrimitive
 {
 }
 
-impl<I: RefNum<I> + num_integer::Integer + Clone + Debug + PrimalityBase + TryFrom<usize>>
-    SetElement for I
+impl<I: RefNum<I> + num_integer::Integer + Clone + Debug + TryFrom<usize> + ToPrimitive> SetElement
+    for I
 {
 }
 

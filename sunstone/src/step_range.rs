@@ -309,6 +309,13 @@ fn bound_adjust() {
     );
 }
 
+impl<I: RangeValue> From<crate::range::Range<I>> for StepRange<I> {
+    fn from(value: crate::range::Range<I>) -> Self {
+        let (lo, hi) = value.into_tuple();
+        Self::new(lo, hi, I::one())
+    }
+}
+
 #[test]
 fn compactify() {
     let a = StepRange::new(2, 26, 4);
