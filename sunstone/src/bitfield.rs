@@ -1,7 +1,8 @@
+use num_integer::Integer;
 use num_prime::BitTest;
 
 use crate::{
-    ops::{self, IntersectMut, UnionMut},
+    ops::{self, IntersectMut, Set, SetMut, UnionMut},
     range::Range,
 };
 
@@ -168,6 +169,24 @@ impl<const WIDTH: usize> BitField<WIDTH> {
             field[block] |= 1 << bit as u64;
         }
         Self { field }
+    }
+
+    pub fn arith_add<const SUM_WIDTH: usize>(&self, other: &Self) -> BitField<SUM_WIDTH> {
+        let mut sum = BitField::<SUM_WIDTH>::new();
+        for i in 0..self.field.len() {
+            for j in 0..other.field.len() {
+                let block_offset = i + j;
+                for bit_offset in 0..u64::BITS {
+                    if self.field[i] & (1 << bit_offset) > 0 {
+                        let upper_mask = u64::MAX << (u64::BITS - bit_offset);
+                        sum.field[block_offset] |= other.field[j] << bit_offset;
+                        sum.field[block_offset + 1] |= other.field[j] & upper_mask;
+                    }
+                }
+            }
+        }
+
+        sum
     }
 
     const fn elem_addr(el: usize) -> (usize, usize) {
@@ -388,4 +407,20 @@ mod test {
         assert!(a.includes(50));
         assert!(!a.includes(150));
     }
+}
+
+#[test]
+pub fn add_set() {
+    let mut a: BitField<4> = BitField::default();
+    a.include_mut(200);
+    a.include_mut(150);
+    let mut b: BitField<4> = BitField::default();
+    b.include_mut(100);
+    b.include_mut(23);
+    let sum = a.arith_add::<8>(&b);
+    dbg!(&sum);
+    assert!(sum.includes(300));
+    assert!(sum.includes(173));
+    assert!(sum.includes(223));
+    assert!(sum.includes(250));
 }
