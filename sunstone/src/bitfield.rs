@@ -1,9 +1,13 @@
-use num_integer::Integer;
+use std::collections::BTreeMap;
+
 use num_prime::BitTest;
 
 use crate::{
     ops::{self, IntersectMut, Set, SetMut, UnionMut},
     range::Range,
+    step_range::StepRange,
+    stripeset::StripeSet,
+    SetElement,
 };
 
 #[derive(Clone, PartialEq, Eq)]
@@ -35,6 +39,58 @@ impl<const WIDTH: usize> std::fmt::Debug for BitField<WIDTH> {
 impl<const WIDTH: usize> BitField<WIDTH> {
     pub fn new() -> Self {
         Default::default()
+    }
+
+    pub fn iter_values_from(
+        &self,
+        start_block_no: usize,
+        start_bit_ind: usize,
+    ) -> impl Iterator<Item = usize> + '_ {
+        (start_block_no..WIDTH).flat_map(move |block_no| {
+            (if start_block_no == block_no {
+                start_bit_ind
+            } else {
+                0
+            }..u64::BITS as usize)
+                .filter(move |&i| self.field[block_no].bit(i))
+                .map(move |bit_ind| bit_ind + block_no * u64::BITS as usize)
+        })
+    }
+
+    pub fn longest_stripe_from(&self, block_no: usize, index: usize) -> StepRange<usize> {
+        let n = block_no * u64::BITS as usize + index;
+        let mut series_length = BTreeMap::<usize, usize>::new();
+        let mut max_len = 0;
+        self.iter_values_from(block_no, index + 1).for_each(|x| {
+            let offset = x - n;
+
+            // TODO: optimize
+            let keys_iter: Vec<_> = series_length.keys().cloned().collect();
+            for size in keys_iter {
+                if offset % size == 0 {
+                    *(series_length.get_mut(&size).unwrap()) += 1;
+                }
+                if series_length[&size] < max_len {
+                    series_length.remove(&size);
+                } else if series_length[&size] > max_len {
+                    max_len = series_length[&size]
+                }
+            }
+            series_length.insert(offset, 1);
+        });
+
+        match series_length.into_iter().filter(|(_, l)| *l > 2).max() {
+            Some((size, length)) => dbg!(StepRange::new(n, size * length + n, size)),
+            None => StepRange::new(n, n, 1),
+        }
+    }
+
+    pub fn add_to_stripe<I: SetElement>(&self, stripe: &mut StripeSet<usize>) {
+        for n in self.iter_values_from(0, 0) {
+            if !stripe.includes(n) {
+                stripe.add_range(self.longest_stripe_from(n / 64, n % 64));
+            }
+        }
     }
 
     /// Returns the highest value in the set, or None if the set is empty

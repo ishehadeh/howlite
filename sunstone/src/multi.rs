@@ -6,6 +6,7 @@ use crate::{
     bitfield::BitField,
     ops::{Bounded, Union},
     range::Range,
+    step_range::StepRange,
     stripeset::StripeSet,
     SetElement,
 };
@@ -21,18 +22,14 @@ thread_local! {
 /// A DynSet uses multiple representations to track its elements as effeciently as possible
 pub struct DynSet<I: SetElement> {
     data: DynSetData<I>,
+    range: Range<I>,
 }
 
 #[derive(Debug, Clone)]
 enum DynSetData<I: SetElement> {
     Small(SmallSet<I>),
-    Contiguous(Contiguous<I>),
+    Contiguous,
     Stripe(StripeSet<I>),
-}
-
-#[derive(Debug, Clone)]
-struct Contiguous<I: SetElement> {
-    range: Range<I>,
 }
 
 #[derive(Debug, Clone)]
@@ -47,9 +44,8 @@ where
 {
     pub fn new_from_range(lo: I, hi: I) -> DynSet<I> {
         DynSet {
-            data: DynSetData::Contiguous(Contiguous {
-                range: Range::new(lo, hi),
-            }),
+            data: DynSetData::Contiguous,
+            range: Range::new(lo, hi),
         }
     }
 
@@ -80,6 +76,7 @@ where
                         elements: Box::new(BitField::from_slice(&usize_slice)),
                         offset: min.clone(),
                     }),
+                    range: Range::new(min.clone(), max.clone()),
                 };
             }
         }
@@ -96,66 +93,140 @@ where
 
     fn union(self, rhs: DynSet<I>) -> Self::Output {
         let data = match (self.data, rhs.data) {
-            (DynSetData::Small(s1), DynSetData::Small(s2)) => {
-                match (s1.elements.range(), s2.elements.range()) {
-                    (None, _) => DynSetData::Small(s2),
-                    (_, None) => DynSetData::Small(s1),
-                    (Some(s1_range), Some(s2_range)) => match s1.offset.cmp(&s2.offset) {
-                        Ordering::Less => {
-                            let offset = (&s2.offset - &s1.offset).to_usize().expect("bitfield offset during union too large, this should be unreachable");
-                            if offset + s2_range.hi() < SMALL_SET_MAX_RANGE {
-                                DynSetData::Small(SmallSet {
-                                    elements: Box::new(
-                                        s2.elements.arith_add_scalar(offset).union(*s1.elements),
-                                    ),
-                                    offset: s1.offset,
-                                })
-                            } else {
-                                todo!()
-                            }
-                        }
-
-                        Ordering::Greater => {
-                            let offset = (&s1.offset - &s2.offset).to_usize().expect("bitfield offset during union too large, this should be unreachable");
-                            if offset + s1_range.hi() < SMALL_SET_MAX_RANGE {
-                                DynSetData::Small(SmallSet {
-                                    elements: Box::new(
-                                        s1.elements.arith_add_scalar(offset).union(*s2.elements),
-                                    ),
-                                    offset: s2.offset,
-                                })
-                            } else {
-                                todo!()
-                            }
-                        }
-
-                        Ordering::Equal => DynSetData::Small(SmallSet {
-                            elements: Box::new(s2.elements.union(*s1.elements)),
-                            offset: s2.offset,
-                        }),
-                    },
+            // one set completely contained within the other
+            (_, DynSetData::Contiguous)
+                if self.range.lo() >= rhs.range.lo() && self.range.hi() <= rhs.range.hi() =>
+            {
+                DynSet {
+                    data: DynSetData::Contiguous,
+                    range: rhs.range,
                 }
             }
-            (DynSetData::Contiguous(s1), DynSetData::Contiguous(s2)) => {
+            (DynSetData::Contiguous, _)
+                if self.range.lo() < rhs.range.lo() && self.range.hi() > rhs.range.hi() =>
+            {
+                DynSet {
+                    data: DynSetData::Contiguous,
+                    range: self.range,
+                }
+            }
+
+            (DynSetData::Small(s1), DynSetData::Small(s2)) => {
+                let data = match s1.offset.cmp(&s2.offset) {
+                    Ordering::Less => {
+                        let offset = (&s2.offset - &s1.offset).to_usize().expect(
+                            "bitfield offset during union too large, this should be unreachable",
+                        );
+                        if offset + rhs.range.hi().to_usize().unwrap() < SMALL_SET_MAX_RANGE {
+                            DynSetData::Small(SmallSet {
+                                elements: Box::new(
+                                    s2.elements.arith_add_scalar(offset).union(*s1.elements),
+                                ),
+                                offset: s1.offset,
+                            })
+                        } else {
+                            todo!()
+                        }
+                    }
+
+                    Ordering::Greater => {
+                        let offset = (&s1.offset - &s2.offset).to_usize().expect(
+                            "bitfield offset during union too large, this should be unreachable",
+                        );
+                        if offset + self.range.hi().to_usize().unwrap() < SMALL_SET_MAX_RANGE {
+                            DynSetData::Small(SmallSet {
+                                elements: Box::new(
+                                    s1.elements.arith_add_scalar(offset).union(*s2.elements),
+                                ),
+                                offset: s2.offset,
+                            })
+                        } else {
+                            todo!()
+                        }
+                    }
+
+                    Ordering::Equal => DynSetData::Small(SmallSet {
+                        elements: Box::new(s2.elements.union(*s1.elements)),
+                        offset: s2.offset,
+                    }),
+                };
+
+                DynSet {
+                    data,
+                    range: Range::new(
+                        self.range.lo().min(rhs.range.lo()).clone(),
+                        self.range.hi().max(rhs.range.hi()).clone(),
+                    ),
+                }
+            }
+            (DynSetData::Contiguous, DynSetData::Contiguous) => {
+                let s1 = self.range;
+                let s2 = rhs.range;
                 // first check if the two ranges overlap - if so we can create a new contiguous range.
-                if s1.range.lo() >= s2.range.hi() {
-                    DynSetData::Contiguous(Contiguous {
-                        range: Range::new(s1.range.into_tuple().0, s2.range.into_tuple().1),
-                    })
-                } else if s2.range.lo() >= s1.range.hi() {
-                    DynSetData::Contiguous(Contiguous {
-                        range: Range::new(s2.range.into_tuple().0, s1.range.into_tuple().1),
-                    })
+                if s1.lo() < s2.hi() && s1.hi() > s2.hi() {
+                    Self {
+                        data: DynSetData::Contiguous,
+                        range: Range::new(s2.into_tuple().0, s1.into_tuple().1),
+                    }
+                } else if s2.lo() < s1.hi() && s2.hi() > s1.hi() {
+                    Self {
+                        data: DynSetData::Contiguous,
+                        range: Range::new(s1.into_tuple().0, s2.into_tuple().1),
+                    }
                 } else {
                     // if they don't overlap convert into a stripe set.
-                    DynSetData::Stripe(StripeSet::new(vec![s1.range.into(), s2.range.into()]))
+                    Self {
+                        range: Range::new(
+                            s1.lo().min(s2.lo()).clone(),
+                            s1.hi().max(s2.hi()).clone(),
+                        ),
+                        data: DynSetData::Stripe(StripeSet::new(vec![s1.into(), s2.into()])),
+                    }
                 }
             }
-            (DynSetData::Stripe(s1), DynSetData::Stripe(s2)) => DynSetData::Stripe(s1.union(s2)),
+            (DynSetData::Stripe(s1), DynSetData::Stripe(s2)) => Self {
+                range: Range::new(
+                    self.range.lo().min(rhs.range.lo()).clone(),
+                    self.range.hi().max(rhs.range.hi()).clone(),
+                ),
+                data: DynSetData::Stripe(s1.union(s2)),
+            },
+
+            (DynSetData::Stripe(mut s1), DynSetData::Contiguous) => Self {
+                range: Range::new(
+                    self.range.lo().min(rhs.range.lo()).clone(),
+                    self.range.hi().max(rhs.range.hi()).clone(),
+                ),
+                data: DynSetData::Stripe({
+                    s1.add_range(rhs.range.into());
+                    s1
+                }),
+            },
+
+            (DynSetData::Stripe(mut s1), DynSetData::Small(s2)) => {
+                let mut little_stripe: StripeSet<usize> = StripeSet::new(vec![]);
+
+                s2.elements.add_to_stripe::<usize>(&mut little_stripe);
+                for stripe in little_stripe.stripes() {
+                    s1.add_range(StepRange::new(
+                        s2.offset.clone() + I::from_usize(*stripe.lo()).unwrap(),
+                        s2.offset.clone() + I::from_usize(*stripe.hi()).unwrap(),
+                        I::from_usize(*stripe.step()).unwrap(),
+                    ));
+                    dbg!(&s1);
+                }
+                Self {
+                    range: Range::new(
+                        self.range.lo().min(rhs.range.lo()).clone(),
+                        self.range.hi().max(rhs.range.hi()).clone(),
+                    ),
+                    data: DynSetData::Stripe(s1),
+                }
+            }
+
             _ => todo!(),
         };
-
-        Self { data }
+        data
     }
 }
 
@@ -165,5 +236,10 @@ fn dyn_union() {
     dbg!(&a);
     let b = DynSet::new_from_individual(&[3, 8, 13, 100, 200]);
     dbg!(&b);
-    panic!("{:?}", a.union(b));
+
+    let c: DynSet<i32> = DynSet::new_from_range(0, 100);
+    let d: DynSet<i32> = DynSet::new_from_range(200, 400);
+    dbg!(&c);
+    let e = dbg!(c.union(d));
+    panic!("{:?}", e.union(a));
 }

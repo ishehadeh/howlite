@@ -83,6 +83,9 @@ where
         a
     }
 
+    pub fn stripes(&self) -> impl Iterator<Item = &'_ StepRange<I>> {
+        self.ranges.iter()
+    }
     pub fn arith_add(&self, other: &StripeSet<I>) -> Self {
         let mut new = StripeSet::new(vec![]);
         for a in &self.ranges {
