@@ -59,3 +59,8 @@ pub trait Subset<Rhs = Self> {
     /// A set operation: check if this set is subset of `rhs`, but not equal to `rhs`
     fn strict_subset_of(self, rhs: Rhs) -> bool;
 }
+
+pub trait RingOps<Rhs = Self> {
+    fn ring_add(self, rhs: Rhs) -> Self;
+    fn ring_mul(self, rhs: Rhs) -> Self;
+}

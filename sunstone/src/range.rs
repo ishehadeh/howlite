@@ -1,4 +1,4 @@
-use std::ops::Sub;
+use std::ops::{Add, Mul, Sub};
 
 use crate::ops::{self, Bounded};
 
@@ -72,5 +72,21 @@ impl<T: Ord> ops::Set<T> for Range<T> {
 impl<'a, T: Ord> ops::Set<&'a T> for Range<T> {
     fn includes(&self, element: &'a T) -> bool {
         element >= self.lo() && element <= self.hi()
+    }
+}
+
+impl<T: Ord + Add<T, Output = OutputT>, OutputT: Ord> Add<Self> for Range<T> {
+    type Output = Range<OutputT>;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Range::new(self.lo + rhs.lo, self.hi + rhs.hi)
+    }
+}
+
+impl<T: Ord + Mul<T, Output = OutputT>, OutputT: Ord> Mul<Self> for Range<T> {
+    type Output = Range<OutputT>;
+
+    fn mul(self, rhs: Self) -> Self::Output {
+        Range::new(self.lo * rhs.lo, self.hi * rhs.hi)
     }
 }

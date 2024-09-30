@@ -4,7 +4,7 @@ use num_prime::buffer::NaiveBuffer;
 
 use crate::{
     bitfield::BitField,
-    ops::{Bounded, Union},
+    ops::{Bounded, RingOps, Union},
     range::Range,
     step_range::StepRange,
     stripeset::StripeSet,
@@ -230,6 +230,21 @@ where
     }
 }
 
+impl<I: SetElement> RingOps for DynSet<I> {
+    fn ring_add(self, rhs: Self) -> Self {
+        Self {
+            data: rhs.data, // TODO!!
+            range: self.range + rhs.range,
+        }
+    }
+
+    fn ring_mul(self, rhs: Self) -> Self {
+        Self {
+            data: rhs.data, // TODO!!
+            range: self.range * rhs.range,
+        }
+    }
+}
 #[test]
 fn dyn_union() {
     let a = DynSet::new_from_individual(&[1, 5, 11, 1000, 1024]);
