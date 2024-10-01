@@ -2,7 +2,10 @@ use std::fmt::Debug;
 
 use num_integer::Integer;
 
-use crate::ops::{Bounded, Intersect, Set, Subset};
+use crate::{
+    ops::{Bounded, Intersect, Set, Subset},
+    SetElement,
+};
 
 #[cfg(test)]
 pub trait RangeValue: Integer + Clone + Debug {}
@@ -16,12 +19,12 @@ impl<T> RangeValue for T where T: Integer + Clone + Debug {}
 #[cfg(not(test))]
 impl<T> RangeValue for T where T: Integer + Clone {}
 
-pub struct StepRangeIter<'a, I: RangeValue> {
+pub struct StepRangeIter<'a, I: SetElement> {
     range: &'a StepRange<I>,
     x: I,
 }
 
-impl<'a, I: RangeValue> Iterator for StepRangeIter<'a, I> {
+impl<'a, I: SetElement> Iterator for StepRangeIter<'a, I> {
     type Item = I;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -35,13 +38,13 @@ impl<'a, I: RangeValue> Iterator for StepRangeIter<'a, I> {
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StepRange<I: RangeValue> {
+pub struct StepRange<I: SetElement> {
     lo: I,
     hi: I,
     step: I,
 }
 
-impl<'a, I: RangeValue + 'a> IntoIterator for &'a StepRange<I> {
+impl<'a, I: SetElement + 'a> IntoIterator for &'a StepRange<I> {
     type Item = I;
 
     type IntoIter = StepRangeIter<'a, I>;
@@ -54,7 +57,7 @@ impl<'a, I: RangeValue + 'a> IntoIterator for &'a StepRange<I> {
     }
 }
 
-impl<I: RangeValue> StepRange<I> {
+impl<I: SetElement> StepRange<I> {
     #[inline]
     pub fn try_new(lo: I, hi: I, step: I) -> Option<StepRange<I>> {
         if step <= I::zero() || lo > hi || !(hi.clone() - lo.clone()).is_multiple_of(&step) {
@@ -167,6 +170,32 @@ impl<I: RangeValue> StepRange<I> {
         self.hi() == self.lo()
     }
 
+    pub fn remove_and_split(mut self, el: &I) -> Option<(Self, Option<Self>)> {
+        // special case: remove either hi or lo endpoint
+        if el == self.lo() {
+            if self.lo() == self.hi() {
+                None
+            } else {
+                self.lo = self.lo.clone() + self.step();
+                Some((self, None))
+            }
+        } else if el == self.hi() {
+            if self.lo() == self.hi() {
+                None
+            } else {
+                self.hi = self.hi.clone() - self.step();
+                Some((self, None))
+            }
+        } else if el >= self.lo() && (el.clone() - self.lo()).is_multiple_of(self.step()) {
+            let set_lo = StepRange::new(self.lo, el.clone() - &self.step, self.step.clone());
+            let set_hi = StepRange::new(el.clone() + &self.step, self.hi, self.step.clone());
+            Some((set_lo, Some(set_hi)))
+        } else {
+            // not in set
+            Some((self, None))
+        }
+    }
+
     /// Returns true if the step and offset of this range and `other` are compatible.
     /// If true then if these ranges lo/hi ranges intersect the two ranges have intersecting values.
     pub fn might_intersect(&self, other: &StepRange<I>) -> bool {
@@ -186,7 +215,7 @@ impl<I: RangeValue> StepRange<I> {
 
 impl<I> Intersect for StepRange<I>
 where
-    I: RangeValue,
+    I: SetElement,
 {
     type Output = Option<StepRange<I>>;
 
@@ -205,7 +234,7 @@ where
 
 impl<I> Set<I> for StepRange<I>
 where
-    I: RangeValue,
+    I: SetElement,
 {
     fn includes(&self, element: I) -> bool {
         element >= self.lo
@@ -216,7 +245,7 @@ where
 
 impl<'a, I> Set<&'a I> for StepRange<I>
 where
-    I: RangeValue,
+    I: SetElement,
 {
     fn includes(&self, element: &'a I) -> bool {
         element >= self.lo()
@@ -227,7 +256,7 @@ where
 
 impl<'a, I> Subset for &'a StepRange<I>
 where
-    I: RangeValue,
+    I: SetElement,
 {
     #[inline]
     fn subset_of(self, rhs: Self) -> bool {
@@ -242,7 +271,7 @@ where
 
 impl<I> Bounded<I> for StepRange<I>
 where
-    I: RangeValue,
+    I: SetElement,
 {
     fn lo(&self) -> &I {
         &self.lo
@@ -255,7 +284,7 @@ where
 
 impl<'a, I> Bounded<I> for &'a StepRange<I>
 where
-    I: RangeValue,
+    I: SetElement,
 {
     fn lo(&self) -> &I {
         &self.lo
@@ -309,7 +338,7 @@ fn bound_adjust() {
     );
 }
 
-impl<I: RangeValue> From<crate::range::Range<I>> for StepRange<I> {
+impl<I: SetElement> From<crate::range::Range<I>> for StepRange<I> {
     fn from(value: crate::range::Range<I>) -> Self {
         let (lo, hi) = value.into_tuple();
         Self::new(lo, hi, I::one())

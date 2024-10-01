@@ -1,18 +1,19 @@
 use std::{cmp::Ordering, marker::PhantomData};
 
 use crate::{
-    ops::{Bounded, Set, Subset, Union},
+    ops::{Bounded, Set, SetMut, Subset, Union},
     step_range::{RangeValue, StepRange},
+    SetElement,
 };
 
 #[derive(Clone, Debug)]
-pub struct StripeSet<I: RangeValue> {
+pub struct StripeSet<I: SetElement> {
     ranges: Vec<StepRange<I>>,
 }
 
 impl<T2, I> PartialEq<T2> for StripeSet<I>
 where
-    I: RangeValue,
+    I: SetElement,
     for<'a> &'a StripeSet<I>: Subset<&'a T2>,
     for<'b> &'b T2: Subset<&'b StripeSet<I>>,
 {
@@ -23,9 +24,9 @@ where
 
 pub struct StripeSetBoundedIter<'a, I, B, I2>
 where
-    I: RangeValue + PartialOrd<I2>,
+    I: SetElement + PartialOrd<I2>,
     B: Bounded<I2>,
-    I2: PartialOrd<I> + Eq,
+    I2: PartialOrd<I> + Ord,
 {
     _i2: PhantomData<I2>,
     bounds: B,
@@ -38,9 +39,9 @@ where
 
 impl<'a, I, B, I2> Iterator for StripeSetBoundedIter<'a, I, B, I2>
 where
-    I: RangeValue + PartialOrd<I2>,
+    I: SetElement + PartialOrd<I2>,
     B: Bounded<I2>,
-    I2: PartialOrd<I> + Eq,
+    I2: PartialOrd<I> + Ord,
 {
     type Item = &'a StepRange<I>;
 
@@ -75,7 +76,7 @@ where
 
 impl<I> StripeSet<I>
 where
-    I: RangeValue,
+    I: SetElement,
 {
     pub fn new(ranges: Vec<StepRange<I>>) -> Self {
         let mut a = Self { ranges };
@@ -121,7 +122,7 @@ where
     where
         I: RangeValue + PartialOrd<I2>,
         B: Bounded<I2>,
-        I2: PartialOrd<I> + Eq,
+        I2: PartialOrd<I> + Ord,
     {
         StripeSetBoundedIter {
             bounds,
@@ -136,7 +137,7 @@ where
     where
         I: RangeValue + PartialOrd<I2>,
         B: Bounded<I2>,
-        I2: PartialOrd<I> + Eq,
+        I2: PartialOrd<I> + Ord,
     {
         StripeSetBoundedIter {
             bounds,
@@ -234,11 +235,19 @@ where
             }
         }
     }
+
+    fn get_containing_range_index(&self, element: &I) -> Option<usize> {
+        self.ranges
+            .iter()
+            .enumerate()
+            .find(|(_, r)| r.includes(element))
+            .map(|(i, _)| i)
+    }
 }
 
 impl<I> Set<I> for StripeSet<I>
 where
-    I: RangeValue,
+    I: SetElement,
 {
     fn includes(&self, element: I) -> bool {
         for range in &self.ranges {
@@ -256,7 +265,7 @@ where
 
 impl<'a, I> Subset<&'a StripeSet<I>> for &'a StripeSet<I>
 where
-    I: RangeValue + std::fmt::Debug,
+    I: SetElement + std::fmt::Debug,
 {
     fn subset_of(self, rhs: Self) -> bool {
         for r in &self.ranges {
@@ -308,12 +317,46 @@ where
 
 impl<I> Union<StripeSet<I>> for StripeSet<I>
 where
-    I: RangeValue,
+    I: SetElement,
 {
     type Output = StripeSet<I>;
 
     fn union(self, rhs: StripeSet<I>) -> Self::Output {
         StripeSet::new([self.ranges, rhs.ranges].concat())
+    }
+}
+
+impl<I> SetMut<I> for StripeSet<I>
+where
+    I: SetElement,
+{
+    type Output = StripeSet<I>;
+
+    fn include(mut self, element: I) -> Self::Output {
+        self.include_mut(element);
+        self
+    }
+
+    fn include_mut(&mut self, element: I) {
+        self.add_range(StepRange::new(element.clone(), element, I::one()));
+    }
+
+    fn exclude_mut(&mut self, element: &I) {
+        if let Some(rem_ind) = self.get_containing_range_index(element) {
+            let rem_result = self.ranges[rem_ind].clone().remove_and_split(element);
+            match rem_result {
+                None => {
+                    self.ranges.remove(rem_ind);
+                }
+                Some((modified, None)) => {
+                    self.ranges[rem_ind] = modified;
+                }
+                Some((l, Some(r))) => {
+                    self.ranges[rem_ind] = l;
+                    self.ranges.insert(rem_ind + 1, r);
+                }
+            };
+        }
     }
 }
 

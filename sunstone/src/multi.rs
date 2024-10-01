@@ -245,6 +245,17 @@ impl<I: SetElement> RingOps for DynSet<I> {
         }
     }
 }
+
+impl<I: SetElement> Bounded<I> for DynSet<I> {
+    fn lo(&self) -> &I {
+        self.range.lo()
+    }
+
+    fn hi(&self) -> &I {
+        self.range.hi()
+    }
+}
+
 #[test]
 fn dyn_union() {
     let a = DynSet::new_from_individual(&[1, 5, 11, 1000, 1024]);

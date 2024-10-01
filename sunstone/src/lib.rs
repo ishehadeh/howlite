@@ -21,7 +21,14 @@ use num_prime::{
 use num_traits::{FromPrimitive, RefNum, ToPrimitive};
 
 pub trait SetElement:
-    RefNum<Self> + num_integer::Integer + Clone + Debug + TryFrom<usize> + ToPrimitive + FromPrimitive
+    RefNum<Self>
+    + num_integer::Integer
+    + Clone
+    + Debug
+    + TryFrom<usize>
+    + ToPrimitive
+    + FromPrimitive
+    + Debug
 {
 }
 
@@ -32,7 +39,8 @@ impl<
             + Debug
             + TryFrom<usize>
             + ToPrimitive
-            + FromPrimitive,
+            + FromPrimitive
+            + Debug,
     > SetElement for I
 {
 }

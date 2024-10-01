@@ -387,6 +387,14 @@ impl<const WIDTH: usize> ops::SetMut<usize> for BitField<WIDTH> {
         }
         self.field[block_index] |= 1 << bit_index;
     }
+
+    fn exclude_mut(&mut self, element: &usize) {
+        let (block_index, bit_index) = Self::elem_addr(*element);
+        if block_index >= WIDTH {
+            panic!("input element out of range");
+        }
+        self.field[block_index] &= !(1 << bit_index);
+    }
 }
 
 impl Copy for BitField<1> {}

@@ -1,3 +1,5 @@
+use crate::range::Range;
+
 /// Operations that can be performed on sets
 pub trait Set<ElementT: Eq>
 where
@@ -6,9 +8,13 @@ where
     fn includes(&self, element: ElementT) -> bool;
 }
 
-pub trait Bounded<ElementT: Eq> {
+pub trait Bounded<ElementT: Ord> {
     fn lo(&self) -> &ElementT;
     fn hi(&self) -> &ElementT;
+
+    fn bounds(&self) -> Range<&ElementT> {
+        Range::new(self.lo(), self.hi())
+    }
 }
 
 pub trait SetMut<ElementT: Eq>
@@ -19,6 +25,8 @@ where
 
     fn include(self, element: ElementT) -> Self::Output;
     fn include_mut(&mut self, element: ElementT);
+
+    fn exclude_mut(&mut self, element: &ElementT);
 }
 
 pub trait MutSet<ElementT: Eq, ResultT>: IntersectMut<Self> + UnionMut<Self>
