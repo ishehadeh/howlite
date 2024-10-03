@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use num_integer::Integer;
 
 use crate::{
-    ops::{Bounded, Intersect, Set, Subset},
+    ops::{Bounded, Intersect, Set, SetOpIncludes, Subset},
     SetElement,
 };
 
@@ -80,6 +80,10 @@ impl<I: SetElement> StepRange<I> {
         self.hi = hi; // TODO: check invariants!
     }
 
+    pub fn set_lo(&mut self, lo: I) {
+        self.lo = lo; // TODO: check invariants!
+    }
+
     pub fn with_lo(self, lo: I) -> Self {
         assert!(lo <= self.hi);
         let l = (lo - self.hi.clone()).next_multiple_of(&self.step);
@@ -112,29 +116,39 @@ impl<I: SetElement> StepRange<I> {
         (n - I::one()).prev_multiple_of(&self.step) - self.offset()
     }
 
-    /// return the first element in step_range below `n`
+    /// return the first element in step_range after `n`
     pub fn first_element_after(&self, n: I) -> I {
         (n + I::one()).next_multiple_of(&self.step) + self.offset()
     }
 
-    /// compactify, and return true if the range is completey contained in other
-    pub fn compactify_mut(&mut self, other: &StepRange<I>) -> bool {
-        if !self.step().is_multiple_of(&other.step) {
-            return true;
-        }
+    /// return the first element in step_range greater or equal `n`
+    pub fn first_element_ge(&self, n: I) -> I {
+        (n).next_multiple_of(&self.step) + self.offset()
+    }
 
+    /// return the first element in step_range less or equal to `n`
+    pub fn first_element_le(&self, n: I) -> I {
+        n.prev_multiple_of(&self.step) + self.offset()
+    }
+
+    /// shorten this range if `other` covers part of it. If `other` covers all of `self`, return true
+    pub fn compactify_mut(&mut self, other: &StepRange<I>) -> bool {
         let has_lo = other.includes(self.lo());
         let has_hi = other.includes(self.hi());
-        if has_hi && has_lo {
-            false
-        } else if has_hi {
-            self.hi = self.first_element_before(other.lo().clone());
-            true
-        } else if has_lo {
-            self.lo = self.first_element_after(other.hi().clone());
-            true
+        if (has_lo || has_hi) && self.step().is_multiple_of(other.step()) {
+            if has_hi && has_lo {
+                false
+            } else if has_hi {
+                self.hi = self.first_element_before(other.lo().clone());
+                true
+            } else if has_lo {
+                self.lo = self.first_element_after(other.hi().clone());
+                true
+            } else {
+                true
+            }
         } else {
-            true
+            false
         }
     }
 
@@ -232,7 +246,11 @@ where
     }
 }
 
-impl<I> Set<I> for StepRange<I>
+impl<I: SetElement> Set for StepRange<I> {
+    type ElementT = I;
+}
+
+impl<I> SetOpIncludes<I> for StepRange<I>
 where
     I: SetElement,
 {
@@ -243,7 +261,7 @@ where
     }
 }
 
-impl<'a, I> Set<&'a I> for StepRange<I>
+impl<'a, I> SetOpIncludes<&'a I> for StepRange<I>
 where
     I: SetElement,
 {

@@ -3,11 +3,10 @@ use std::collections::BTreeMap;
 use num_prime::BitTest;
 
 use crate::{
-    ops::{self, IntersectMut, Set, SetMut, UnionMut},
+    ops::{self, Bounded, IntersectMut, SetOpIncludes, SetSubtract, UnionMut},
     range::Range,
     step_range::StepRange,
     stripeset::StripeSet,
-    SetElement,
 };
 
 #[derive(Clone, PartialEq, Eq)]
@@ -85,7 +84,7 @@ impl<const WIDTH: usize> BitField<WIDTH> {
         }
     }
 
-    pub fn add_to_stripe<I: SetElement>(&self, stripe: &mut StripeSet<usize>) {
+    pub fn add_to_stripe(&self, stripe: &mut StripeSet<usize>) {
         for n in self.iter_values_from(0, 0) {
             if !stripe.includes(n) {
                 stripe.add_range(self.longest_stripe_from(n / 64, n % 64));
@@ -121,6 +120,54 @@ impl<const WIDTH: usize> BitField<WIDTH> {
         }
 
         None
+    }
+
+    pub fn include_between(&mut self, lo: usize, hi: usize) {
+        let (lo_block_ind, lo_bit_ind) = Self::elem_addr(lo);
+        let (hi_block_ind, hi_bit_ind) = Self::elem_addr(hi);
+
+        // range contains at least one complete block
+        if lo_block_ind + 1 < hi_block_ind {
+            for i in (lo_block_ind + 1)..hi_block_ind {
+                self.field[i] = u64::MAX;
+            }
+        }
+
+        self.field[lo_block_ind] |= u64::MAX << lo_bit_ind;
+        self.field[hi_block_ind] |= !(u64::MAX << hi_bit_ind);
+    }
+
+    pub fn includes_step_range(&self, step_range: StepRange<usize>) -> bool {
+        // TODO: preformance, we could use a mask if step_range.step() < 64
+
+        let mut i = *step_range.lo();
+        while i < *step_range.hi() {
+            if !self.includes(i) {
+                return false;
+            }
+            i += step_range.step()
+        }
+
+        true
+    }
+
+    pub fn includes_range(&self, range: Range<usize>) -> bool {
+        let (lo_block_ind, lo_bit_ind) = Self::elem_addr(*range.lo());
+        let (hi_block_ind, hi_bit_ind) = Self::elem_addr(*range.hi());
+
+        // range contains at least one complete block
+        if lo_block_ind + 1 < hi_block_ind {
+            for i in (lo_block_ind + 1)..hi_block_ind {
+                if self.field[i] != u64::MAX {
+                    return false;
+                }
+            }
+        }
+
+        let lo_block = u64::MAX << lo_bit_ind;
+        let hi_block = !(u64::MAX << hi_bit_ind);
+        self.field[lo_block_ind] & lo_block == lo_block
+            && self.field[hi_block_ind] & !(u64::MAX << hi_bit_ind) == hi_block
     }
 
     /// Returns the lowest and highest value in the set, or None if the set is empty
@@ -362,7 +409,11 @@ impl<'a, const WIDTH: usize> ops::Union<&'a BitField<WIDTH>> for &'a BitField<WI
     }
 }
 
-impl<const WIDTH: usize> ops::Set<usize> for BitField<WIDTH> {
+impl<const WIDTH: usize> ops::Set for BitField<WIDTH> {
+    type ElementT = usize;
+}
+
+impl<const WIDTH: usize> ops::SetOpIncludes<usize> for BitField<WIDTH> {
     fn includes(&self, n: usize) -> bool {
         let (block_index, bit_index) = BitField::<WIDTH>::elem_addr(n);
         if block_index > WIDTH {
@@ -372,7 +423,7 @@ impl<const WIDTH: usize> ops::Set<usize> for BitField<WIDTH> {
     }
 }
 
-impl<const WIDTH: usize> ops::SetMut<usize> for BitField<WIDTH> {
+impl<const WIDTH: usize> ops::SetOpIncludeExclude<usize> for BitField<WIDTH> {
     type Output = BitField<WIDTH>;
 
     fn include(mut self, element: usize) -> Self::Output {
@@ -397,6 +448,16 @@ impl<const WIDTH: usize> ops::SetMut<usize> for BitField<WIDTH> {
     }
 }
 
+impl<'a, const WIDTH: usize> SetSubtract<&'a Self> for BitField<WIDTH> {
+    fn set_subtract_mut(&mut self, rhs: &'a Self) {
+        for l in self.field.iter_mut() {
+            for &r in rhs.field.iter() {
+                *l &= !r
+            }
+        }
+    }
+}
+
 impl Copy for BitField<1> {}
 impl Copy for BitField<2> {}
 
@@ -404,7 +465,7 @@ impl Copy for BitField<2> {}
 mod test {
     use crate::{
         bitfield::BitField,
-        ops::{Intersect, Set, SetMut, Union},
+        ops::{Intersect, Set, SetOpIncludeExclude, SetOpIncludes, Union},
     };
 
     #[test]
@@ -471,20 +532,20 @@ mod test {
         assert!(a.includes(50));
         assert!(!a.includes(150));
     }
-}
 
-#[test]
-pub fn add_set() {
-    let mut a: BitField<4> = BitField::default();
-    a.include_mut(200);
-    a.include_mut(150);
-    let mut b: BitField<4> = BitField::default();
-    b.include_mut(100);
-    b.include_mut(23);
-    let sum = a.arith_add::<8>(&b);
-    dbg!(&sum);
-    assert!(sum.includes(300));
-    assert!(sum.includes(173));
-    assert!(sum.includes(223));
-    assert!(sum.includes(250));
+    #[test]
+    pub fn add_set() {
+        let mut a: BitField<4> = BitField::default();
+        a.include_mut(200);
+        a.include_mut(150);
+        let mut b: BitField<4> = BitField::default();
+        b.include_mut(100);
+        b.include_mut(23);
+        let sum = a.arith_add::<8>(&b);
+        dbg!(&sum);
+        assert!(sum.includes(300));
+        assert!(sum.includes(173));
+        assert!(sum.includes(223));
+        assert!(sum.includes(250));
+    }
 }

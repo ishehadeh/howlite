@@ -1,8 +1,12 @@
-use std::ops::{Add, Mul, Sub};
+use std::{
+    collections::btree_map::OccupiedEntry,
+    ops::{Add, Mul, Sub},
+    process::Output,
+};
 
-use crate::ops::{self, Bounded};
+use crate::ops::{self, Bounded, SetSubtract};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Range<T: std::cmp::Ord> {
     lo: T,
     hi: T,
@@ -20,6 +24,7 @@ impl<T: std::cmp::Ord> Range<T> {
             Some(Range { lo, hi })
         }
     }
+
     pub fn into_tuple(self) -> (T, T) {
         (self.lo, self.hi)
     }
@@ -27,10 +32,16 @@ impl<T: std::cmp::Ord> Range<T> {
 
 impl<T: std::cmp::Ord> Range<T>
 where
-    for<'a> &'a T: 'a + Sub<&'a T, Output = T>,
+    for<'a> T: Clone + Sub<&'a T>,
 {
-    pub fn len(&self) -> T {
-        &self.hi - &self.lo
+    pub fn len(&self) -> <T as Sub<&'_ T>>::Output {
+        self.hi().clone() - self.lo()
+    }
+}
+
+impl<'a, T: std::cmp::Ord + Clone> Range<&'a T> {
+    pub fn clone_endpoints(&self) -> Range<T> {
+        Range::new(self.lo.clone(), self.hi.clone())
     }
 }
 
@@ -64,12 +75,17 @@ impl<T: Ord> ops::Intersect for Range<T> {
     }
 }
 
-impl<T: Ord> ops::Set<T> for Range<T> {
+impl<T: Ord> ops::Set for Range<T> {
+    type ElementT = T;
+}
+
+impl<T: Ord> ops::SetOpIncludes<T> for Range<T> {
     fn includes(&self, element: T) -> bool {
         &element >= self.lo() && &element <= self.hi()
     }
 }
-impl<'a, T: Ord> ops::Set<&'a T> for Range<T> {
+
+impl<'a, T: Ord> ops::SetOpIncludes<&'a T> for Range<T> {
     fn includes(&self, element: &'a T) -> bool {
         element >= self.lo() && element <= self.hi()
     }

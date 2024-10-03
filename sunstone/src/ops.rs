@@ -1,11 +1,8 @@
 use crate::range::Range;
 
 /// Operations that can be performed on sets
-pub trait Set<ElementT: Eq>
-where
-    Self: Sized,
-{
-    fn includes(&self, element: ElementT) -> bool;
+pub trait Set: SetOpIncludes<Self::ElementT> {
+    type ElementT: Eq;
 }
 
 pub trait Bounded<ElementT: Ord> {
@@ -17,7 +14,22 @@ pub trait Bounded<ElementT: Ord> {
     }
 }
 
-pub trait SetMut<ElementT: Eq>
+pub trait PartialBounded<ElementT: Ord> {
+    fn partial_lo(&self) -> Option<&ElementT>;
+    fn partial_hi(&self) -> Option<&ElementT>;
+
+    fn partial_bounds(&self) -> Option<Range<&ElementT>> {
+        match (self.partial_lo(), self.partial_hi()) {
+            (Some(lo), Some(hi)) => Some(Range::new(lo, hi)),
+            _ => None,
+        }
+    }
+}
+pub trait SetOpIncludes<ElementT: Eq> {
+    fn includes(&self, element: ElementT) -> bool;
+}
+
+pub trait SetOpIncludeExclude<ElementT: Eq>
 where
     Self: Sized,
 {
@@ -27,13 +39,6 @@ where
     fn include_mut(&mut self, element: ElementT);
 
     fn exclude_mut(&mut self, element: &ElementT);
-}
-
-pub trait MutSet<ElementT: Eq, ResultT>: IntersectMut<Self> + UnionMut<Self>
-where
-    Self: Sized,
-{
-    fn include_mut(&mut self, element: ElementT);
 }
 
 pub trait Intersect<Rhs = Self> {
@@ -60,6 +65,10 @@ pub trait UnionMut<Rhs = Self> {
     fn union_mut(&mut self, rhs: Rhs);
 }
 
+pub trait SetSubtract<Rhs = Self> {
+    fn set_subtract_mut(&mut self, rhs: Rhs);
+}
+
 pub trait Subset<Rhs = Self> {
     /// A set operation: check if this set is subset of `rhs`
     fn subset_of(self, rhs: Rhs) -> bool;
@@ -68,7 +77,9 @@ pub trait Subset<Rhs = Self> {
     fn strict_subset_of(self, rhs: Rhs) -> bool;
 }
 
-pub trait RingOps<Rhs = Self> {
-    fn ring_add(self, rhs: Rhs) -> Self;
-    fn ring_mul(self, rhs: Rhs) -> Self;
+pub trait ArithmeticSet<RhsSetT: Set = Self, RhsElemT = <RhsSetT as Set>::ElementT> {
+    fn add_all(&mut self, rhs: RhsSetT);
+    fn mul_all(&mut self, rhs: RhsSetT);
+    fn add_scalar(&mut self, rhs: RhsElemT);
+    fn mul_scalar(&mut self, rhs: RhsElemT);
 }

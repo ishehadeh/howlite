@@ -1,7 +1,7 @@
 use std::{cmp::Ordering, marker::PhantomData};
 
 use crate::{
-    ops::{Bounded, Set, SetMut, Subset, Union},
+    ops::{Bounded, Set, SetOpIncludeExclude, SetOpIncludes, SetSubtract, Subset, Union},
     step_range::{RangeValue, StepRange},
     SetElement,
 };
@@ -245,16 +245,29 @@ where
     }
 }
 
-impl<I> Set<I> for StripeSet<I>
+impl<I: SetElement> Set for StripeSet<I> {
+    type ElementT = I;
+}
+
+impl<I> SetOpIncludes<I> for StripeSet<I>
 where
     I: SetElement,
 {
     fn includes(&self, element: I) -> bool {
+        self.includes(&element)
+    }
+}
+
+impl<'a, I> SetOpIncludes<&'a I> for StripeSet<I>
+where
+    I: SetElement,
+{
+    fn includes(&self, element: &'a I) -> bool {
         for range in &self.ranges {
-            if range.hi() < &element {
+            if range.hi() < element {
                 break;
             }
-            if range.includes(&element) {
+            if range.includes(element) {
                 return true;
             }
         }
@@ -326,7 +339,161 @@ where
     }
 }
 
-impl<I> SetMut<I> for StripeSet<I>
+impl<'a, I: SetElement> SetSubtract<&'a StripeSet<I>> for StripeSet<I> {
+    fn set_subtract_mut(&mut self, rhs: &'a Self) {
+        for rhs_stripe in rhs.stripes() {
+            let mut i = 0;
+            // here we go changing the array during iteration again :)
+            'check_sub: while i < self.ranges.len() {
+                let lhs_stripe = &self.ranges[i];
+                if lhs_stripe.lo() > rhs_stripe.hi() || lhs_stripe.hi() < rhs_stripe.lo() {
+                    // skip ranges that certainly have no intersect
+                    i += 1;
+                    continue;
+                }
+
+                // step 1) get the least common multiple of the two steps.
+                //          This is the interval where they may intersect.
+                //             e.g. step 2 & 3 may intersect every 6
+                // step 2) determine first element of lhs is rhs.
+                //         This could be anything <= lcm
+                //         first_el = lcm
+                let lcm_step = lhs_stripe.step().lcm(rhs_stripe.step());
+                let mut lcm_range = StepRange::new(
+                    rhs_stripe.lo().clone(),
+                    (rhs_stripe.hi().clone() + I::one()).prev_multiple_of(&lcm_step)
+                        - rhs_stripe.lo().mod_floor(&lcm_step),
+                    lcm_step,
+                );
+                dbg!(&lcm_range);
+
+                // LCM offset may be any N where:
+                //  1) N mod step(RHS) = lo(RHS) mod step(RHS)    i.e. N is an element of RHS
+                //  2) N < step(LSM)   since, past the step we'd just repeat
+                dbg!(lcm_range.first_element_ge(lhs_stripe.lo().clone()));
+                while !lhs_stripe.includes(lcm_range.first_element_ge(lhs_stripe.lo().clone())) {
+                    dbg!(lcm_range.first_element_ge(lhs_stripe.lo().clone()));
+                    lcm_range.set_lo(lcm_range.lo().clone() + lcm_range.step());
+                    if &(lcm_range.step().clone() + rhs_stripe.lo()) <= lcm_range.lo() {
+                        // couldn't find any elements in lhs! continue on
+                        i += 1;
+                        continue 'check_sub;
+                    }
+                }
+                dbg!(&lcm_range);
+                // unfortunately, it looks like we need to modify the range.
+                //  we're about to modify the array, so get an owned copy.
+                //  to avoid shifting the array any more than we already will,
+                //  reserve the space with a tombstone
+                let lhs_stripe = std::mem::replace(
+                    &mut self.ranges[i],
+                    StepRange::new(I::zero(), I::zero(), I::one()),
+                );
+
+                let first_lhs_removal = lcm_range.first_element_ge(lhs_stripe.lo().clone());
+                let last_lhs_removal = lcm_range.first_element_le(lhs_stripe.hi().clone());
+                let lo_dist_to_first_removal = first_lhs_removal.clone() - lhs_stripe.lo();
+                let hi_dist_to_last_removal = lhs_stripe.hi().clone() - &last_lhs_removal;
+
+                let lhs_span_length = lhs_stripe.hi().clone() - rhs_stripe.lo();
+                dbg!(&first_lhs_removal, &last_lhs_removal);
+                // if removal is below removed step, we can act like the lower part of the range is removed,
+                // since the split from lhs <= the rest.
+                // see the below loop for a better explaination
+                let has_prefix =
+                    &lo_dist_to_first_removal >= lcm_range.step().min(&lhs_span_length);
+                dbg!(&hi_dist_to_last_removal);
+                let has_suffix = &hi_dist_to_last_removal >= lcm_range.step().min(&lhs_span_length);
+                let removal_span_len = I::one() + &last_lhs_removal - &first_lhs_removal;
+
+                let new_ranges_count = lcm_range.step().clone().min(removal_span_len.clone())
+                    / lhs_stripe.step()
+                    - I::one()
+                    + if has_prefix { I::one() } else { I::zero() }
+                    + if has_suffix { I::one() } else { I::zero() };
+                if new_ranges_count.is_zero() {
+                    // our whole range is removed
+                    self.ranges.remove(i);
+                } else if !new_ranges_count.is_one() {
+                    // > 0, != 0, != 1, i.e. new_ranges_count > 1
+
+                    // reserve space for the elements we'll be adding all at once
+                    self.ranges.splice(
+                        i..i,
+                        (0..new_ranges_count.to_usize().unwrap())
+                            .map(|_| StepRange::new(I::zero(), I::zero(), I::one())),
+                    );
+                }
+
+                dbg!(&has_prefix, has_suffix, &lhs_span_length);
+                if has_prefix {
+                    self.ranges[i] = StepRange::new(
+                        lhs_stripe.lo().clone(),
+                        first_lhs_removal.clone() - lhs_stripe.step(),
+                        lhs_stripe.step().clone(),
+                    );
+                    i += 1;
+                }
+
+                if has_suffix {
+                    self.ranges[i] = StepRange::new(
+                        last_lhs_removal.clone() + lhs_stripe.step(),
+                        lhs_stripe.hi().clone(),
+                        lhs_stripe.step().clone(),
+                    );
+                    i += 1;
+                }
+
+                if first_lhs_removal == last_lhs_removal {
+                    continue;
+                }
+
+                // let A = first removed element
+                //     B = last removed element
+                //     T = LCM step (elements removed)
+                //     Sn = step(LHS)*n,  Sn < T
+                // for all Sn, create a range: [ A + Sn, B - T + Sn, step = T ]
+                for new_range_offset in num::range_step(
+                    I::zero(),
+                    lcm_range.step().clone().min(lhs_span_length),
+                    lhs_stripe.step().clone(),
+                ) {
+                    let start = {
+                        // a little trick not mentioned above:
+                        // if the distance to the first element removed is < step, we can actually just start there,
+                        // allowing us to not chop the original LHS range
+
+                        let base = first_lhs_removal.clone() + &new_range_offset;
+                        if !has_prefix && lo_dist_to_first_removal != new_range_offset {
+                            base - &lo_dist_to_first_removal
+                        } else {
+                            base
+                        }
+                    };
+                    dbg!(&removal_span_len,);
+                    let end = if &removal_span_len < lcm_range.step() {
+                        start.clone()
+                    } else {
+                        let base = (start.clone() + &removal_span_len)
+                            .prev_multiple_of(lcm_range.step())
+                            - lcm_range.step()
+                            + start.mod_floor(lcm_range.step());
+                        if !has_suffix && hi_dist_to_last_removal != new_range_offset {
+                            base + lcm_range.step()
+                        } else {
+                            base
+                        }
+                    };
+                    dbg!(&start, &end);
+                    self.ranges[i] = StepRange::new(start, end, lcm_range.step().clone());
+                    i += 1;
+                }
+            }
+        }
+    }
+}
+
+impl<I> SetOpIncludeExclude<I> for StripeSet<I>
 where
     I: SetElement,
 {
@@ -410,6 +577,19 @@ fn union() {
     dbg!(&c);
     assert!(a.subset_of(&c));
     assert!(b.subset_of(&c));
+}
+
+#[test]
+fn subtraction() {
+    let mut a = StripeSet::new(vec![StepRange::new(0, 5, 1), StepRange::new(10, 20, 2)]);
+    let b = StripeSet::new(vec![StepRange::new(0, 18, 6)]);
+    dbg!(&a, &b);
+    a.set_subtract_mut(&b);
+    dbg!(&a);
+    assert!(!a.includes(0));
+    assert!(!a.includes(6));
+    assert!(!a.includes(12));
+    assert!(!a.includes(18));
 }
 
 #[test]

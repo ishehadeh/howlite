@@ -13,6 +13,7 @@ use std::{
     ops::Bound,
 };
 
+use num::CheckedAdd;
 use num_prime::{
     self,
     buffer::{NaiveBuffer, PrimeBufferExt},
@@ -29,6 +30,7 @@ pub trait SetElement:
     + ToPrimitive
     + FromPrimitive
     + Debug
+    + CheckedAdd
 {
 }
 
@@ -40,7 +42,8 @@ impl<
             + TryFrom<usize>
             + ToPrimitive
             + FromPrimitive
-            + Debug,
+            + Debug
+            + CheckedAdd,
     > SetElement for I
 {
 }
