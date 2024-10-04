@@ -137,6 +137,7 @@ impl<const WIDTH: usize> BitField<WIDTH> {
         self.field[hi_block_ind] |= !(u64::MAX << hi_bit_ind);
     }
 
+    // remove a range, endpoints are inclusive
     pub fn exclude_range(&mut self, lo: usize, hi: usize) {
         let (lo_block_ind, lo_bit_ind) = Self::elem_addr(lo);
         let (hi_block_ind, hi_bit_ind) = Self::elem_addr(hi);

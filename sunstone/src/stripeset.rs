@@ -1,7 +1,10 @@
 use std::{cmp::Ordering, marker::PhantomData};
 
+use num::BigInt;
+
 use crate::{
     ops::{Bounded, Set, SetOpIncludeExclude, SetOpIncludes, SetSubtract, Subset, Union},
+    range::Range,
     step_range::{RangeValue, StepRange},
     SetElement,
 };
@@ -217,6 +220,78 @@ where
         self.sort();
         self.compact_all();
         self.merge_all();
+    }
+
+    pub fn get_range(&self) -> Option<Range<I>> {
+        if self.ranges.is_empty() {
+            return None;
+        }
+        let mut lo = self.ranges[0].lo();
+        let mut hi = self.ranges[0].hi();
+        for r in self.ranges.iter().skip(1) {
+            lo = r.lo().min(lo);
+            hi = r.hi().min(hi);
+        }
+
+        Some(Range::new(lo.clone(), hi.clone()))
+    }
+
+    /// remove all elements above `new_maximum`. `new_maximum` will not be removed.
+    pub fn exclude_above(&mut self, new_maximum: &I) {
+        let mut first_el_to_remove = None;
+
+        // first, remove all ranges that are entirely above `new_maximum`
+        for (i, range) in self.ranges.iter().enumerate().rev() {
+            if range.lo() > new_maximum {
+                first_el_to_remove = Some(i + 1);
+                break;
+            }
+        }
+        if let Some(new_len) = first_el_to_remove {
+            self.ranges
+                .resize(new_len, StepRange::new(I::zero(), I::zero(), I::one()));
+        }
+
+        // second, start truncating ranges that span over `new_maximum`
+        for range in self.ranges.iter_mut().rev() {
+            // note, due to sort order (see cmp_range), we can't actually guarentee we can stop iterating
+            //  as soon as `range.hi() < new_maximum`, even if they have equal step values.
+            //  it's possible to have a set that looks like:
+            //
+            // ranges[1]    |-------|
+            // ranges[0] |--------------------|
+            //                          ^ new_maximum
+            // this is because we only sort by lower bound if steps are equal and the ranges overlap.
+
+            // don't use range.includes() here, since new_maximum doesn't need to actually be an element of the `range` set.`
+            if range.lo() < new_maximum && new_maximum < range.hi() {
+                range.set_hi(new_maximum.clone());
+            }
+        }
+    }
+
+    /// remove all elements below `new_minimum`. `new_minimum` will not be removed.
+    pub fn exclude_below(&mut self, new_minimum: &I) {
+        let mut new_start_idx = None;
+
+        // first, remove all ranges that are entirely below `new_minimum`
+        for (i, range) in self.ranges.iter().enumerate() {
+            if range.hi() < new_minimum {
+                new_start_idx = Some(i);
+                break;
+            }
+        }
+        if let Some(new_start_idx) = new_start_idx {
+            self.ranges.drain(0..new_start_idx);
+        }
+
+        // second, start truncating ranges that span over `new_minimum`
+        for range in self.ranges.iter_mut().rev() {
+            // note, we can't stop iterating as soon as new_minimum < lo, since we sort by step before lo.
+            if range.lo() < new_minimum && new_minimum < range.hi() {
+                range.set_lo(new_minimum.clone());
+            }
+        }
     }
 
     fn cmp_range(a: &StepRange<I>, b: &StepRange<I>) -> Ordering {

@@ -1,5 +1,6 @@
 use std::{cell::RefCell, cmp::Ordering};
 
+use num::iter::RangeStep;
 use num_prime::buffer::NaiveBuffer;
 
 use crate::{
@@ -48,6 +49,22 @@ impl<I: SetElement> DynSet<I> {
             data: DynSetData::Contiguous,
             range: Range::new(lo, hi),
         }
+    }
+    pub fn new_from_tuples<IntLikeT: Into<I> + Clone>(
+        ranges: &[(IntLikeT, IntLikeT)],
+    ) -> DynSet<I> {
+        let set: StripeSet<_> = StripeSet::new(
+            ranges
+                .iter()
+                .map(|(lo, hi)| StepRange::new(lo.clone().into(), hi.clone().into(), I::one()))
+                .collect(),
+        );
+        set.get_range()
+            .map(|range| DynSet {
+                data: DynSetData::Stripe(set),
+                range,
+            })
+            .unwrap_or(Self::empty())
     }
 
     pub fn empty() -> DynSet<I> {
@@ -299,28 +316,85 @@ impl<I: SetElement> ArithmeticSet for DynSet<I> {
     }
 
     fn add_scalar(&mut self, rhs: <Self as Set>::ElementT) {
-        todo!()
+        self.range = self.range.clone() + Range::new(rhs.clone(), rhs.clone());
     }
 
     fn mul_scalar(&mut self, rhs: <Self as Set>::ElementT) {
-        todo!()
+        self.range = self.range.clone() * Range::new(rhs.clone(), rhs.clone());
     }
 }
 
 impl<I: SetElement> DynSet<I> {
     pub fn exclude_below(&mut self, n: &I) {
         if n > self.range.hi() {
-            self.data = DynSetData::Empty
-        } else if n > self.range.lo() {
-            self.range = Range::new(n.clone(), self.range.hi().clone());
+            self.data = DynSetData::Empty;
+        } else {
+            match &mut self.data {
+                DynSetData::Empty => (),
+                DynSetData::Small(small) => {
+                    if let Some(first_el_to_remove) =
+                        (n.clone() - &small.offset - I::one()).to_usize()
+                    {
+                        if first_el_to_remove >= SMALL_SET_MAX_RANGE {
+                            // this should be unreachable due to the above case
+                            // it may be worth warning here, since something is definitely wrong...
+                            self.data = DynSetData::Empty;
+                        } else {
+                            small.elements.exclude_range(0, first_el_to_remove);
+                            if let Some(r) = small.elements.range() {
+                                self.range = Range::new(
+                                    small.offset.clone() + I::from_usize(*r.lo()).unwrap(),
+                                    small.offset.clone() + I::from_usize(*r.hi()).unwrap(),
+                                );
+                            } else {
+                                self.data = DynSetData::Empty;
+                            }
+                        }
+                    }
+                }
+                DynSetData::Contiguous => {
+                    self.range =
+                        Range::new(self.range.lo().max(n).clone(), self.range.hi().clone());
+                }
+                DynSetData::Stripe(stripe) => stripe.exclude_below(n),
+            }
         }
     }
 
     pub fn exclude_above(&mut self, n: &I) {
         if n < self.range.lo() {
-            self.data = DynSetData::Empty
-        } else if n < self.range.hi() {
-            self.range = Range::new(self.range.lo().clone(), n.clone());
+            self.data = DynSetData::Empty;
+        } else {
+            match &mut self.data {
+                DynSetData::Empty => (),
+                DynSetData::Small(small) => {
+                    if let Some(field_n) = (n.clone() - &small.offset + I::one()).to_usize() {
+                        if field_n < SMALL_SET_MAX_RANGE {
+                            small.elements.exclude_range(field_n, SMALL_SET_MAX_RANGE);
+                            if let Some(r) = small.elements.range() {
+                                self.range = Range::new(
+                                    small.offset.clone() + I::from_usize(*r.lo()).unwrap(),
+                                    small.offset.clone() + I::from_usize(*r.hi()).unwrap(),
+                                );
+                            } else {
+                                self.data = DynSetData::Empty;
+                            }
+                        }
+                    }
+                }
+                DynSetData::Contiguous => {
+                    self.range =
+                        Range::new(self.range.lo().clone(), self.range.hi().min(n).clone());
+                }
+                DynSetData::Stripe(stripe) => {
+                    stripe.exclude_above(n);
+                    if let Some(r) = stripe.get_range() {
+                        self.range = r;
+                    } else {
+                        self.data = DynSetData::Empty;
+                    }
+                }
+            }
         }
     }
 }

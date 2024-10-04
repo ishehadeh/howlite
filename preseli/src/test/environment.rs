@@ -36,6 +36,16 @@ macro_rules! constraints {
     (@c $env:expr,) => { };
 }
 
+macro_rules! assert_set_equiv {
+    ($l:expr, $r:expr) => {{
+        use sunstone::ops::Subset;
+        let _equiv_left = $l;
+        let _equiv_right = $r;
+        assert!(_equiv_left.subset_of(&_equiv_right));
+        assert!(_equiv_right.subset_of(&_equiv_left));
+    }};
+}
+
 #[test]
 fn compare() {
     let mut env = Environment::new();
@@ -51,9 +61,10 @@ fn compare() {
         .run_constraints(env.current_generation())
         .expect("constraints failed");
     env.set_current_generation(gen);
-    assert_eq!(env.domain(x), IntegerSet::new_from_tuples(&[(0, 3)]));
-    assert_eq!(env.domain(y), IntegerSet::new_from_tuples(&[(4, 6)]));
-    assert_eq!(env.domain(z), IntegerSet::new_from_tuples(&[(-5, -1)]));
+    dbg!(env.domain(x), env.domain(y), env.domain(z));
+    assert_set_equiv!(env.domain(x), IntegerSet::new_from_tuples(&[(0, 3)]));
+    assert_set_equiv!(env.domain(y), IntegerSet::new_from_tuples(&[(4, 6)]));
+    assert_set_equiv!(env.domain(z), IntegerSet::new_from_tuples(&[(-5, -1)]));
 }
 
 #[test]
@@ -71,7 +82,7 @@ fn compare_mul_eq() {
         .run_constraints(env.current_generation())
         .expect("constraints failed");
     env.set_current_generation(gen);
-    assert_eq!(env.domain(t0), IntegerSet::new_from_tuples(&[(12, 15)]));
+    assert_set_equiv!(env.domain(t0), IntegerSet::new_from_tuples(&[(12, 15)]));
 }
 
 #[test]
@@ -91,10 +102,10 @@ fn compare_mul_eq2() {
         .run_constraints(env.current_generation())
         .expect("constraints failed");
     env.set_current_generation(gen);
-    assert_eq!(env.domain(x), IntegerSet::new_from_tuples(&[(2, 2)]));
-    assert_eq!(env.domain(t1), IntegerSet::new_from_tuples(&[(16, 16)]));
-    assert_eq!(env.domain(y), IntegerSet::new_from_tuples(&[(6, 6)]));
-    assert_eq!(env.domain(t0), IntegerSet::new_from_tuples(&[(18, 18)]));
+    assert_set_equiv!(env.domain(x), IntegerSet::new_from_tuples(&[(2, 2)]));
+    assert_set_equiv!(env.domain(t1), IntegerSet::new_from_tuples(&[(16, 16)]));
+    assert_set_equiv!(env.domain(y), IntegerSet::new_from_tuples(&[(6, 6)]));
+    assert_set_equiv!(env.domain(t0), IntegerSet::new_from_tuples(&[(18, 18)]));
 }
 
 #[test]
@@ -114,10 +125,10 @@ fn blog_example() {
         .run_constraints(env.current_generation())
         .expect("constraints failed");
     env.set_current_generation(gen);
-    assert_eq!(env.domain(t0), IntegerSet::new_from_tuples(&[(20, 25)]));
-    assert_eq!(env.domain(z), IntegerSet::new_from_tuples(&[(4, 5)]));
-    assert_eq!(env.domain(x), IntegerSet::new_from_tuples(&[(0, 16)]));
-    assert_eq!(env.domain(y), IntegerSet::new_from_tuples(&[(17, 17)]));
+    assert_set_equiv!(env.domain(t0), IntegerSet::new_from_tuples(&[(20, 25)]));
+    assert_set_equiv!(env.domain(z), IntegerSet::new_from_tuples(&[(4, 5)]));
+    assert_set_equiv!(env.domain(x), IntegerSet::new_from_tuples(&[(0, 16)]));
+    assert_set_equiv!(env.domain(y), IntegerSet::new_from_tuples(&[(17, 17)]));
 }
 
 /*
@@ -130,9 +141,9 @@ fn add() {
     let y = env.create_variable(IntegerSet::new_from_tuples(&[(4, 6)]));
     let z = env.create_variable(IntegerSet::new_from_tuples(&[(7, 10)]));
     env.constrain(BinaryAddConstraint::new(x, y, z));
-    assert_eq!(env.domain(x), IntegerSet::new_from_tuples(&[(3, 4)]));
-    assert_eq!(env.domain(y), IntegerSet::new_from_tuples(&[(4, 6)]));
-    assert_eq!(env.domain(z), IntegerSet::new_from_tuples(&[(7, 10)]));
+    assert_set_equiv!(env.domain(x), IntegerSet::new_from_tuples(&[(3, 4)]));
+    assert_set_equiv!(env.domain(y), IntegerSet::new_from_tuples(&[(4, 6)]));
+    assert_set_equiv!(env.domain(z), IntegerSet::new_from_tuples(&[(7, 10)]));
 }
 #[test]
 fn add_coefficient() {
@@ -141,9 +152,9 @@ fn add_coefficient() {
     let y = env.create_variable(IntegerSet::new_from_tuples(&[(4, 6)]));
     let z = env.create_variable(IntegerSet::new_from_tuples(&[(4, 7)]));
     env.constrain(BinaryAddConstraint::new_with_coefficient(x, 3.into(), y, z));
-    assert_eq!(env.domain(x), IntegerSet::new_from_tuples(&[(0, 1)]));
-    assert_eq!(env.domain(y), IntegerSet::new_from_tuples(&[(4, 4)]));
-    assert_eq!(env.domain(z), IntegerSet::new_from_tuples(&[(4, 7)])); // TODO: this should *only* be 4 or 7 not 4..7
+    assert_set_equiv!(env.domain(x), IntegerSet::new_from_tuples(&[(0, 1)]));
+    assert_set_equiv!(env.domain(y), IntegerSet::new_from_tuples(&[(4, 4)]));
+    assert_set_equiv!(env.domain(z), IntegerSet::new_from_tuples(&[(4, 7)])); // TODO: this should *only* be 4 or 7 not 4..7
 }
 
 #[test]
@@ -156,11 +167,11 @@ fn add_chain() {
     let e = env.create_variable(IntegerSet::new_from_tuples(&[(0, 3)]));
     env.constrain(BinaryAddConstraint::new(a, b, c));
     env.constrain(BinaryAddConstraint::new(c, d, e));
-    assert_eq!(env.domain(a), IntegerSet::new_from_tuples(&[(3, 3)]));
-    assert_eq!(env.domain(b), IntegerSet::new_from_tuples(&[(4, 4)]));
-    assert_eq!(env.domain(c), IntegerSet::new_from_tuples(&[(7, 7)]));
-    assert_eq!(env.domain(d), IntegerSet::new_from_tuples(&[(-5, -4)]));
-    assert_eq!(env.domain(e), IntegerSet::new_from_tuples(&[(2, 3)]));
+    assert_set_equiv!(env.domain(a), IntegerSet::new_from_tuples(&[(3, 3)]));
+    assert_set_equiv!(env.domain(b), IntegerSet::new_from_tuples(&[(4, 4)]));
+    assert_set_equiv!(env.domain(c), IntegerSet::new_from_tuples(&[(7, 7)]));
+    assert_set_equiv!(env.domain(d), IntegerSet::new_from_tuples(&[(-5, -4)]));
+    assert_set_equiv!(env.domain(e), IntegerSet::new_from_tuples(&[(2, 3)]));
 }
 
 #[test]
@@ -171,9 +182,9 @@ fn add_compare() {
     let z = env.create_variable(IntegerSet::new_from_tuples(&[(0, 100)]));
     env.constrain(BinaryAddConstraint::new(x, y, z));
     env.constrain(OffsetLtConstraint::new(z, -5, y));
-    assert_eq!(env.domain(x), IntegerSet::new_from_tuples(&[(0, 2)]));
-    assert_eq!(env.domain(y), IntegerSet::new_from_tuples(&[(4, 6)]));
-    assert_eq!(env.domain(z), IntegerSet::new_from_tuples(&[(4, 8)]));
+    assert_set_equiv!(env.domain(x), IntegerSet::new_from_tuples(&[(0, 2)]));
+    assert_set_equiv!(env.domain(y), IntegerSet::new_from_tuples(&[(4, 6)]));
+    assert_set_equiv!(env.domain(z), IntegerSet::new_from_tuples(&[(4, 8)]));
 }
 
 #[test]
@@ -193,8 +204,8 @@ fn add_system_simple() {
         y,
         r1,
     ));
-    assert_eq!(env.domain(x), IntegerSet::new_from_tuples(&[(2, 2)]));
-    assert_eq!(env.domain(y), IntegerSet::new_from_tuples(&[(3, 3)]));
+    assert_set_equiv!(env.domain(x), IntegerSet::new_from_tuples(&[(2, 2)]));
+    assert_set_equiv!(env.domain(y), IntegerSet::new_from_tuples(&[(3, 3)]));
 }
 
 #[test]
@@ -234,7 +245,7 @@ fn linear_system() {
         c3,
         env.satisfied_constraints(env.current_generation())
     );
-    assert_eq!(env.domain(x), IntegerSet::new_from_tuples(&[(-4, -4)]));
-    assert_eq!(env.domain(y), IntegerSet::new_from_tuples(&[(1, 1)]));
+    assert_set_equiv!(env.domain(x), IntegerSet::new_from_tuples(&[(-4, -4)]));
+    assert_set_equiv!(env.domain(y), IntegerSet::new_from_tuples(&[(1, 1)]));
 }
 */
