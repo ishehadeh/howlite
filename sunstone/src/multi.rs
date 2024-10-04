@@ -5,8 +5,8 @@ use num_prime::buffer::NaiveBuffer;
 use crate::{
     bitfield::BitField,
     ops::{
-        ArithmeticSet, Bounded, PartialBounded, Set, SetOpIncludeExclude, SetOpIncludes, Subset,
-        Union,
+        ArithmeticSet, Bounded, PartialBounded, Set, SetOpIncludeExclude, SetOpIncludes,
+        SetSubtract, Subset, Union,
     },
     range::Range,
     step_range::StepRange,
@@ -523,6 +523,54 @@ impl<I: SetElement> SetOpIncludeExclude<I> for DynSet<I> {
 
     fn exclude_mut(&mut self, element: &I) {
         todo!()
+    }
+}
+
+impl<I: SetElement> SetSubtract for DynSet<I> {
+    fn set_subtract_mut(&mut self, rhs: Self) {
+        match (&mut self.data, &rhs.data) {
+            (_, DynSetData::Empty) => (),
+            (DynSetData::Empty, _) => (),
+            (DynSetData::Small(s1), DynSetData::Small(s2)) => {
+                let dist = s2.offset.clone() - &s1.offset;
+                if dist.is_zero() {
+                    s1.elements.set_subtract_mut(&s2.elements)
+                } else if let Some(isize_dist) = dist.to_isize() {
+                    if isize_dist.unsigned_abs() < SMALL_SET_MAX_RANGE {
+                        s1.elements
+                            .set_subtract_mut_with_offset(&s2.elements, isize_dist);
+                    }
+                };
+            }
+            (DynSetData::Small(s1), DynSetData::Contiguous) => {
+                let start = (s1.offset.clone() - rhs.range.lo()).to_usize();
+                let end = (s1.offset.clone() - rhs.range.hi()).to_usize();
+                if let (Some(start), Some(end)) = (start, end) {
+                    if start <= SMALL_SET_MAX_RANGE {
+                        s1.elements
+                            .exclude_range(start, end.min(SMALL_SET_MAX_RANGE));
+                    }
+                }
+            }
+            (DynSetData::Small(_s1), DynSetData::Stripe(_s2)) => todo!(),
+            (DynSetData::Contiguous, DynSetData::Small(_) | DynSetData::Stripe(_)) => {
+                self.upgrade_from_contiguous();
+                self.set_subtract_mut(rhs);
+            }
+            (DynSetData::Contiguous, DynSetData::Contiguous) => {
+                let split = self.range.clone().remove_range(rhs.range.clone());
+                match split {
+                    Some((l, Some(r))) => {
+                        self.data = DynSetData::Stripe(StripeSet::new(vec![l.into(), r.into()]))
+                    }
+                    Some((l, None)) => self.range = l,
+                    None => self.data = DynSetData::Empty,
+                }
+            }
+            (DynSetData::Stripe(_s1), DynSetData::Small(_s2)) => todo!(),
+            (DynSetData::Stripe(_s1), DynSetData::Contiguous) => todo!(),
+            (DynSetData::Stripe(s1), DynSetData::Stripe(s2)) => s1.set_subtract_mut(s2),
+        }
     }
 }
 

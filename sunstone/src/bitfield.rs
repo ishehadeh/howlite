@@ -137,6 +137,21 @@ impl<const WIDTH: usize> BitField<WIDTH> {
         self.field[hi_block_ind] |= !(u64::MAX << hi_bit_ind);
     }
 
+    pub fn exclude_range(&mut self, lo: usize, hi: usize) {
+        let (lo_block_ind, lo_bit_ind) = Self::elem_addr(lo);
+        let (hi_block_ind, hi_bit_ind) = Self::elem_addr(hi);
+
+        // range contains at least one complete block
+        if lo_block_ind + 1 < hi_block_ind {
+            for i in (lo_block_ind + 1)..hi_block_ind {
+                self.field[i] = 0;
+            }
+        }
+
+        self.field[lo_block_ind] &= !(u64::MAX << lo_bit_ind);
+        self.field[hi_block_ind] &= u64::MAX << hi_bit_ind;
+    }
+
     pub fn includes_step_range(&self, step_range: StepRange<usize>) -> bool {
         // TODO: preformance, we could use a mask if step_range.step() < 64
 
@@ -296,6 +311,36 @@ impl<const WIDTH: usize> BitField<WIDTH> {
         let bit_index = el % u64::BITS as usize;
         let block_index = el / u64::BITS as usize;
         (block_index, bit_index)
+    }
+
+    pub fn set_subtract_mut_with_offset(&mut self, rhs: &Self, offset: isize) {
+        let offset_shift_lhs = if offset > 0 {
+            Self::elem_addr(offset as usize)
+        } else {
+            (0, 0)
+        };
+        let offset_shift_rhs = if offset < 0 {
+            Self::elem_addr(-offset as usize)
+        } else {
+            (0, 0)
+        };
+        for (i, l) in self.field.iter_mut().enumerate() {
+            if i < offset_shift_lhs.0 {
+                continue;
+            }
+            for (j, &r) in rhs.field.iter().enumerate() {
+                if j < offset_shift_rhs.0 {
+                    continue;
+                }
+                if i == offset_shift_lhs.0 {
+                    *l &= !r << offset_shift_lhs.1
+                } else if j == offset_shift_rhs.0 {
+                    *l &= !r >> offset_shift_rhs.1
+                } else {
+                    *l &= !r
+                }
+            }
+        }
     }
 }
 

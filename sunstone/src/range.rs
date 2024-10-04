@@ -1,8 +1,11 @@
 use std::{
+    cmp::Ordering,
     collections::btree_map::OccupiedEntry,
     ops::{Add, Mul, Sub},
     process::Output,
 };
+
+use num::Integer;
 
 use crate::ops::{self, Bounded, SetSubtract};
 
@@ -27,6 +30,24 @@ impl<T: std::cmp::Ord> Range<T> {
 
     pub fn into_tuple(self) -> (T, T) {
         (self.lo, self.hi)
+    }
+}
+
+impl<T: Integer> Range<T> {
+    pub fn remove_range(self, other: Self) -> Option<(Self, Option<Self>)> {
+        match (other.lo().cmp(self.lo()), other.hi().cmp(self.hi())) {
+            (Ordering::Less | Ordering::Equal, Ordering::Less) => {
+                Some((Range::new(other.hi + T::one(), self.hi), None))
+            }
+            (Ordering::Greater, Ordering::Greater | Ordering::Equal) => {
+                Some((Range::new(self.lo, other.lo - T::one()), None))
+            }
+            (Ordering::Less | Ordering::Equal, Ordering::Equal | Ordering::Greater) => None,
+            (Ordering::Greater, Ordering::Less) => Some((
+                Range::new(self.lo, other.lo - T::one()),
+                Some(Range::new(other.hi + T::one(), self.hi)),
+            )),
+        }
     }
 }
 
