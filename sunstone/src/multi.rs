@@ -1,4 +1,4 @@
-use std::{cell::RefCell, cmp::Ordering};
+use std::{cell::RefCell, cmp::Ordering, mem};
 
 use num::iter::RangeStep;
 use num_prime::buffer::NaiveBuffer;
@@ -39,7 +39,7 @@ enum DynSetData<I: SetElement> {
 
 #[derive(Debug, Clone)]
 struct SmallSet<I: SetElement> {
-    elements: Box<BitField<SMALL_SET_MAX_RANGE>>,
+    elements: Box<BitField<SMALL_SET_WORD_COUNT>>,
     offset: I,
 }
 
@@ -308,7 +308,84 @@ where
 
 impl<I: SetElement> ArithmeticSet for DynSet<I> {
     fn add_all(&mut self, rhs: Self) {
-        self.range = self.range.clone() + rhs.range;
+        match (&mut self.data, rhs.data) {
+            // TODO: how do we define arithmetic with empty???
+            (_, DynSetData::Empty) => (),
+            (DynSetData::Empty, data) => {
+                *self = DynSet {
+                    data,
+                    range: rhs.range,
+                }
+            }
+
+            (DynSetData::Small(s1), DynSetData::Small(s2)) => {
+                if let Some(new_max_in_field) = ((self.range.hi().clone() - &s1.offset)
+                    + (rhs.range.hi().clone() - &s2.offset))
+                    .to_usize()
+                {
+                    if new_max_in_field <= SMALL_SET_MAX_RANGE {
+                        s1.offset = s2.offset + &s1.offset;
+                        s1.elements =
+                            Box::new(s1.elements.arith_add::<SMALL_SET_WORD_COUNT>(&s2.elements));
+                        self.range = Range::new(
+                            rhs.range.lo().clone() + self.range.lo(),
+                            rhs.range.hi().clone() + self.range.hi(),
+                        );
+                        return;
+                    }
+                }
+
+                self.upgrade_from_small();
+                self.add_all(DynSet {
+                    data: DynSetData::Small(s2),
+                    range: rhs.range,
+                });
+            }
+            (DynSetData::Small(_), DynSetData::Contiguous) => {
+                let mut new_rhs = DynSet {
+                    data: DynSetData::Contiguous,
+                    range: rhs.range,
+                };
+                new_rhs.upgrade_from_contiguous();
+                self.add_all(new_rhs);
+            }
+            (DynSetData::Small(_), DynSetData::Stripe(stripe_set)) => {
+                //    TODO: performance, we could effiecently add stripe here, if its small enough
+
+                self.upgrade_from_small();
+                self.add_all(DynSet {
+                    data: DynSetData::Stripe(stripe_set),
+                    range: rhs.range,
+                });
+            }
+            (DynSetData::Contiguous, DynSetData::Contiguous) => {
+                self.range = rhs.range + self.range.clone();
+            }
+            (DynSetData::Contiguous, data) => {
+                let mut new_rhs = DynSet {
+                    data,
+                    range: rhs.range,
+                };
+                new_rhs.upgrade_from_contiguous();
+                self.add_all(new_rhs);
+            }
+            (DynSetData::Stripe(s1), DynSetData::Contiguous) => {
+                let rhs_stripe_set = StripeSet::new(vec![rhs.range.into()]);
+                *s1 = s1.arith_add(&rhs_stripe_set);
+            }
+            (DynSetData::Stripe(s1), DynSetData::Stripe(s2)) => {
+                *s1 = s1.arith_add(&s2);
+            }
+            (DynSetData::Stripe(s1), data) => {
+                assert!(matches!(data, DynSetData::Small(_)));
+                let mut new_rhs = DynSet {
+                    data,
+                    range: rhs.range,
+                };
+                new_rhs.upgrade_from_small();
+                self.add_all(new_rhs);
+            }
+        };
     }
 
     fn mul_all(&mut self, rhs: Self) {
