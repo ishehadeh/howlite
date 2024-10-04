@@ -1,6 +1,7 @@
 use std::{collections::HashSet, fmt::Debug};
 
 use slotmap::{new_key_type, Key, SecondaryMap, SlotMap};
+use sunstone::ops::PartialBounded;
 
 use crate::{
     integer::{IntegerRange, IntegerSet},
@@ -359,8 +360,8 @@ impl<'env> PropogationEnvironment<'env> {
 
     pub fn variable_range(&self, variable: VariableId) -> Option<IntegerRange> {
         match self.variable(variable) {
-            Variable::Domain(domain) => domain.range(),
-            Variable::Instantiated(val) => val.range(),
+            Variable::Domain(domain) => domain.partial_bounds().map(|x| x.clone_endpoints()),
+            Variable::Instantiated(val) => val.partial_bounds().map(|x| x.clone_endpoints()),
         }
     }
 }

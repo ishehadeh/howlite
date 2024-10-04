@@ -1,6 +1,7 @@
 use std::{num::NonZeroUsize, sync::atomic::AtomicUsize, sync::atomic::Ordering};
 
 use num_bigint::BigInt;
+use sunstone::ops::{PartialBounded, SetOpIncludeExclude, SetOpIncludes, SetSubtract, Subset};
 use thiserror::Error;
 
 use crate::integer::{IntegerRange, IntegerSet};
@@ -8,12 +9,12 @@ use crate::integer::{IntegerRange, IntegerSet};
 #[derive(Clone, Debug)]
 pub enum Mutation {
     Instantiate { value: IntegerSet },
-    Exclude { value: BigInt },
+    Exclude { values: IntegerSet },
     BoundLo { lo: BigInt },
     BoundHi { hi: BigInt },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone)]
 pub enum Variable {
     Domain(IntegerSet),
     Instantiated(IntegerSet),
@@ -28,38 +29,42 @@ impl Variable {
         match (self, mutation) {
             (Variable::Instantiated(_), _) => Err(InvalidMutationError::Instantiated),
             (Variable::Domain(domain), Mutation::Instantiate { value }) => {
-                if value.is_subset_of(&domain) {
+                if value.subset_of(&domain) {
                     Ok(Variable::Instantiated(value))
                 } else {
                     Err(InvalidMutationError::InstantiateOutOfDomain { value, domain })
                 }
             }
-            (Variable::Domain(mut domain), Mutation::Exclude { value }) => {
-                if domain.exclude_value(&value) {
-                    Ok(Variable::Domain(domain))
-                } else {
-                    Err(InvalidMutationError::ExcludeOutOfDomain { value, domain })
-                }
+            (Variable::Domain(mut domain), Mutation::Exclude { values }) => {
+                // TODO: make sure exclude doesn't effect bounds
+                domain.set_subtract_mut(&values);
+                Ok(Variable::Domain(domain))
             }
             (Variable::Domain(mut domain), Mutation::BoundLo { lo }) => {
-                if let Some(range) = domain.range() {
-                    if range.contains(&lo) {
+                if let Some(range) = domain.partial_bounds() {
+                    if range.includes(&lo) {
                         domain.exclude_below(&lo);
                         Ok(Variable::Domain(domain))
                     } else {
-                        Err(InvalidMutationError::LoOutOfRange { value: lo, range })
+                        Err(InvalidMutationError::LoOutOfRange {
+                            value: lo,
+                            range: range.clone_endpoints(),
+                        })
                     }
                 } else {
                     Err(InvalidMutationError::BoundEmptySet)
                 }
             }
             (Variable::Domain(mut domain), Mutation::BoundHi { hi }) => {
-                if let Some(range) = domain.range() {
-                    if range.contains(&hi) {
+                if let Some(range) = domain.partial_bounds() {
+                    if range.includes(&hi) {
                         domain.exclude_above(&hi);
                         Ok(Variable::Domain(domain))
                     } else {
-                        Err(InvalidMutationError::HiOutOfRange { value: hi, range })
+                        Err(InvalidMutationError::HiOutOfRange {
+                            value: hi,
+                            range: range.clone_endpoints(),
+                        })
                     }
                 } else {
                     Err(InvalidMutationError::BoundEmptySet)

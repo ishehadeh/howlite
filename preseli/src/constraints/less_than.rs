@@ -1,3 +1,6 @@
+use num_traits::One;
+use sunstone::ops::Bounded;
+
 use crate::{
     environment::{Constraint, Event, NarrowResult, PropogationEnvironment},
     integer::num_bigint::BigInt,
@@ -78,15 +81,16 @@ impl OffsetLtConstraint {
         let rhs_range = ctx.variable_range(self.rhs).unwrap();
         let lhs_range = ctx.variable_range(self.lhs).unwrap();
 
-        let adjustment_needed =
-            adjustment.unwrap_or((&lhs_range.hi + &self.lhs_offset + 1) - (&rhs_range.lo));
+        let adjustment_needed = adjustment.unwrap_or(
+            (lhs_range.hi().clone() + &self.lhs_offset + BigInt::one()) - rhs_range.lo(),
+        );
         if adjustment_needed <= BigInt::ZERO {
             // no adjustment needed if rhs lo > lhs hi
             return NarrowResult::Satisfied;
         }
         dbg!(&adjustment_needed);
 
-        let allowed_rhs_lo_adjustment = &rhs_range.hi - &rhs_range.lo;
+        let allowed_rhs_lo_adjustment = rhs_range.hi().clone() - rhs_range.lo();
         assert!(allowed_rhs_lo_adjustment >= BigInt::ZERO);
 
         if allowed_rhs_lo_adjustment == BigInt::ZERO {
@@ -95,7 +99,7 @@ impl OffsetLtConstraint {
             NarrowResult::Narrow(
                 self.rhs,
                 Mutation::BoundLo {
-                    lo: rhs_range.lo + adjustment_needed.min(allowed_rhs_lo_adjustment),
+                    lo: rhs_range.lo().clone() + adjustment_needed.min(allowed_rhs_lo_adjustment),
                 },
             )
         }
@@ -111,13 +115,13 @@ impl OffsetLtConstraint {
         let lhs_range = ctx.variable_range(self.lhs).unwrap();
 
         let adjustment_needed =
-            adjustment.unwrap_or((&lhs_range.hi + &self.lhs_offset + 1) - &rhs_range.lo);
+            adjustment.unwrap_or((lhs_range.hi().clone() + &self.lhs_offset + 1) - rhs_range.lo());
         if adjustment_needed <= BigInt::ZERO {
             // no adjustment needed if rhs lo > lhs hi
             return NarrowResult::Satisfied;
         }
 
-        let allowed_lhs_hi_adjustment = &lhs_range.hi - &lhs_range.lo;
+        let allowed_lhs_hi_adjustment = lhs_range.hi() - lhs_range.lo();
         assert!(allowed_lhs_hi_adjustment >= BigInt::ZERO);
         if allowed_lhs_hi_adjustment == BigInt::ZERO {
             NarrowResult::Violation
@@ -125,7 +129,7 @@ impl OffsetLtConstraint {
             NarrowResult::Narrow(
                 self.lhs,
                 Mutation::BoundHi {
-                    hi: lhs_range.hi - adjustment_needed.min(allowed_lhs_hi_adjustment),
+                    hi: lhs_range.hi() - adjustment_needed.min(allowed_lhs_hi_adjustment),
                 },
             )
         }

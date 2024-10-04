@@ -55,8 +55,17 @@ impl<T: std::cmp::Ord> Range<T>
 where
     for<'a> T: Clone + Sub<&'a T>,
 {
-    pub fn len(&self) -> <T as Sub<&'_ T>>::Output {
+    pub fn len_clone(&self) -> <T as Sub<&'_ T>>::Output {
         self.hi().clone() - self.lo()
+    }
+}
+
+impl<'a, T: std::cmp::Ord> Range<&'a T>
+where
+    for<'b> &'a T: Sub<&'b T>,
+{
+    pub fn len(&self) -> <&'a T as Sub<&'_ T>>::Output {
+        self.hi - self.lo
     }
 }
 

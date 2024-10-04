@@ -102,7 +102,7 @@ impl<I: SetElement> DynSet<I> {
 
     fn upgrade_from_contiguous(&mut self) {
         assert!(matches!(self.data, DynSetData::Contiguous));
-        if let Some(len_usize) = self.range.len().to_usize() {
+        if let Some(len_usize) = self.range.len_clone().to_usize() {
             if len_usize < SMALL_SET_MAX_RANGE {
                 let offset = self.range.lo().clone();
                 self.data = DynSetData::Small(SmallSet {
@@ -526,8 +526,8 @@ impl<I: SetElement> SetOpIncludeExclude<I> for DynSet<I> {
     }
 }
 
-impl<I: SetElement> SetSubtract for DynSet<I> {
-    fn set_subtract_mut(&mut self, rhs: Self) {
+impl<'a, I: SetElement> SetSubtract<&'a Self> for DynSet<I> {
+    fn set_subtract_mut(&mut self, rhs: &'a Self) {
         match (&mut self.data, &rhs.data) {
             (_, DynSetData::Empty) => (),
             (DynSetData::Empty, _) => (),
