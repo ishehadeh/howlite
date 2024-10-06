@@ -1,6 +1,5 @@
-use std::{cell::RefCell, cmp::Ordering, mem};
+use std::{cell::RefCell, cmp::Ordering};
 
-use num::iter::RangeStep;
 use num_prime::buffer::NaiveBuffer;
 
 use crate::{
@@ -10,7 +9,7 @@ use crate::{
         SetSubtract, Subset, Union,
     },
     range::Range,
-    step_range::{self, StepRange},
+    step_range::StepRange,
     stripeset::StripeSet,
     SetElement,
 };
@@ -642,6 +641,30 @@ impl<'a, I: SetElement> Subset<&'a DynSet<I>> for &'a DynSet<I> {
 
     fn strict_subset_of(self, rhs: Self) -> bool {
         todo!()
+    }
+}
+
+impl<I: SetElement> PartialOrd for DynSet<I> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        match (self.partial_bounds(), other.partial_bounds()) {
+            (Some(l), Some(r)) if l.hi() < r.lo() => Some(Ordering::Less),
+            (Some(l), Some(r)) if l.lo() > r.hi() => Some(Ordering::Greater),
+            (Some(l), Some(r)) if l.lo() == r.lo() && l.hi() == r.hi() => {
+                if self.eq(other) {
+                    Some(Ordering::Equal)
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        }
+    }
+}
+
+impl<I: SetElement> Eq for DynSet<I> {}
+impl<I: SetElement> PartialEq for DynSet<I> {
+    fn eq(&self, other: &Self) -> bool {
+        self.subset_of(other) && other.subset_of(self)
     }
 }
 

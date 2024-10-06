@@ -22,6 +22,7 @@ mod construct_macros;
 mod errors;
 mod util;
 
+use sunstone::ops::{SetOpIncludes, Subset};
 use ty_struct::StructField;
 use util::try_collect::TryCollect;
 
@@ -217,7 +218,7 @@ impl<SymbolT: Symbol> Ty<SymbolT> {
                 return Err(AccessError::MixedSeriesElementSizeUnion);
             }
 
-            if !index_set.contains(&index) {
+            if !index_set.includes(&index) {
                 return Err(AccessError::OutOfRange);
             }
 
@@ -234,7 +235,7 @@ impl<SymbolT: Symbol> Ty<SymbolT> {
     pub fn is_assignable_to(&self, other: &Ty<SymbolT>) -> Result<(), IncompatibleError<SymbolT>> {
         match (self, other) {
             (Ty::Int(superset), Ty::Int(subset)) => {
-                if subset.values.is_subset_of(&superset.values) {
+                if subset.values.subset_of(&superset.values) {
                     Ok(())
                 } else {
                     Err(IncompatibleError::IntegerSubsetError {
@@ -278,7 +279,7 @@ impl<SymbolT: Symbol> Ty<SymbolT> {
                     .map_err(|error| IncompatibleError::IncompatibleElement {
                         error: Box::new(error),
                     })?;
-                if subset.index_set.is_subset_of(&superset.index_set) {
+                if subset.index_set.subset_of(&superset.index_set) {
                     Err(IncompatibleError::IncompatibleIndices {
                         subset_indicies: subset.index_set.clone(),
                         superset_indicies: superset.index_set.clone(),

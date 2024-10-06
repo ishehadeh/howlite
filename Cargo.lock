@@ -207,6 +207,7 @@ dependencies = [
  "miette",
  "preseli",
  "smallvec",
+ "sunstone",
  "thiserror",
 ]
 

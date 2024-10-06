@@ -1,6 +1,7 @@
 use std::rc::Rc;
 
 use preseli::IntegerSet;
+use sunstone::ops::SetSubtract;
 
 use crate::{Symbol, Ty, TyInt, TyStruct};
 
@@ -44,10 +45,10 @@ pub enum IncompatibleError<SymbolT: Symbol> {
         found: Ty<SymbolT>,
     },
 
-    #[error("integer set {:?} is not a subset of {:?}. (not a in superset: {:?})", subset.values, superset.values, { let mut excl = subset.values.clone(); excl.subtract(&superset.values); excl} )]
+    #[error("integer set {:?} is not a subset of {:?}. (not a in superset: {:?})", subset.values, superset.values, { let mut excl = subset.values.clone(); excl.set_subtract_mut(&superset.values); excl} )]
     IntegerSubsetError { subset: TyInt, superset: TyInt },
 
-    #[error("series indicies are incompatible: expected indicies {:?}, got {:?}, (missing: {:?})", subset_indicies, superset_indicies, { let mut excl = subset_indicies.clone(); excl.subtract(superset_indicies); excl})]
+    #[error("series indicies are incompatible: expected indicies {:?}, got {:?}, (missing: {:?})", subset_indicies, superset_indicies, { let mut excl = subset_indicies.clone(); excl.set_subtract_mut(superset_indicies); excl})]
     IncompatibleIndices {
         subset_indicies: IntegerSet,
         superset_indicies: IntegerSet,
