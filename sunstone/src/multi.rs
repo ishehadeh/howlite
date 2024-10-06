@@ -10,7 +10,7 @@ use crate::{
         SetSubtract, Subset, Union,
     },
     range::Range,
-    step_range::StepRange,
+    step_range::{self, StepRange},
     stripeset::StripeSet,
     SetElement,
 };
@@ -82,6 +82,37 @@ impl<I: SetElement> DynSet<I> {
         &self.range
     }
 
+    pub fn is_divisible_by(&self, n: &I) -> bool {
+        assert!(n > &I::zero());
+        match &self.data {
+            DynSetData::Empty => true,
+            DynSetData::Small(s) => {
+                // stupid abs() impl that works even if I isn't signed
+                let shift = s.offset.mod_floor(n);
+                if let Some(n_usize) = n.to_usize() {
+                    // this should never panic since `offset mod n < n`, and n can be converted to a usize
+                    let shift_isize = shift.to_isize().unwrap();
+                    s.elements.is_divisible_by_with_offset(n_usize, shift_isize)
+                } else {
+                    false
+                }
+            }
+            DynSetData::Contiguous => {
+                n.is_one() || (self.range.len_clone().is_one() && self.range.lo().is_multiple_of(n))
+            }
+            DynSetData::Stripe(s) => {
+                for stripe in s.stripes() {
+                    if !stripe.lo().is_multiple_of(n)
+                        || !stripe.hi().is_multiple_of(n)
+                        || !(stripe.hi() == stripe.lo() || stripe.step().is_multiple_of(n))
+                    {
+                        return false;
+                    }
+                }
+                true
+            }
+        }
+    }
     pub fn new_from_individual(slice: &[I]) -> DynSet<I> {
         let (min, max) = slice.iter().fold((&slice[0], &slice[0]), |(min, max), el| {
             if el < min {
@@ -372,11 +403,13 @@ impl<I: SetElement> ArithmeticSet for DynSet<I> {
             (DynSetData::Stripe(s1), DynSetData::Contiguous) => {
                 let rhs_stripe_set = StripeSet::new(vec![rhs.range.into()]);
                 *s1 = s1.arith_add(&rhs_stripe_set);
+                self.range = s1.get_range().unwrap();
             }
             (DynSetData::Stripe(s1), DynSetData::Stripe(s2)) => {
                 *s1 = s1.arith_add(&s2);
+                self.range = s1.get_range().unwrap();
             }
-            (DynSetData::Stripe(s1), data) => {
+            (DynSetData::Stripe(_), data) => {
                 assert!(matches!(data, DynSetData::Small(_)));
                 let mut new_rhs = DynSet {
                     data,
@@ -389,15 +422,32 @@ impl<I: SetElement> ArithmeticSet for DynSet<I> {
     }
 
     fn mul_all(&mut self, rhs: Self) {
+        if self.is_empty() {
+            return;
+        }
         self.range = self.range.clone() * rhs.range;
+        self.data = DynSetData::Contiguous;
+        // TODO: implement mul_all
     }
 
     fn add_scalar(&mut self, rhs: <Self as Set>::ElementT) {
-        self.range = self.range.clone() + Range::new(rhs.clone(), rhs.clone());
+        // TODO: we can implement this in a fairly performant way, actually.
+        self.add_all(DynSet::new_from_individual(&[rhs]));
     }
 
     fn mul_scalar(&mut self, rhs: <Self as Set>::ElementT) {
-        self.range = self.range.clone() * Range::new(rhs.clone(), rhs.clone());
+        // TODO: implement mul_scalar
+        self.mul_all(DynSet::new_from_individual(&[rhs]));
+    }
+
+    fn div_scalar(&mut self, rhs: <Self as Set>::ElementT) {
+        if self.is_empty() {
+            return;
+        }
+
+        let (lo, hi) = self.range.clone().into_tuple();
+        self.range = Range::new(lo / &rhs, hi / rhs);
+        self.data = DynSetData::Contiguous;
     }
 }
 
@@ -433,7 +483,10 @@ impl<I: SetElement> DynSet<I> {
                     self.range =
                         Range::new(self.range.lo().max(n).clone(), self.range.hi().clone());
                 }
-                DynSetData::Stripe(stripe) => stripe.exclude_below(n),
+                DynSetData::Stripe(stripe) => {
+                    stripe.exclude_below(n);
+                    self.range = stripe.get_range().unwrap()
+                }
             }
         }
     }
@@ -703,7 +756,31 @@ impl<'a, I: SetElement> SetSubtract<&'a Self> for DynSet<I> {
                     }
                 }
             }
-            (DynSetData::Small(_s1), DynSetData::Stripe(_s2)) => todo!(),
+            (DynSetData::Small(s1), DynSetData::Stripe(s2)) => {
+                for range in s2.stripes() {
+                    if self.range.includes(range.lo())
+                        || self.range.includes(range.hi())
+                        || (self.range.lo() >= range.lo() && self.range.hi() <= range.hi())
+                    {
+                        // TODO: this won't work if there's a HUGE step that happens to land within s1, because `range` is very, very large.
+                        //       I don't know if this case is practically possible though, so ignoring for now.
+                        if let Some(s) = range.step().to_usize() {
+                            let usize_range = StepRange::new(
+                                (range.lo().clone() - &s1.offset)
+                                    .max(I::zero())
+                                    .to_usize()
+                                    .unwrap(),
+                                (range.hi().clone() - &s1.offset)
+                                    .min(I::from_usize(SMALL_SET_MAX_RANGE).unwrap())
+                                    .to_usize()
+                                    .unwrap(),
+                                s,
+                            );
+                            s1.elements.set_subtract_step_range(usize_range);
+                        }
+                    }
+                }
+            }
             (DynSetData::Contiguous, DynSetData::Small(_) | DynSetData::Stripe(_)) => {
                 self.upgrade_from_contiguous();
                 self.set_subtract_mut(rhs);
@@ -719,8 +796,21 @@ impl<'a, I: SetElement> SetSubtract<&'a Self> for DynSet<I> {
                 }
             }
             (DynSetData::Stripe(_s1), DynSetData::Small(_s2)) => todo!(),
-            (DynSetData::Stripe(_s1), DynSetData::Contiguous) => todo!(),
-            (DynSetData::Stripe(s1), DynSetData::Stripe(s2)) => s1.set_subtract_mut(s2),
+            (DynSetData::Stripe(s1), DynSetData::Contiguous) => {
+                // TODO: impl StripeSet.substract_range()
+                s1.set_subtract_mut(&StripeSet::new(vec![rhs.range.clone().into()]));
+                match s1.get_range() {
+                    Some(r) => self.range = r,
+                    None => self.data = DynSetData::Empty,
+                }
+            }
+            (DynSetData::Stripe(s1), DynSetData::Stripe(s2)) => {
+                s1.set_subtract_mut(s2);
+                match s1.get_range() {
+                    Some(r) => self.range = r,
+                    None => self.data = DynSetData::Empty,
+                }
+            }
         }
     }
 }

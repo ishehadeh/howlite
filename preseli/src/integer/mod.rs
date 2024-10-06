@@ -18,9 +18,7 @@ pub(crate) fn shift_lo_mutation(
 ) -> Option<Mutation> {
     if let Some(range) = range.partial_bounds() {
         if range.len() < upward_shift {
-            Some(Mutation::Instantiate {
-                value: DynSet::empty(),
-            })
+            None
         } else {
             Some(Mutation::BoundLo {
                 lo: upward_shift + *range.lo(),
@@ -37,9 +35,7 @@ pub(crate) fn shift_hi_mutation(
 ) -> Option<Mutation> {
     if let Some(range) = range.partial_bounds() {
         if range.len() < downward_shift {
-            Some(Mutation::Instantiate {
-                value: DynSet::empty(),
-            })
+            None
         } else {
             Some(Mutation::BoundHi {
                 hi: *range.hi() - downward_shift,

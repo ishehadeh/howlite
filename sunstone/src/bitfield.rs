@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+use num::ToPrimitive;
 use num_prime::BitTest;
 
 use crate::{
@@ -22,7 +23,7 @@ impl<const WIDTH: usize> std::fmt::Debug for BitField<WIDTH> {
         write!(f, "BitField {{ ")?;
         for (block_no, block) in self.field.iter().copied().enumerate() {
             let mut rem_values = block;
-            for i in 0..u64::BITS as usize {
+            for i in 0..Self::block_width() {
                 if rem_values & 1 != 0 {
                     write!(f, " {},", i + block_no * 64)?
                 }
@@ -35,9 +36,16 @@ impl<const WIDTH: usize> std::fmt::Debug for BitField<WIDTH> {
     }
 }
 
-impl<const WIDTH: usize> BitField<WIDTH> {
+impl<const BLOCKS: usize> BitField<BLOCKS> {
     pub fn new() -> Self {
         Default::default()
+    }
+
+    /// How many values can be kept in each per block
+    /// total number of values that may be store in the bit field
+    /// is equal to Self::block_width() * Self::BLOCKS
+    pub const fn block_width() -> usize {
+        u64::BITS as usize
     }
 
     pub fn iter_values_from(
@@ -45,19 +53,19 @@ impl<const WIDTH: usize> BitField<WIDTH> {
         start_block_no: usize,
         start_bit_ind: usize,
     ) -> impl Iterator<Item = usize> + '_ {
-        (start_block_no..WIDTH).flat_map(move |block_no| {
+        (start_block_no..BLOCKS).flat_map(move |block_no| {
             (if start_block_no == block_no {
                 start_bit_ind
             } else {
                 0
-            }..u64::BITS as usize)
+            }..Self::block_width())
                 .filter(move |&i| self.field[block_no].bit(i))
-                .map(move |bit_ind| bit_ind + block_no * u64::BITS as usize)
+                .map(move |bit_ind| bit_ind + block_no * Self::block_width())
         })
     }
 
     pub fn longest_stripe_from(&self, block_no: usize, index: usize) -> StepRange<usize> {
-        let n = block_no * u64::BITS as usize + index;
+        let n = block_no * Self::block_width() + index;
         let mut series_length = BTreeMap::<usize, usize>::new();
         let mut max_len = 0;
         self.iter_values_from(block_no, index + 1).for_each(|x| {
@@ -94,14 +102,14 @@ impl<const WIDTH: usize> BitField<WIDTH> {
 
     /// Returns the highest value in the set, or None if the set is empty
     pub fn hi(&self) -> Option<usize> {
-        let mut offset = (WIDTH - 1) * u64::BITS as usize;
+        let mut offset = (BLOCKS - 1) * Self::block_width();
         for block in self.field.iter().rev() {
             let last_set_bit = u64::BITS - block.leading_zeros();
             if last_set_bit > 0 {
                 return Some(offset + last_set_bit as usize - 1);
             }
 
-            offset -= u64::BITS as usize;
+            offset -= Self::block_width();
         }
 
         None
@@ -116,7 +124,7 @@ impl<const WIDTH: usize> BitField<WIDTH> {
                 return Some(offset + first_set_bit as usize);
             }
 
-            offset += u64::BITS as usize;
+            offset += Self::block_width();
         }
 
         None
@@ -167,6 +175,17 @@ impl<const WIDTH: usize> BitField<WIDTH> {
         true
     }
 
+    pub fn set_subtract_step_range(&mut self, step_range: StepRange<usize>) {
+        // TODO: preformance, we could use a mask if step_range.step() < 64
+
+        let mut i = *step_range.lo();
+        while i < *step_range.hi() && i < BLOCKS * Self::block_width() {
+            let (block, bit) = Self::elem_addr(i);
+            self.field[block] &= !(1 << bit);
+            i += step_range.step();
+        }
+    }
+
     pub fn includes_range(&self, range: Range<usize>) -> bool {
         let (lo_block_ind, lo_bit_ind) = Self::elem_addr(*range.lo());
         let (hi_block_ind, hi_bit_ind) = Self::elem_addr(*range.hi());
@@ -199,11 +218,73 @@ impl<const WIDTH: usize> BitField<WIDTH> {
         }
     }
 
+    /// check if all elements of this set + offset are divisble by n.
+    pub fn is_divisible_by_with_offset(&self, n: usize, offset: isize) -> bool {
+        // we'll approach this by trying to repeatedly apply a mask to our field.
+        // see which bits need to be set:
+        // in every `n_block_offset` blocks, `n_bit_offset` bit must be set
+        let (n_block_offset, n_bit_offset) = Self::elem_addr(n);
+
+        // if possible, try creating a mask, so we can test multiple values at once
+        // for example, if n = 3 then mask could be 0b001001001001[...]
+        // this doesn't always round perfectly to `Self::block_width` though,
+        // so store how many bits we should advance with `mask_bits`
+        let (mask, mask_bits) = if n_block_offset == 0 {
+            let mut mask: u64 = 0;
+            let mut off = n_bit_offset;
+            while off < Self::block_width() {
+                mask |= 1 << off;
+                off += n_bit_offset;
+            }
+            (mask, off - n_bit_offset)
+        } else {
+            (1 << n_bit_offset, n_bit_offset)
+        };
+
+        let mut field_block_offset = 0;
+
+        // untested bits begining from field_block_offset, this can span multiple blocks
+        let mut field_bit_offset = n_block_offset * Self::block_width();
+        match offset.cmp(&0) {
+            std::cmp::Ordering::Less => {
+                let offset_abs = offset.abs().to_usize().unwrap();
+                field_bit_offset += (offset_abs) % n;
+            }
+            std::cmp::Ordering::Equal => (),
+            std::cmp::Ordering::Greater => {
+                field_bit_offset += n - offset.to_usize().unwrap() % n;
+            }
+        }
+        while field_block_offset < BLOCKS {
+            dbg!(field_block_offset, field_bit_offset);
+            if field_bit_offset >= Self::block_width() {
+                if self.field[field_block_offset] != 0 {
+                    return false;
+                }
+                field_bit_offset -= Self::block_width();
+                field_block_offset += 1;
+            } else {
+                let adjusted_mask = !(mask << field_bit_offset);
+                // use xor to get all the bits that don't divide n
+                let unexpected_bits = self.field[field_block_offset] & adjusted_mask;
+                // again, ignore lower bits we already checked
+                if unexpected_bits >> field_bit_offset != 0 {
+                    return false;
+                }
+                field_bit_offset =
+                    (mask_bits + field_bit_offset) % 64 + n_block_offset * Self::block_width();
+                field_block_offset += 1;
+            }
+        }
+
+        true
+    }
+
     pub fn arith_add_scalar(mut self, n: usize) -> Self {
         #[cfg(debug_assertions)]
         {
             if let Some(hi) = self.hi() {
-                assert!(n + hi < WIDTH * 64)
+                assert!(n + hi < BLOCKS * 64)
             }
         }
         let value_shift = n % 64;
@@ -219,7 +300,7 @@ impl<const WIDTH: usize> BitField<WIDTH> {
 
             // apply overflow bits from prev iter
             *x |= overflow_last;
-            overflow_last = overflow_now >> (u64::BITS as usize - value_shift);
+            overflow_last = overflow_now >> (Self::block_width() - value_shift);
         }
 
         let block_shift = n / 64;
@@ -263,7 +344,7 @@ impl<const WIDTH: usize> BitField<WIDTH> {
 
             // apply overflow bits from prev iter
             *x |= overflow_last;
-            overflow_last = overflow_now << (u64::BITS as usize - value_shift);
+            overflow_last = overflow_now << (Self::block_width() - value_shift);
             println!("o   = {overflow_last:064b}");
         }
 
@@ -282,7 +363,7 @@ impl<const WIDTH: usize> BitField<WIDTH> {
     }
 
     pub fn from_slice(slice: &[usize]) -> Self {
-        let mut field: [u64; WIDTH] = [0; WIDTH];
+        let mut field: [u64; BLOCKS] = [0; BLOCKS];
         for x in slice {
             let (block, bit) = Self::elem_addr(*x);
             field[block] |= 1 << bit as u64;
@@ -309,8 +390,8 @@ impl<const WIDTH: usize> BitField<WIDTH> {
     }
 
     const fn elem_addr(el: usize) -> (usize, usize) {
-        let bit_index = el % u64::BITS as usize;
-        let block_index = el / u64::BITS as usize;
+        let bit_index = el % Self::block_width();
+        let block_index = el / Self::block_width();
         (block_index, bit_index)
     }
 
@@ -593,5 +674,41 @@ mod test {
         assert!(sum.includes(173));
         assert!(sum.includes(223));
         assert!(sum.includes(250));
+    }
+
+    #[test]
+    pub fn test_divides() {
+        let mut a: BitField<4> = BitField::default();
+        a.include_mut(5);
+        assert!(a.is_divisible_by_with_offset(5, 0));
+
+        a.include_mut(10);
+        assert!(a.is_divisible_by_with_offset(5, 0));
+
+        a.include_mut(75);
+        assert!(a.is_divisible_by_with_offset(5, 0));
+
+        a.include_mut(150);
+        assert!(a.is_divisible_by_with_offset(5, 0));
+
+        a.include_mut(200);
+        assert!(a.is_divisible_by_with_offset(5, 0));
+
+        let a = a.arith_add_scalar(3);
+
+        assert!(!a.is_divisible_by_with_offset(5, 0));
+        assert!(a.is_divisible_by_with_offset(5, -3));
+        assert!(a.is_divisible_by_with_offset(5, 2));
+    }
+    #[test]
+    pub fn test_divides_large() {
+        let mut a: BitField<4> = BitField::default();
+        a.include_mut(240);
+        assert!(a.is_divisible_by_with_offset(120, 0));
+
+        let mut b: BitField<4> = BitField::default();
+        b.include_mut(253);
+        assert!(b.is_divisible_by_with_offset(253, 0));
+        assert!(b.is_divisible_by_with_offset(248, 243));
     }
 }

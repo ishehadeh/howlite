@@ -48,38 +48,35 @@ impl MultiplyConstEqConstraint {
         if lhs_range != rhs_range && !is_mutable {
             return NarrowResult::Violation;
         }
-        dbg!(&lhs_range);
+        // dbg!(&lhs_range);
 
         if lhs_range.hi() > rhs_range.hi() {
             return shift_hi_mutation(
                 &lhs_var,
-                (lhs_range.hi() - rhs_range.hi()).div_floor(&self.lhs_coefficient),
+                (lhs_range.hi() - rhs_range.hi()).div_ceil(&self.lhs_coefficient),
             )
-            .map(|m| NarrowResult::Narrow(self.rhs, m))
+            .map(|m| NarrowResult::Narrow(self.lhs, m))
             .unwrap_or(NarrowResult::Violation);
         }
         if lhs_range.lo() < rhs_range.lo() {
             return shift_lo_mutation(
                 &lhs_var,
-                (rhs_range.lo() - lhs_range.lo()).div_floor(&self.lhs_coefficient),
+                (rhs_range.lo() - lhs_range.lo()).div_ceil(&self.lhs_coefficient),
             )
-            .map(|m| NarrowResult::Narrow(self.rhs, m))
+            .map(|m| NarrowResult::Narrow(self.lhs, m))
             .unwrap_or(NarrowResult::Violation);
         }
 
-        let lhs_only = {
-            let mut lhs_only = lhs.clone();
-            lhs_only.set_subtract_mut(rhs);
-            lhs_only
-        };
-
-        // TODO: we need to make sure all elements in rhs_only are divisible by lhs_coefficient
-        //       i.e. it's actually possible to have lhs * lhs_coefficient = each value
+        let mut lhs_only = lhs.clone();
+        lhs_only.set_subtract_mut(rhs);
+        dbg!(&lhs_only);
         if lhs_only.is_empty() {
             NarrowResult::Satisfied
+        } else if lhs_only.is_divisible_by(&self.lhs_coefficient) {
+            lhs_only.div_scalar(self.lhs_coefficient.clone());
+            NarrowResult::Narrow(self.lhs, Mutation::Exclude { values: lhs_only })
         } else {
-            // TODO: divide out coefficient
-            NarrowResult::Narrow(self.rhs, Mutation::Exclude { values: lhs_only })
+            self.narrow_rhs(ctx)
         }
     }
 
@@ -97,6 +94,10 @@ impl MultiplyConstEqConstraint {
                 d
             }
         };
+
+        if lhs.is_empty() || rhs.is_empty() {
+            return NarrowResult::Violation;
+        }
 
         let lhs_range = lhs.get_range();
         let rhs_range = rhs.get_range();
@@ -121,7 +122,7 @@ impl MultiplyConstEqConstraint {
             rhs_only.set_subtract_mut(&lhs);
             rhs_only
         };
-        dbg!(&rhs_only);
+        // dbg!(&rhs_only);
 
         // TODO: we need to make sure all elements in rhs_only are divisible by lhs_coefficient
         //       i.e. it's actually possible to have lhs * lhs_coefficient = each value

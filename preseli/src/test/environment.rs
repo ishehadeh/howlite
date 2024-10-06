@@ -102,10 +102,13 @@ fn compare_mul_eq2() {
         .run_constraints(env.current_generation())
         .expect("constraints failed");
     env.set_current_generation(gen);
-    assert_set_equiv!(env.domain(x), IntegerSet::new_from_tuples(&[(2, 2)]));
-    assert_set_equiv!(env.domain(t1), IntegerSet::new_from_tuples(&[(16, 16)]));
-    assert_set_equiv!(env.domain(y), IntegerSet::new_from_tuples(&[(6, 6)]));
-    assert_set_equiv!(env.domain(t0), IntegerSet::new_from_tuples(&[(18, 18)]));
+    assert_set_equiv!(env.domain(x), IntegerSet::new_from_tuples(&[(1, 1)]));
+    assert_set_equiv!(env.domain(t1), IntegerSet::new_from_tuples(&[(8, 8)]));
+    assert_set_equiv!(
+        env.domain(y),
+        IntegerSet::new_from_tuples(&[(4, 6), (8, 11)])
+    );
+    assert_set_equiv!(env.domain(t0), IntegerSet::new_from_tuples(&[(12, 33)]));
 }
 
 #[test]

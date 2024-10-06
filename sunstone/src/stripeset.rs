@@ -25,58 +25,6 @@ where
     }
 }
 
-pub struct StripeSetBoundedIter<'a, I, B, I2>
-where
-    I: SetElement + PartialOrd<I2>,
-    B: Bounded<I2>,
-    I2: PartialOrd<I> + Ord,
-{
-    _i2: PhantomData<I2>,
-    bounds: B,
-    index: usize,
-    set: &'a StripeSet<I>,
-
-    /// true to return all overlapping ranges, even if not a subset of `bounds``
-    partial: bool,
-}
-
-impl<'a, I, B, I2> Iterator for StripeSetBoundedIter<'a, I, B, I2>
-where
-    I: SetElement + PartialOrd<I2>,
-    B: Bounded<I2>,
-    I2: PartialOrd<I> + Ord,
-{
-    type Item = &'a StepRange<I>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.index >= self.set.ranges.len() {
-            return None;
-        }
-
-        let curr = &self.set.ranges[self.index];
-        if curr.hi() <= self.bounds.lo() {
-            return None;
-        }
-        if curr.hi() < self.bounds.hi() && !self.partial {
-            return None;
-        }
-
-        self.index += 1;
-        // curr completely within bounds
-
-        if curr.lo() >= self.bounds.lo() && curr.hi() >= self.bounds.hi() {
-            return Some(curr);
-        }
-
-        // curr partially within bounds
-        if self.partial && curr.lo() <= self.bounds.hi() {
-            return Some(curr);
-        }
-
-        self.next()
-    }
-}
-
 impl<I> StripeSet<I>
 where
     I: SetElement,
@@ -119,36 +67,6 @@ where
         }
 
         new
-    }
-
-    pub fn iter_within<B, I2>(&self, bounds: B) -> StripeSetBoundedIter<'_, I, B, I2>
-    where
-        I: RangeValue + PartialOrd<I2>,
-        B: Bounded<I2>,
-        I2: PartialOrd<I> + Ord,
-    {
-        StripeSetBoundedIter {
-            bounds,
-            index: 0,
-            set: self,
-            partial: false,
-            _i2: PhantomData,
-        }
-    }
-
-    pub fn iter_within_partial<B, I2>(&self, bounds: B) -> StripeSetBoundedIter<'_, I, B, I2>
-    where
-        I: RangeValue + PartialOrd<I2>,
-        B: Bounded<I2>,
-        I2: PartialOrd<I> + Ord,
-    {
-        StripeSetBoundedIter {
-            bounds,
-            index: 0,
-            set: self,
-            partial: true,
-            _i2: PhantomData,
-        }
     }
 
     fn sort(&mut self) {
@@ -230,7 +148,7 @@ where
         let mut hi = self.ranges[0].hi();
         for r in self.ranges.iter().skip(1) {
             lo = r.lo().min(lo);
-            hi = r.hi().min(hi);
+            hi = r.hi().max(hi);
         }
 
         Some(Range::new(lo.clone(), hi.clone()))
@@ -243,7 +161,7 @@ where
         // first, remove all ranges that are entirely above `new_maximum`
         for (i, range) in self.ranges.iter().enumerate().rev() {
             if range.lo() > new_maximum {
-                first_el_to_remove = Some(i + 1);
+                first_el_to_remove = Some(i);
                 break;
             }
         }
@@ -255,7 +173,7 @@ where
         // second, start truncating ranges that span over `new_maximum`
         for range in self.ranges.iter_mut().rev() {
             // note, due to sort order (see cmp_range), we can't actually guarentee we can stop iterating
-            //  as soon as `range.hi() < new_maximum`, even if they have equal step values.
+            //  as soon as!(), `range.hi() < new_maximum`, even if they have equal step values.
             //  it's possible to have a set that looks like:
             //
             // ranges[1]    |-------|
@@ -264,7 +182,7 @@ where
             // this is because we only sort by lower bound if steps are equal and the ranges overlap.
 
             // don't use range.includes() here, since new_maximum doesn't need to actually be an element of the `range` set.`
-            if range.lo() < new_maximum && new_maximum < range.hi() {
+            if range.lo() <= new_maximum && new_maximum < range.hi() {
                 range.set_hi(new_maximum.clone());
             }
         }
@@ -440,12 +358,10 @@ impl<'a, I: SetElement> SetSubtract<&'a StripeSet<I>> for StripeSet<I> {
                         - rhs_stripe.lo().mod_floor(&lcm_step),
                     lcm_step,
                 );
-                dbg!(&lcm_range);
 
                 // LCM offset may be any N where:
                 //  1) N mod step(RHS) = lo(RHS) mod step(RHS)    i.e. N is an element of RHS
                 //  2) N < step(LSM)   since, past the step we'd just repeat
-                dbg!(lcm_range.first_element_ge(lhs_stripe.lo().clone()));
                 while !lhs_stripe.includes(lcm_range.first_element_ge(lhs_stripe.lo().clone())) {
                     dbg!(lcm_range.first_element_ge(lhs_stripe.lo().clone()));
                     lcm_range.set_lo(lcm_range.lo().clone() + lcm_range.step());
@@ -455,7 +371,7 @@ impl<'a, I: SetElement> SetSubtract<&'a StripeSet<I>> for StripeSet<I> {
                         continue 'check_sub;
                     }
                 }
-                dbg!(&lcm_range);
+
                 // unfortunately, it looks like we need to modify the range.
                 //  we're about to modify the array, so get an owned copy.
                 //  to avoid shifting the array any more than we already will,
@@ -470,14 +386,14 @@ impl<'a, I: SetElement> SetSubtract<&'a StripeSet<I>> for StripeSet<I> {
                 let lo_dist_to_first_removal = first_lhs_removal.clone() - lhs_stripe.lo();
                 let hi_dist_to_last_removal = lhs_stripe.hi().clone() - &last_lhs_removal;
 
-                let lhs_span_length = lhs_stripe.hi().clone() - rhs_stripe.lo();
-                dbg!(&first_lhs_removal, &last_lhs_removal);
+                let lhs_span_length = I::one() + lhs_stripe.hi() - lhs_stripe.lo();
+
                 // if removal is below removed step, we can act like the lower part of the range is removed,
                 // since the split from lhs <= the rest.
                 // see the below loop for a better explaination
                 let has_prefix =
                     &lo_dist_to_first_removal >= lcm_range.step().min(&lhs_span_length);
-                dbg!(&hi_dist_to_last_removal);
+
                 let has_suffix = &hi_dist_to_last_removal >= lcm_range.step().min(&lhs_span_length);
                 let removal_span_len = I::one() + &last_lhs_removal - &first_lhs_removal;
 
@@ -486,9 +402,11 @@ impl<'a, I: SetElement> SetSubtract<&'a StripeSet<I>> for StripeSet<I> {
                     - I::one()
                     + if has_prefix { I::one() } else { I::zero() }
                     + if has_suffix { I::one() } else { I::zero() };
+
                 if new_ranges_count.is_zero() {
                     // our whole range is removed
                     self.ranges.remove(i);
+                    continue;
                 } else if !new_ranges_count.is_one() {
                     // > 0, != 0, != 1, i.e. new_ranges_count > 1
 
@@ -500,7 +418,6 @@ impl<'a, I: SetElement> SetSubtract<&'a StripeSet<I>> for StripeSet<I> {
                     );
                 }
 
-                dbg!(&has_prefix, has_suffix, &lhs_span_length);
                 if has_prefix {
                     self.ranges[i] = StepRange::new(
                         lhs_stripe.lo().clone(),
@@ -545,7 +462,7 @@ impl<'a, I: SetElement> SetSubtract<&'a StripeSet<I>> for StripeSet<I> {
                             base
                         }
                     };
-                    dbg!(&removal_span_len,);
+
                     let end = if &removal_span_len < lcm_range.step() {
                         start.clone()
                     } else {
@@ -559,7 +476,7 @@ impl<'a, I: SetElement> SetSubtract<&'a StripeSet<I>> for StripeSet<I> {
                             base
                         }
                     };
-                    dbg!(&start, &end);
+
                     self.ranges[i] = StepRange::new(start, end, lcm_range.step().clone());
                     i += 1;
                 }
