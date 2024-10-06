@@ -1,3 +1,3 @@
 [workspace]
-members = ["preseli", "howlite-syntax", "howlite-typecheck", "sunstone"]
+members = ["preseli", "howlite-syntax", "howlite-typecheck", "sunstone", "howlite"]
 resolver = "2"

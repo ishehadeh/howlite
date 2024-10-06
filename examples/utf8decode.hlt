@@ -1,0 +1,36 @@
+
+
+
+// These bytes never occur in a valid UTF-8 string
+type Utf8Invalid = 0xC0 | 0xC1 | 0xF5..0xFF;
+
+// bytes follow single, double, triple, quad
+type Utf8Continuation = 0b1000_0000..0b1011_1111;
+
+// possible initial bytes in a sequence.
+type Utf8Single = 0b0000_0000..0b0111_1111;
+type Utf8Double = 0b1100_0000..0b1101_1111;
+type Utf8Triple = 0b1110_0000..0b1110_1111;
+type Utf8Quad   = 0b1111_0000..0b1110_0111;
+
+type Utf8Byte = Utf8Single
+              | Utf8Double
+              | Utf8Triple
+              | Utf8Quad
+              | Utf8Continuation
+              | Utf8Invalid;
+
+type UnicodeChar = 0x0..0x10FFFF;
+type InvalidUtf8Error = 0xFFFFFF;
+
+func utf8_decode(sequence: &[Utf8Byte; 0..3]): UnicodeChar | InvalidUtf8Error {
+    if sequence[0] <= 0b0111_1111 {
+        [UnicodeChar](sequence)
+    } else if sequence[0] <= 0b1101_1111 {
+        if sequence[1] & 0b1100_0000 != 0b1000_0000 {
+            0xFFFFFF
+        } else {
+            ([UnicodeChar](sequence[0] & 0b0001_1111) << 6) | [UnicodeChar](sequence[1] & 0b0011_1111)
+        }
+    }
+}

@@ -191,6 +191,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "howlite"
+version = "0.1.0"
+dependencies = [
+ "howlite-syntax",
+ "howlite-typecheck",
+ "preseli",
+ "sunstone",
+]
+
+[[package]]
 name = "howlite-syntax"
 version = "0.1.0"
 dependencies = [

@@ -1,0 +1,13 @@
+[package]
+name = "howlite"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+howlite-syntax = { path = "../howlite-syntax" }
+howlite-typecheck = { path = "../howlite-typecheck" }
+preseli = { path = "../preseli" }
+sunstone = { path = "../sunstone" }
+
+[[bin]]
+name = "hlt-typecheck"
