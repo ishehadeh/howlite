@@ -9,6 +9,8 @@ howlite-typecheck = { path = "../howlite-typecheck" }
 preseli = { path = "../preseli" }
 sunstone = { path = "../sunstone" }
 thiserror = "*"
+hashbrown = "*"
+# memchr = { version = "2" }
 
 [dev-dependencies]
 # used for stress-testing symbol table

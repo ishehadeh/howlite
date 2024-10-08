@@ -1,115 +1,82 @@
+use std::{
+    hash::BuildHasher,
+    sync::atomic::{AtomicU64, Ordering},
+};
+
+use hashbrown::{hash_map::DefaultHashBuilder, HashTable};
+
 // implementation note: symbols are offset + length into a string table packed into a u64
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Symbol(u64);
+pub struct Symbol(u64, u64); // store the hash and sequence number of the symbol
 
 impl std::fmt::Debug for Symbol {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "<Symbol {:016x}>", self.0)
+        write!(f, "<Symbol {:016x}.{:016x}>", self.0, self.1)
     }
 }
 
-#[derive(Default)]
-pub struct SymbolTable {
-    symbols: String,
+pub struct SymbolTable<'a, H: BuildHasher = DefaultHashBuilder> {
+    hasher_builder: H,
+    sequence: AtomicU64,
+    symbols: HashTable<(u64, u64, &'a str)>,
 }
 
-/// Maximum length of an individual symbol
-const SYMBOL_STRING_MAX_LEN: usize = u16::MAX as usize;
-
-/// Total length of all strings in the table
-const SYMBOL_TABLE_MAX_LEN: usize = {
-    #[cfg(target_endian = "little")]
-    let max_len = u64::MAX >> (u64::BITS - SYMBOL_STRING_MAX_LEN.leading_zeros());
-
-    #[cfg(target_endian = "big")]
-    let max_len = u64::MAX << (u64::BITS - SYMBOL_STRING_MAX_LEN.trailing_zeros());
-
-    let max_string_len = usize::MAX as u64;
-    if max_len < max_string_len {
-        max_len as usize
-    } else {
-        max_string_len as usize
+impl<'a> Default for SymbolTable<'a, DefaultHashBuilder> {
+    fn default() -> Self {
+        Self {
+            hasher_builder: Default::default(),
+            sequence: Default::default(),
+            symbols: Default::default(),
+        }
     }
-};
-
-// use least significant bits for length, so ordering compares index first.
-#[cfg(target_endian = "little")]
-const SYMBOL_LEN_BIT_OFFSET: usize = 0;
-
-#[cfg(target_endian = "little")]
-const SYMBOL_INDEX_BIT_OFFSET: usize =
-    u64::BITS as usize - SYMBOL_STRING_MAX_LEN.leading_zeros() as usize;
-
-#[cfg(target_endian = "big")]
-const SYMBOL_LEN_BIT_OFFET: usize = SYMBOL_STRING_MAX_LEN.trailing_zeros();
-
-#[cfg(target_endian = "big")]
-const SYMBOL_INDEX_BIT_OFFSET: usize = 0;
-
-#[inline(always)]
-fn encode_symbol_ref(index: usize, len: usize) -> u64 {
-    (((index & SYMBOL_TABLE_MAX_LEN) as u64) << SYMBOL_INDEX_BIT_OFFSET)
-        | (((len & SYMBOL_STRING_MAX_LEN) as u64) << SYMBOL_LEN_BIT_OFFSET)
 }
 
-#[inline(always)]
-const fn decode_symbol_ref(sym_ref: u64) -> (usize, usize) {
-    (
-        ((sym_ref >> SYMBOL_INDEX_BIT_OFFSET) & SYMBOL_TABLE_MAX_LEN as u64) as usize, // index into symbol table
-        ((sym_ref >> SYMBOL_LEN_BIT_OFFSET) & SYMBOL_STRING_MAX_LEN as u64) as usize,  // length
-    )
+impl<'a> SymbolTable<'a, DefaultHashBuilder> {
+    fn new() -> Self {
+        Self::default()
+    }
 }
 
-impl SymbolTable {
-    pub fn new() -> SymbolTable {
-        SymbolTable {
-            symbols: String::new(),
+impl<'a, H: BuildHasher> SymbolTable<'a, H> {
+    pub fn new_with_hasher_builder(hasher_builder: H) -> Self {
+        Self {
+            hasher_builder,
+            sequence: AtomicU64::new(0),
+            symbols: Default::default(),
         }
     }
 
-    pub fn stringify(&mut self, sym: Symbol) -> Result<&str, SymbolTableError> {
-        let (ind, len) = decode_symbol_ref(sym.0);
-        if self.symbols.len() < ind + len {
-            Err(SymbolTableError::InvalidSymbol { symbol: sym })
-        } else {
-            Ok(&self.symbols[ind..ind + len])
-        }
+    pub fn stringify(&self, sym: Symbol) -> Result<&'a str, SymbolTableError> {
+        let Symbol(hash, seq) = sym;
+        self.symbols
+            .find(hash, move |(b_hash, b_seq, _)| {
+                *b_hash == hash && *b_seq == seq
+            })
+            .map(|(_, _, s)| *s)
+            .ok_or(SymbolTableError::InvalidSymbol { symbol: sym })
     }
 
-    pub fn intern(&mut self, s: &str) -> Result<Symbol, SymbolTableError> {
-        if s.len() > SYMBOL_STRING_MAX_LEN {
-            Err(SymbolTableError::StringTooLong { length: s.len() })
+    pub fn intern(&mut self, s: &'a str) -> Result<Symbol, SymbolTableError> {
+        // this is probably the most naive symbol table you could implement, but it works well enough...
+        let s_hash = self.hasher_builder.hash_one(s);
+        let existing = self
+            .symbols
+            .find(s_hash, |(t_hash, _, t)| *t_hash == s_hash && *t == s);
+        if let Some((_, s_seq, _)) = existing {
+            Ok(Symbol(s_hash, *s_seq))
         } else {
-            let index = self.symbols.len();
-            if SYMBOL_TABLE_MAX_LEN - s.len() < index {
-                Err(SymbolTableError::SymbolTableCapacityExceeded {
-                    symbol: s.to_owned(),
-                })
-            } else {
-                self.symbols.push_str(s);
-
-                Ok(Symbol(encode_symbol_ref(index, s.len())))
-            }
+            let s_seq = self.sequence.fetch_add(1, Ordering::Relaxed);
+            self.symbols
+                .insert_unique(s_hash, (s_hash, s_seq, s), |(_, _, t)| {
+                    self.hasher_builder.hash_one(t)
+                });
+            Ok(Symbol(s_hash, s_seq))
         }
     }
 }
 
 #[derive(thiserror::Error, Debug)]
 pub enum SymbolTableError {
-    #[error(
-        "Cannot intern symbols which exceed {} bytes (got: {} bytes), when encoded as UTF-8.",
-        SYMBOL_STRING_MAX_LEN,
-        length
-    )]
-    StringTooLong { length: usize },
-
-    #[error(
-        "Cannot intern symbol: {}, maximum symbol table capacity ({} bytes) would be exceeded.",
-        symbol,
-        SYMBOL_TABLE_MAX_LEN
-    )]
-    SymbolTableCapacityExceeded { symbol: String },
-
     #[error(
         "Cannot retrieve string for symbol {:?}, it may not belong to this table",
         symbol
@@ -164,7 +131,7 @@ mod test {
 
         let mut symtab = SymbolTable::new();
         for _ in 0..1000 {
-            let s = strgen.random_str();
+            let s = strgen.random_str().to_string().leak();
             symtab.intern(s).expect("failed to intern string");
         }
     }
@@ -181,8 +148,12 @@ mod test {
         let mut symbol_strings = Vec::with_capacity(1000);
         for _ in 0..1000 {
             let s = strgen.random_str();
-            symbols.push(symtab.intern(s).expect("failed to intern string"));
             symbol_strings.push(s.to_string());
+            symbols.push(
+                symtab
+                    .intern(s.to_string().leak())
+                    .expect("failed to intern string"),
+            );
         }
 
         for (i, &sym) in symbols.iter().enumerate() {
