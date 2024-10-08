@@ -8,6 +8,11 @@ howlite-syntax = { path = "../howlite-syntax" }
 howlite-typecheck = { path = "../howlite-typecheck" }
 preseli = { path = "../preseli" }
 sunstone = { path = "../sunstone" }
+thiserror = "*"
+
+[dev-dependencies]
+# used for stress-testing symbol table
+rand = { version = "=0.8.5" }
 
 [[bin]]
 name = "hlt-typecheck"
