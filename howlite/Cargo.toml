@@ -10,6 +10,7 @@ preseli = { path = "../preseli" }
 sunstone = { path = "../sunstone" }
 thiserror = "*"
 hashbrown = "*"
+bumpalo = { version = "*", features = ["boxed"] }
 # memchr = { version = "2" }
 
 [dev-dependencies]

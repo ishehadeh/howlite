@@ -5,7 +5,7 @@ use sunstone::multi::DynSet;
 use crate::symtab::{Symbol, SymbolTable};
 
 pub struct TypeTreeBuilder {
-    symtab: SymbolTable,
+    // symtab: SymbolTable,
 }
 
 impl TypeTreeBuilder {

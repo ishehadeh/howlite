@@ -5,6 +5,47 @@ use std::{
 
 use hashbrown::{hash_map::DefaultHashBuilder, HashTable};
 
+pub struct OwnedSymbolTable<H: BuildHasher = DefaultHashBuilder> {
+    alloc: bumpalo::Bump,
+
+    // not actually, static, but for all intents and purposes, since they are self-referential
+    table: SymbolTable<'static, H>,
+}
+
+impl Default for OwnedSymbolTable<DefaultHashBuilder> {
+    fn default() -> Self {
+        Self {
+            alloc: Default::default(),
+            table: Default::default(),
+        }
+    }
+}
+
+impl OwnedSymbolTable<DefaultHashBuilder> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl<H: BuildHasher> OwnedSymbolTable<H> {
+    pub fn new_with_hasher_builder(hasher_builder: H) -> Self {
+        Self {
+            alloc: bumpalo::Bump::new(),
+            table: SymbolTable::new_with_hasher_builder(hasher_builder),
+        }
+    }
+
+    pub fn stringify(&self, sym: Symbol) -> Result<&str, SymbolTableError> {
+        self.table.stringify(sym)
+    }
+
+    pub fn intern(&mut self, s: &str) -> Result<Symbol, SymbolTableError> {
+        let mem = self.alloc.alloc_str(s);
+        let owned: &'static mut str = unsafe { std::mem::transmute(mem) };
+        self.table.intern(owned)
+    }
+}
+
 // implementation note: symbols are offset + length into a string table packed into a u64
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Symbol(u64, u64); // store the hash and sequence number of the symbol
@@ -32,7 +73,7 @@ impl<'a> Default for SymbolTable<'a, DefaultHashBuilder> {
 }
 
 impl<'a> SymbolTable<'a, DefaultHashBuilder> {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self::default()
     }
 }
@@ -90,7 +131,7 @@ mod test {
 
     use rand::{rngs::StdRng, SeedableRng};
 
-    use crate::symtab::SymbolTable;
+    use crate::symtab::{OwnedSymbolTable, SymbolTable};
 
     struct RandomStringGen<const MIN_LEN: usize, const MAX_LEN: usize, R: rand::Rng> {
         rng: R,
@@ -133,6 +174,33 @@ mod test {
         for _ in 0..1000 {
             let s = strgen.random_str().to_string().leak();
             symtab.intern(s).expect("failed to intern string");
+        }
+    }
+
+    #[test]
+    fn owned_intern() {
+        let mut strgen: RandomStringGen<10, 1000, _> =
+            RandomStringGen::new(StdRng::seed_from_u64(13));
+
+        println!("adding 1k symbols...");
+
+        let mut symtab = OwnedSymbolTable::new();
+        let mut symbols = Vec::with_capacity(1000);
+        let mut symbol_strings = Vec::with_capacity(1000);
+        for _ in 0..1000 {
+            let s = strgen.random_str();
+            symbol_strings.push(s.to_string());
+            symbols.push(symtab.intern(s).expect("failed to intern string"));
+        }
+
+        for (i, &sym) in symbols.iter().enumerate() {
+            assert_eq!(
+                symtab.stringify(sym).expect("failed to retrieve symbol"),
+                symbol_strings[i],
+                "failed on symbol {} ({:?})",
+                i,
+                sym
+            );
         }
     }
 
