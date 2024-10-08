@@ -13,34 +13,28 @@
 //!
 use std::rc::Rc;
 
-use errors::{IncompatibleError, StructIncompatibility};
+use errors::{IncompatibleError, OperationError, StructIncompatibility};
 use preseli::integer::num_bigint::BigInt;
 pub use preseli::IntegerSet;
 
 mod access_path;
 mod construct_macros;
-mod errors;
+pub mod errors;
+pub mod types;
 mod util;
+use types::{StructField, TyInt, TyStruct};
 
 use sunstone::ops::{SetOpIncludes, Subset};
-use ty_struct::StructField;
 use util::try_collect::TryCollect;
 
-pub use errors::AccessError;
-pub mod ty_struct;
 pub use access_path::{AccessPath, AccessPathElem};
+pub use errors::AccessError;
 use smallvec::SmallVec;
-pub use ty_struct::TyStruct;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 /// A TyId is a reference to a single type.
 pub struct TyId {
     index: usize,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TyInt {
-    pub values: IntegerSet,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -66,6 +60,7 @@ pub struct TyUnion<SymbolT: Symbol> {
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Ty<SymbolT: Symbol> {
+    Hole,
     Int(TyInt),
     Struct(Rc<TyStruct<SymbolT>>),
     Array(Rc<TyArray<SymbolT>>),
@@ -77,6 +72,7 @@ pub enum Ty<SymbolT: Symbol> {
 impl<SymbolT: Symbol> Clone for Ty<SymbolT> {
     fn clone(&self) -> Self {
         match self {
+            Self::Hole => Self::Hole,
             Self::Int(arg0) => Self::Int(arg0.clone()),
             Self::Struct(arg0) => Self::Struct(arg0.clone()),
             Self::Array(arg0) => Self::Array(arg0.clone()),
@@ -117,12 +113,42 @@ impl<SymbolT: Symbol> Ty<SymbolT> {
     pub fn sizeof(&self) -> usize {
         // TODO: this assumes 32 bit, make some way to chance that...
         match self {
+            Ty::Hole => 0,
             Ty::Int(_) => 4,
             Ty::Struct(s) => s.fields.iter().map(|f| f.ty.sizeof()).sum(),
             Ty::Array(arr) => arr.element_ty.sizeof() * arr.length,
             Ty::Slice(_) => 8,
             Ty::Reference(_) => 4,
             Ty::Union(u) => u.tys.iter().map(|f| f.sizeof()).max().unwrap_or(0),
+        }
+    }
+
+    pub fn arith_add(&self, other: &Self) -> Result<Self, OperationError<SymbolT>> {
+        match (self, other) {
+            (Ty::Hole, _) => Ok(Ty::Hole),
+            (_, Ty::Hole) => Ok(Ty::Hole),
+            (Ty::Int(l), Ty::Int(r)) => Ok(Ty::Int(l.add(r))),
+            (l, Ty::Int(_)) => Err(OperationError::ExpectedScalar {
+                found: Box::new(l.clone()),
+            }),
+            (_, r) => Err(OperationError::ExpectedScalar {
+                found: Box::new(r.clone()),
+            }),
+        }
+    }
+
+    pub fn arith_mul(&self, other: &Self) -> Result<Self, OperationError<SymbolT>> {
+        match (self, other) {
+            (Ty::Hole, _) => Ok(Ty::Hole),
+            (_, Ty::Hole) => Ok(Ty::Hole),
+
+            (Ty::Int(l), Ty::Int(r)) => Ok(Ty::Int(l.mul(r))),
+            (l, Ty::Int(_)) => Err(OperationError::ExpectedScalar {
+                found: Box::new(l.clone()),
+            }),
+            (_, r) => Err(OperationError::ExpectedScalar {
+                found: Box::new(r.clone()),
+            }),
         }
     }
 
@@ -138,6 +164,7 @@ impl<SymbolT: Symbol> Ty<SymbolT> {
                         .ok_or(AccessError::NonStructUnionVariant)
                 })
                 .try_collect_poly()?,
+            Ty::Hole => return Ok(Ty::Hole),
             _ => return Result::Err(AccessError::IllegalFieldAccess),
         };
         let fields_with_offset: Vec<(usize, &StructField<SymbolT>)> = strucs
@@ -208,6 +235,7 @@ impl<SymbolT: Symbol> Ty<SymbolT> {
                 }
                 acc
             }
+            Ty::Hole => return Ok(Ty::Hole),
             _ => return Result::Err(AccessError::IllegalFieldAccess),
         };
 

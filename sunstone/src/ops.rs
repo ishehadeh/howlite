@@ -77,7 +77,7 @@ pub trait Subset<Rhs = Self> {
     fn strict_subset_of(self, rhs: Rhs) -> bool;
 }
 
-pub trait ArithmeticSet<RhsSetT: Set = Self, RhsElemT = <RhsSetT as Set>::ElementT> {
+pub trait ArithmeticSet<RhsSetT, RhsElemT> {
     fn add_all(&mut self, rhs: RhsSetT);
     fn mul_all(&mut self, rhs: RhsSetT);
     // fn div_all(&mut self, rhs: RhsSetT);

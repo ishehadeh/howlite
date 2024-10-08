@@ -194,10 +194,14 @@ dependencies = [
 name = "howlite"
 version = "0.1.0"
 dependencies = [
+ "bumpalo",
+ "hashbrown",
  "howlite-syntax",
  "howlite-typecheck",
  "preseli",
+ "rand",
  "sunstone",
+ "thiserror",
 ]
 
 [[package]]

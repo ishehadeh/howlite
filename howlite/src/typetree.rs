@@ -1,11 +1,15 @@
 use howlite_syntax::{tree::NodeId, AstNode};
-use howlite_typecheck::{types::TyInt, Ty};
+use howlite_typecheck::{
+    errors::{IncompatibleError, OperationError},
+    types::TyInt,
+    Ty,
+};
 use sunstone::multi::DynSet;
 
-use crate::symtab::{Symbol, SymbolTable};
+use crate::symtab::{OwnedSymbolTable, Symbol, SymbolTable};
 
 pub struct TypeTreeBuilder {
-    // symtab: SymbolTable,
+    symtab: OwnedSymbolTable,
 }
 
 impl TypeTreeBuilder {
@@ -31,7 +35,13 @@ impl TypeTreeBuilder {
 }
 
 #[derive(thiserror::Error, Debug)]
-pub enum TypeError {}
+pub enum TypeError {
+    #[error("operand(s) are invalid: {}", _0)]
+    OpError(#[from] OperationError<Symbol>),
+
+    #[error("invalid assignment: {}", _0)]
+    AssignError(#[from] IncompatibleError<Symbol>),
+}
 
 trait HasType {
     fn get_type(&self, context: &mut TypeTreeBuilder) -> (Ty<Symbol>, Option<TypeError>);
@@ -53,11 +63,20 @@ impl HasType for howlite_syntax::ast::ExprInfix {
         let lhs = context.get_ty_node(self.lhs.clone());
         let rhs = context.get_ty_node(self.rhs.clone());
         match self.op {
-            howlite_syntax::ast::InfixOp::Add => todo!(),
+            howlite_syntax::ast::InfixOp::Add => match lhs.arith_add(&rhs) {
+                Ok(t) => (t, None),
+                Err(e) => (Ty::Hole, Some(e.into())),
+            },
             howlite_syntax::ast::InfixOp::Sub => todo!(),
             howlite_syntax::ast::InfixOp::Div => todo!(),
-            howlite_syntax::ast::InfixOp::Mul => todo!(),
-            howlite_syntax::ast::InfixOp::Assign => todo!(),
+            howlite_syntax::ast::InfixOp::Mul => match lhs.arith_mul(&rhs) {
+                Ok(t) => (t, None),
+                Err(e) => (Ty::Hole, Some(e.into())),
+            },
+            howlite_syntax::ast::InfixOp::Assign => match rhs.is_assignable_to(&lhs) {
+                Ok(_) => (rhs, None),
+                Err(e) => (lhs, Some(e.into())),
+            },
             howlite_syntax::ast::InfixOp::CmpNe => todo!(),
             howlite_syntax::ast::InfixOp::CmpEq => todo!(),
             howlite_syntax::ast::InfixOp::CmpGt => todo!(),

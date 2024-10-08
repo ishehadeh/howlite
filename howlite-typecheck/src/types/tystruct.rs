@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use super::AccessPath;
+use crate::AccessPath;
 use smallvec::{smallvec, SmallVec};
 
 use crate::{Symbol, Ty};
@@ -119,7 +119,7 @@ impl<SymbolT: Symbol> StructCursor<SymbolT> {
 mod test {
     use preseli::iset;
 
-    use crate::{t_array, t_int, t_struct, ty_struct::AccessPath, TyStruct};
+    use crate::{t_array, t_int, t_struct, AccessPath, TyStruct};
 
     #[test]
     pub fn construction() {

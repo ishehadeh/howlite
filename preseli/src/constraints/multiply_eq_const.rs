@@ -32,7 +32,7 @@ impl MultiplyConstEqConstraint {
         };
 
         let mut lhs = lhs_var.clone();
-        lhs.mul_scalar(self.lhs_coefficient.clone());
+        lhs.mul_scalar(&self.lhs_coefficient);
         let rhs = match ctx.variable(self.rhs) {
             Variable::Instantiated(x) => x,
             Variable::Domain(d) => d,
@@ -73,7 +73,7 @@ impl MultiplyConstEqConstraint {
         if lhs_only.is_empty() {
             NarrowResult::Satisfied
         } else if lhs_only.is_divisible_by(&self.lhs_coefficient) {
-            lhs_only.div_scalar(self.lhs_coefficient.clone());
+            lhs_only.div_scalar(&self.lhs_coefficient);
             NarrowResult::Narrow(self.lhs, Mutation::Exclude { values: lhs_only })
         } else {
             self.narrow_rhs(ctx)
@@ -90,7 +90,7 @@ impl MultiplyConstEqConstraint {
             Variable::Instantiated(x) => x.clone(),
             Variable::Domain(d_ref) => {
                 let mut d = d_ref.clone();
-                d.mul_scalar(self.lhs_coefficient.clone());
+                d.mul_scalar(&self.lhs_coefficient);
                 d
             }
         };

@@ -336,17 +336,12 @@ where
     }
 }
 
-impl<I: SetElement> ArithmeticSet for DynSet<I> {
-    fn add_all(&mut self, rhs: Self) {
-        match (&mut self.data, rhs.data) {
+impl<'a, I: SetElement> ArithmeticSet<&'a Self, &'a I> for DynSet<I> {
+    fn add_all(&mut self, rhs: &Self) {
+        match (&mut self.data, &rhs.data) {
             // TODO: how do we define arithmetic with empty???
             (_, DynSetData::Empty) => (),
-            (DynSetData::Empty, data) => {
-                *self = DynSet {
-                    data,
-                    range: rhs.range,
-                }
-            }
+            (DynSetData::Empty, data) => *self = rhs.clone(),
 
             (DynSetData::Small(s1), DynSetData::Small(s2)) => {
                 if let Some(new_max_in_field) = ((self.range.hi().clone() - &s1.offset)
@@ -354,7 +349,7 @@ impl<I: SetElement> ArithmeticSet for DynSet<I> {
                     .to_usize()
                 {
                     if new_max_in_field <= SMALL_SET_MAX_RANGE {
-                        s1.offset = s2.offset + &s1.offset;
+                        s1.offset = s2.offset.clone() + &s1.offset;
                         s1.elements =
                             Box::new(s1.elements.arith_add::<SMALL_SET_WORD_COUNT>(&s2.elements));
                         self.range = Range::new(
@@ -366,41 +361,29 @@ impl<I: SetElement> ArithmeticSet for DynSet<I> {
                 }
 
                 self.upgrade_from_small();
-                self.add_all(DynSet {
-                    data: DynSetData::Small(s2),
-                    range: rhs.range,
-                });
+                self.add_all(rhs);
             }
             (DynSetData::Small(_), DynSetData::Contiguous) => {
-                let mut new_rhs = DynSet {
-                    data: DynSetData::Contiguous,
-                    range: rhs.range,
-                };
+                let mut new_rhs = rhs.clone();
                 new_rhs.upgrade_from_contiguous();
-                self.add_all(new_rhs);
+                self.add_all(&new_rhs);
             }
             (DynSetData::Small(_), DynSetData::Stripe(stripe_set)) => {
                 //    TODO: performance, we could effiecently add stripe here, if its small enough
 
                 self.upgrade_from_small();
-                self.add_all(DynSet {
-                    data: DynSetData::Stripe(stripe_set),
-                    range: rhs.range,
-                });
+                self.add_all(&rhs);
             }
             (DynSetData::Contiguous, DynSetData::Contiguous) => {
-                self.range = rhs.range + self.range.clone();
+                self.range = rhs.range.clone() + self.range.clone();
             }
-            (DynSetData::Contiguous, data) => {
-                let mut new_rhs = DynSet {
-                    data,
-                    range: rhs.range,
-                };
+            (DynSetData::Contiguous, _) => {
+                let mut new_rhs = rhs.clone();
                 new_rhs.upgrade_from_contiguous();
-                self.add_all(new_rhs);
+                self.add_all(&new_rhs);
             }
             (DynSetData::Stripe(s1), DynSetData::Contiguous) => {
-                let rhs_stripe_set = StripeSet::new(vec![rhs.range.into()]);
+                let rhs_stripe_set = StripeSet::new(vec![rhs.range.clone().into()]);
                 *s1 = s1.arith_add(&rhs_stripe_set);
                 self.range = s1.get_range().unwrap();
             }
@@ -410,42 +393,39 @@ impl<I: SetElement> ArithmeticSet for DynSet<I> {
             }
             (DynSetData::Stripe(_), data) => {
                 assert!(matches!(data, DynSetData::Small(_)));
-                let mut new_rhs = DynSet {
-                    data,
-                    range: rhs.range,
-                };
+                let mut new_rhs = rhs.clone();
                 new_rhs.upgrade_from_small();
-                self.add_all(new_rhs);
+                self.add_all(&new_rhs);
             }
         };
     }
 
-    fn mul_all(&mut self, rhs: Self) {
+    fn mul_all(&mut self, rhs: &Self) {
         if self.is_empty() {
             return;
         }
-        self.range = self.range.clone() * rhs.range;
+        self.range = self.range.clone() * rhs.range.clone();
         self.data = DynSetData::Contiguous;
         // TODO: implement mul_all
     }
 
-    fn add_scalar(&mut self, rhs: <Self as Set>::ElementT) {
+    fn add_scalar(&mut self, rhs: &I) {
         // TODO: we can implement this in a fairly performant way, actually.
-        self.add_all(DynSet::new_from_individual(&[rhs]));
+        self.add_all(&DynSet::new_from_individual(&[rhs.clone().into()]));
     }
 
-    fn mul_scalar(&mut self, rhs: <Self as Set>::ElementT) {
+    fn mul_scalar(&mut self, rhs: &I) {
         // TODO: implement mul_scalar
-        self.mul_all(DynSet::new_from_individual(&[rhs]));
+        self.mul_all(&DynSet::new_from_individual(&[rhs.clone().into()]));
     }
 
-    fn div_scalar(&mut self, rhs: <Self as Set>::ElementT) {
+    fn div_scalar(&mut self, rhs: &I) {
         if self.is_empty() {
             return;
         }
 
         let (lo, hi) = self.range.clone().into_tuple();
-        self.range = Range::new(lo / &rhs, hi / rhs);
+        self.range = Range::new(lo / rhs, hi / rhs);
         self.data = DynSetData::Contiguous;
     }
 }

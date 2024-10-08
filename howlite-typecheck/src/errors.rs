@@ -6,6 +6,12 @@ use sunstone::ops::SetSubtract;
 use crate::{Symbol, Ty, TyInt, TyStruct};
 
 #[derive(thiserror::Error, miette::Diagnostic, Debug)]
+pub enum OperationError<SymbolT: Symbol> {
+    #[error("expected a scalar type, found {:?}", found)]
+    ExpectedScalar { found: Box<Ty<SymbolT>> },
+}
+
+#[derive(thiserror::Error, miette::Diagnostic, Debug)]
 pub enum AccessError {
     #[error("cannot access field on non-struct type")]
     IllegalFieldAccess,
