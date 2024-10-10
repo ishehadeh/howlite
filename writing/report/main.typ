@@ -1,5 +1,7 @@
 #import "@preview/classic-jmlr:0.4.0": jmlr
 #import "@preview/wrap-it:0.1.0": wrap-content
+#import "@preview/fletcher:0.5.1" as fletcher: diagram, node, edge
+
 
 #let affls = (
   smcm: (
@@ -93,7 +95,134 @@ Howlite's implements a simple bi-directional type checker [@dunfield_bidirection
   Here, `Uint32` is the assumed type of `x`. Where ever `x` is referenced, we can consider it of type `Uint32`. The literal `1` has no assumed type. Instead, we synthesize a type for `1` by following a set of rules. For literals, this rule is simple: _for a literal scalar $N$ the synthesized type is ${ N }$_. As expressions grow, synthesizing types becomes more complicated.
 ]
 
-== Scalars
+=== Typechecking an AST
+
+To better illustrate this process, we'll walk through synthesizing a tree.
+
+  ```
+  func average(x : 0..10, y : 0..10, z : 0..10) : 0..10 {
+    (x + y + z) / 3
+  }
+  ```
+The function parameters: `x`, `y`, and `z` have each been given the assumed types `UInt32`. An assumed type is analogous to the the statement "no matter the value of `x`,  we can always assume it is a `UInt32`". The function's assumed return type is `UInt32`. This allows any caller to treat the expression `average(a, b, c)` as a `UInt32`, even if the operations performed by the function are unknown. An assumed type is a promise; it allows the references to entity to _assume_ the type of that entity, without knowing anything else about it.
+
+To illustrate how these assumed types interact with synthesized types, we'll manually type check the function.
+
+#let colors = (
+  l1: red.lighten(50%),
+  l2: green.lighten(75%),
+  l3: blue.lighten(75%),
+  l4: yellow.lighten(75%)
+)
+
+// reference a diagram node inline
+#let noderef(label, color) = if label.text.len() == 1 { box(height: 16pt, baseline: 4pt, outset: -0.5pt, width: 16pt, align(center + horizon, circle(fill: color, label))) } else { box(height: 16pt, fill:color, baseline: 3.5pt, outset: -0.5pt, inset: 5pt, align(center + horizon, label)) }
+
+#let full-tree = [#figure(diagram({
+  node((0, 0), `/`, fill: colors.l1, name: <div>)
+  edge("-|>")
+  node((-.6, 1), `+`, fill: colors.l2, name: <add1>)
+  edge("-|>")
+  node((-1.2, 2), `+`, fill: colors.l3, name: <add2>)
+  edge("-|>")
+  node((-1.8, 3), `x`, fill: colors.l4)
+  edge(<add2>, (-.6, 3), "-|>")
+  node((-.6, 3), `y`, fill: colors.l4)
+
+  edge(<add1>, (0, 2), "-|>")
+  node((0, 2), `z`, fill: colors.l3)
+
+
+  edge(<div>, (.6, 1), "-|>")
+  node((.6, 1), `3`, fill: colors.l2)
+  
+}, node-outset: 3pt, spacing: 1.5em), caption: "AST")<ast>]
+
+#wrap-content(pad(right: 8pt, bottom: 8pt, full-tree))[
+  The funtion body, `(x + y + z) / 3`, has the syntax tree seen in @ast.
+The type checker works bottom-up, left-to-right. So, we begin with the leaves of the tree: #noderef(`x`, colors.l4), and #noderef(`y`, colors.l4). Identifier AST node's synthesized type is the assumed type of the symbol they include. So #noderef(`x`, colors.l4) is synthesized to type `0..10` (the assumed type of `x`), and #noderef(`y`, colors.l4) is synthesized to type `0..10` (the assumed type of `y`). 
+
+This information is added to the tree, and we reference it synthesize #noderef(`+`, colors.l3). An operator node's synthesized type is constructed by applying the given operation to the synthesized types of each operand. Types may be constructed using arithmetic operations, this process will be defined more formally in @scalars. For now, take for granted that `0..10 + 0..10 : 0..20`. 
+]
+
+#stack(dir: ltr, spacing: 1em,
+  diagram({
+    node((0, 0), `+`, fill: colors.l3, name: <add2>)
+    edge("-|>")
+    node((-.8, 1), `x : 0..10`, fill: colors.l4)
+    edge(<add2>, (.8, 1), "-|>")
+    node((.8, 1), `y : 0..10`, fill: colors.l4)  
+  }, node-outset: 3pt, spacing: 1.5em),
+  $-->$,
+  diagram({
+    node((0, 0), `+ : 0..20 `, fill: colors.l3, name: <add2>)
+    edge("-|>")
+    node((-.66, 1), `x : 0..10`, fill: colors.l4)
+    edge(<add2>, (.66, 1), "-|>")
+    node((.66, 1), `y : 0..10`, fill: colors.l4)
+  }, node-outset: 3pt, spacing: 1.5em)
+)
+Now, we move up the tree, to synthesize the right hand side of #noderef(`+`, colors.l2), then finally #noderef(`+`, colors.l2) itself.
+
+#stack(dir: ltr, spacing: .5em,
+  diagram({
+    node((0, 0), `+`, fill: colors.l2, name: <add1>)
+    edge("-|>")
+    node((-.8, 1), `+ : 0..20`, fill: colors.l3)
+    edge(<add1>, (.8, 1), "-|>")
+    node((.8, 1), `z`, fill: colors.l3)  
+  }, node-outset: 3pt, spacing: 1.5em),
+  $-->_1$,
+  diagram({
+    node((0, 0), `+`, fill: colors.l2, name: <add1>)
+    edge("-|>")
+    node((-.8, 1), `+ : 0..20`, fill: colors.l3)
+    edge(<add1>, (.8, 1), "-|>")
+    node((.8, 1), `z : 0..10`, fill: colors.l3)  
+  }, node-outset: 3pt, spacing: 1.5em),
+  $-->_2$,
+  diagram({
+    node((0, 0), `+ : 0..30`, fill: colors.l2, name: <add1>)
+    edge("-|>")
+    node((-.6, 1), `+ : 0..20`, fill: colors.l3)
+    edge(<add1>, (.8, 1), "-|>")
+    node((.6, 1), `z : 0..10`, fill: colors.l3)  
+  }, node-outset: 3pt, spacing: 1.5em),
+)
+
+In (1) we synthesize the node's type from the assumed type of `z`. In (2) we used this information, and the type of #noderef(`+`, colors.l3) to synthesize a type for #noderef(`+`, colors.l2).
+
+Finally, we again move up the tree, now to #noderef(`/`, colors.l1).
+
+#stack(dir: ltr, spacing: .5em,
+  diagram({
+    node((0, 0), `/`, fill: colors.l1, name: <add1>)
+    edge("-|>")
+    node((-.8, 1), `+ : 0..30`, fill: colors.l2)
+    edge(<add1>, (.8, 1), "-|>")
+    node((.8, 1), `3`, fill: colors.l2)  
+  }, node-outset: 3pt, spacing: 1.5em),
+  $-->_1$,
+  diagram({
+    node((0, 0), `/`, fill: colors.l1, name: <add1>)
+    edge("-|>")
+    node((-.8, 1), `+ : 0..30`, fill: colors.l2)
+    edge(<add1>, (.8, 1), "-|>")
+    node((.8, 1), `3 : 3`, fill: colors.l2)  
+  }, node-outset: 3pt, spacing: 1.5em),
+  $-->_2$,
+  diagram({
+    node((0, 0), `/ : 0..10`, fill: colors.l1, name: <add1>)
+    edge("-|>")
+    node((-.8, 1), `+ : 0..30`, fill: colors.l2)
+    edge(<add1>, (.8, 1), "-|>")
+    node((.8, 1), `3 : 3`, fill: colors.l2)  
+  }, node-outset: 3pt, spacing: 1.5em),
+)
+
+
+
+== Scalars <scalars>
 
 There is a single scalar type in Howlite, this simplifies the type checking by condensing many cases into a single, generic case. There are no distinct enumerable types, true boolean types, or even a unit type in the language. Instead of distinct types, we have the scalar type "Integer" (floating point number are out of scope). A scalar may be any set of Integers.
 
