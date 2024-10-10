@@ -117,6 +117,8 @@ For example, given $T = { 1, 2, 3}$ and $U = { -5, -7 }$, we'd compute the follo
 
 === Bitwise Operations
 
+/* TODO: we should really start using range notation in math expressions */
+
 Howlite times to do not explicitly define their size (in practice, all scalars are encoded as register-sized twos complement integers). This makes operations like bitwise not (set complement) difficult to define.
 
 #figure(caption: [Example: Working with Masks])[
@@ -157,5 +159,9 @@ Howlite times to do not explicitly define their size (in practice, all scalars a
   ]
 ]
 
-To compensate for the lack of explicitly sized integers, we define scalar _universe_ types: `Pad8<{T : 0..0xff}>`, `Pad16<{T 0..0xffff}>`, `Pad32<{T : 0..0xffffffff}>`, `Pad64<{T : 0..0xffffffffffffffff}>`. We define equivalent types for signed integers: `Sign8<{T : -0x80..0x7F}>`, `Sign16<{T:  -0x8000..0x7fff}>`, `Sign32<{T : -0x80000000..0x7fffffff}>`, `Sign64<{T : 0x8000000000000000..-0x7fffffffffffffff}>`.
+To compensate for the lack of explicitly sized integers, we define scalar _universe_ types: `Pad8<{T : 0..0xff}>`, `Pad16<{T : 0..0xffff}>`, `Pad32<{T : 0..0xffffffff}>`, `Pad64<{T : 0..0xffffffffffffffff}>`. We define equivalent types for signed integers: `Sign8<{T : -0x80..0x7F}>`, `Sign16<{T:  -0x8000..0x7fff}>`, `Sign32<{T : -0x80000000..0x7fffffff}>`, `Sign64<{T : 0x8000000000000000..-0x7fffffffffffffff}>`.
+
+For any type `A : PadN<{T}>`, where `N` is `8`, `16`, `32`, or `64`, and `T` is some subtype of $0.. (2^N - 1)$, we define bitwise not as all elements of $0..(2^N - 1)$ which are not included in $T$; more formally: $~A = { x : forall x in NN, x < 2^N, x in.not T} = 0..(2^N - 1) \\ T$.
+
+Similarly, for any type `B : SignN<{T}>`, where `N` is `8`, `16`, `32`, or `64`, and $T$ is some subtype of $-(2^(N - 1)).. (2^(N-1) - 1)$, we define bitwise not as all elements of $-(2^(N - 1)).. (2^(N-1) - 1)$ not in $T$: $~B = { x : forall x in ZZ, x in.not T, -(2^(N - 1)) < x < 2^(N - 1)-1}$
 
