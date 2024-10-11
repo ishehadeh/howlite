@@ -220,6 +220,13 @@ Finally, we again move up the tree, now to #noderef(`/`, colors.l1).
   }, node-outset: 3pt, spacing: 1.5em),
 )
 
+Due to the the functions return value, the assumed type of the body is `0..10`. 
+Function body's type is synthesized based on the possible return values. 
+So the synthesized type of this function's body is the the type of #noderef(`/`, colors.l1).
+
+Type checking is the process of comparing assumed and synthesized types. 
+If a synthesized is not a subset of the assumed type, then a type error is attached to that node. 
+
 
 
 == Scalars <scalars>
@@ -294,3 +301,42 @@ For any type `A : PadN<{T}>`, where `N` is `8`, `16`, `32`, or `64`, and `T` is 
 
 Similarly, for any type `B : SignN<{T}>`, where `N` is `8`, `16`, `32`, or `64`, and $T$ is some subtype of $-(2^(N - 1)).. (2^(N-1) - 1)$, we define bitwise not as all elements of $-(2^(N - 1)).. (2^(N-1) - 1)$ not in $T$: $~B = { x : forall x in ZZ, x in.not T, -(2^(N - 1)) < x < 2^(N - 1)-1}$
 
+=== Universes, Registers, and Overflow
+
+During code generation, the intermediate values in an expression must be stored somewhere.
+Ideally, they're kept in a CPU register.
+But, the synthesized type of a particular expression may not fit into a single register.
+For example, on a 32-bit machine, if `x` is of type `UINT32`, then `x + 1` is of type `0..0x100000000`.
+Many systems programming languages do not check these operations.
+Some languages check overflow at runtime, and a small set check at compile time. /* TODO: references: https://github.com/meircif/lumi-lang, https://www.absint.com/astree/index.htm, SPARK, https://github.com/google/wuffs */
+
+Howlite does not prevent overflow, but instead defines overflow in the type system.
+For a given scalar universe type, with a size of $N$ bits, the following reductions are defined:
+
+If a scalar type $T$ has the minimum and maximum values $T_"min"$, and $T_"max"$, then we define the canonical form $C$ of $T$
+- If $T_"min" >= 0$ and $T_"max" <  2^N$, then $C = T$
+- If $T_"min" >= 0$ and $T_"max" >= 2^N$, then $C = { t, o : t in T, t < 2^N, o in NN, o < T_"max" - 2^N}$
+- TODO differentiate between signed and unsigned universe types.
+
+- If $-(2^(N - 1)) <= T_"min" < 0$ and $T_"max" <  2^(N - 1)$, then $C = T$
+- If $T_"min" < -(2^(N - 1)) < 0$ and $T_"max" <  2^(N - 1)$, then $C = { t, o : t in T, -(2^(N - 1)) <= t < 2^(N - 1), o in NN, 2^N + T_"min" <= o < 2^(N - 1)}$
+- If $-(2^(N - 1)) <= T_"min" < 0$ and $2^(N - 1) <= T_"max"$, then $C = { t, o : t in T, -(2^(N - 1)) <= t < 2^(N - 1), o in ZZ, o < T_"max" - 2^N}$
+- If $T_"min" < -(2^(N - 1)) < 0$ and $2^(N - 1) <= T_"max"$, then $C = { t, o, p : t in T, -(2^(N - 1)) <= t < 2^(N - 1), o in ZZ, o < T_"max" - 2^N, p in NN, 2^N + T_"min" <= o < 2^(N - 1)}$
+
+
+An example of this kind of operation, on 32-bit hardware: 
+
+```
+let arr: &[UInt8; 0..100];
+let x: Pad8<{0..100}> = 100;
+while x >= 0 {
+  
+  x = x - 1;
+  // x : 0..100 | 0xff
+  // because x may be zero, and 0 - 1 is 0xff 
+  // INVALID
+  if (arr[x]) {
+    break
+  }
+}
+```
