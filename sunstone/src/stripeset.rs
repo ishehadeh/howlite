@@ -1,11 +1,9 @@
-use std::{cmp::Ordering, marker::PhantomData};
-
-use num::BigInt;
+use std::cmp::Ordering;
 
 use crate::{
     ops::{Bounded, Set, SetOpIncludeExclude, SetOpIncludes, SetSubtract, Subset, Union},
     range::Range,
-    step_range::{self, RangeValue, StepRange},
+    step_range::StepRange,
     SetElement,
 };
 
