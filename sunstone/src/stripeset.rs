@@ -5,7 +5,7 @@ use num::BigInt;
 use crate::{
     ops::{Bounded, Set, SetOpIncludeExclude, SetOpIncludes, SetSubtract, Subset, Union},
     range::Range,
-    step_range::{RangeValue, StepRange},
+    step_range::{self, RangeValue, StepRange},
     SetElement,
 };
 
@@ -38,6 +38,31 @@ where
     pub fn stripes(&self) -> impl Iterator<Item = &'_ StepRange<I>> {
         self.ranges.iter()
     }
+
+    pub fn arith_sub_scalar(&mut self, rhs: &I) {
+        for range in self.ranges.iter_mut() {
+            let new_hi = range.hi().clone() - rhs;
+            let new_lo = range.lo().clone() - rhs;
+            if new_hi >= new_lo {
+                *range = StepRange::new(new_lo, new_hi, range.step().clone());
+            } else {
+                *range = StepRange::new(new_hi, new_lo, range.step().clone());
+            }
+        }
+    }
+
+    pub fn arith_add_scalar(&mut self, rhs: &I) {
+        for range in self.ranges.iter_mut() {
+            let new_hi = range.hi().clone() + rhs;
+            let new_lo = range.lo().clone() + rhs;
+            if new_hi >= new_lo {
+                *range = StepRange::new(new_lo, new_hi, range.step().clone());
+            } else {
+                *range = StepRange::new(new_hi, new_lo, range.step().clone());
+            }
+        }
+    }
+
     pub fn arith_add(&self, other: &StripeSet<I>) -> Self {
         let mut new = StripeSet::new(vec![]);
         for a in &self.ranges {
@@ -138,6 +163,44 @@ where
         self.sort();
         self.compact_all();
         self.merge_all();
+    }
+
+    pub fn split_at(&mut self, num: &I) -> Self {
+        let mut first_el_to_remove = None;
+
+        // first, if some ranges are entirely above the split, get those
+        for (i, range) in self.ranges.iter().enumerate().rev() {
+            if range.lo() > num {
+                first_el_to_remove = Some(i);
+                break;
+            }
+        }
+
+        let mut new = if let Some(first_el_to_remove) = first_el_to_remove {
+            self.ranges.drain(first_el_to_remove..).collect()
+        } else {
+            Vec::new()
+        };
+
+        // second, start splitting ranges that span over `num`
+        for range in self.ranges.iter_mut().rev() {
+            if range.lo() < num && num < range.hi() {
+                new.push(range.split_at_exclusive(num))
+            }
+        }
+
+        Self::new(new)
+    }
+
+    pub fn modulo(&mut self, n: &I) {
+        while self.get_range().is_some_and(|r| r.hi() >= n) {
+            let mut hi = self.split_at(n);
+            dbg!(&hi);
+            hi.arith_sub_scalar(n);
+            dbg!(&hi);
+            self.union(hi);
+            dbg!(&self);
+        }
     }
 
     pub fn get_range(&self) -> Option<Range<I>> {
@@ -329,6 +392,19 @@ where
 
     fn union(self, rhs: StripeSet<I>) -> Self::Output {
         StripeSet::new([self.ranges, rhs.ranges].concat())
+    }
+}
+
+impl<'a, I> Union<StripeSet<I>> for &'a mut StripeSet<I>
+where
+    I: SetElement,
+{
+    type Output = Self;
+
+    fn union(self, rhs: StripeSet<I>) -> Self::Output {
+        self.ranges.extend_from_slice(&rhs.ranges);
+        self.normalize();
+        self
     }
 }
 
@@ -603,4 +679,15 @@ fn arith() {
 
     let d = c.arith_add(&a);
     assert_eq!(d, StripeSet::new(vec![StepRange::new(0, 110, 1)]))
+}
+
+#[test]
+fn modulo() {
+    let mut a = StripeSet::new(vec![StepRange::new(0, 15, 5)]);
+    a.modulo(&4);
+    assert_eq!(a, StripeSet::new(vec![StepRange::new(1, 3, 1)]));
+
+    let mut b = StripeSet::new(vec![StepRange::new(1, 20, 1), StepRange::new(3, 39, 6)]);
+    b.modulo(&7);
+    assert_eq!(b, StripeSet::new(vec![StepRange::new(0, 6, 1)]));
 }

@@ -77,11 +77,15 @@ impl<I: SetElement> StepRange<I> {
     }
 
     pub fn set_hi(&mut self, hi: I) {
-        self.hi = hi; // TODO: check invariants!
+        self.hi = hi;
+        assert!(self.hi >= self.lo);
+        assert!((self.hi.clone() - &self.lo).is_multiple_of(self.step()));
     }
 
     pub fn set_lo(&mut self, lo: I) {
-        self.lo = lo; // TODO: check invariants!
+        self.lo = lo;
+        assert!(self.hi >= self.lo);
+        assert!((self.hi.clone() - &self.lo).is_multiple_of(self.step()));
     }
 
     pub fn with_lo(self, lo: I) -> Self {
@@ -123,7 +127,7 @@ impl<I: SetElement> StepRange<I> {
 
     /// return the first element in step_range greater or equal `n`
     pub fn first_element_ge(&self, n: I) -> I {
-        (n).next_multiple_of(&self.step) + self.offset()
+        (n - self.offset()).next_multiple_of(&self.step) + self.offset()
     }
 
     /// return the first element in step_range less or equal to `n`
@@ -184,6 +188,20 @@ impl<I: SetElement> StepRange<I> {
         self.hi() == self.lo()
     }
 
+    /// split into two, leaving self containing all elements  < el, and returning all elements > el (if they exist)
+    /// This function panics if lo < el < hi is not satisfied
+    pub fn split_at_exclusive(&mut self, el: &I) -> Self {
+        assert!(self.lo() < el);
+        assert!(self.hi() > el);
+
+        let mut high_part = self.clone();
+        let split_elem = self.first_element_ge(el.clone());
+        high_part.set_lo(split_elem.clone());
+        self.set_hi(split_elem - self.step());
+        high_part
+    }
+
+    /// remove the given element and split the range around it
     pub fn remove_and_split(mut self, el: &I) -> Option<(Self, Option<Self>)> {
         // special case: remove either hi or lo endpoint
         if el == self.lo() {
@@ -368,4 +386,12 @@ fn compactify() {
     let a = StepRange::new(2, 26, 4);
     let b = StepRange::new(10, 26, 2);
     assert_eq!(a.compactify(&b), Some(StepRange::new(2, 6, 4)))
+}
+
+#[test]
+fn split_at_exclusive() {
+    let mut lower = StepRange::new(2, 26, 4);
+    let upper = lower.split_at_exclusive(&10);
+    assert_eq!(lower, StepRange::new(2, 6, 4));
+    assert_eq!(upper, StepRange::new(10, 26, 4));
 }
