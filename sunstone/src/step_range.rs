@@ -394,4 +394,9 @@ fn split_at_exclusive() {
     let upper = lower.split_at_exclusive(&10);
     assert_eq!(lower, StepRange::new(2, 6, 4));
     assert_eq!(upper, StepRange::new(10, 26, 4));
+
+    let mut lower = StepRange::new(2, 8, 3);
+    let upper = lower.split_at_exclusive(&3);
+    assert_eq!(lower, StepRange::new(2, 2, 3));
+    assert_eq!(upper, StepRange::new(5, 8, 3));
 }
