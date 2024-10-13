@@ -278,3 +278,24 @@ given a storage class `uN`, where $N$ is the width in bits, and variables `a : s
 - $~a = (2^N - 1) - a$
 - TODO other bitwise ops defined in terms of the above operations
 - TODO except xor, maybe?
+
+== Narrowing
+
+A variable's type may be narrowed based on the result of a boolean expression.
+
+```hlt
+let x: UInt32 = /* ... */;
+let y: &[Char; 0..100] = /* ... */;
+
+if x <= 100 {
+  print(y[x]);
+}
+```
+
+Within this if-statements body, the synthesized type of `x` has been narrowed to `0..100`.
+
+
+This is achieved by assigning _implications_ to values. 
+Here, we have `(x <= 100) : 0 | 1`, the value `1` is assinged the implication `x : 0..100`, and the value `0` is assigned `x : 101..0xffffffff`.
+
+A type carrying implications appears in a conditional (at the time of writing, just `if` statements) then the implications of a value, $a$, are applied within a block if the conditional gaurentees the expression had the value $a$ before entering the block. 
