@@ -188,7 +188,7 @@ impl<I: SetElement> StepRange<I> {
         self.hi() == self.lo()
     }
 
-    /// split into two, leaving self containing all elements  < el, and returning all elements > el (if they exist)
+    /// split into two, leaving self containing all elements  < el, and returning all elements >= el (if they exist)
     /// This function panics if lo < el < hi is not satisfied
     pub fn split_at_exclusive(&mut self, el: &I) -> Self {
         assert!(self.lo() < el);

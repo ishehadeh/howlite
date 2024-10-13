@@ -5,13 +5,13 @@ use sunstone::ops::SetSubtract;
 
 use crate::{Symbol, Ty, TyInt, TyStruct};
 
-#[derive(thiserror::Error, miette::Diagnostic, Debug)]
+#[derive(thiserror::Error, miette::Diagnostic, Debug, Clone)]
 pub enum OperationError<SymbolT: Symbol> {
     #[error("expected a scalar type, found {:?}", found)]
     ExpectedScalar { found: Box<Ty<SymbolT>> },
 }
 
-#[derive(thiserror::Error, miette::Diagnostic, Debug)]
+#[derive(thiserror::Error, miette::Diagnostic, Debug, Clone)]
 pub enum AccessError {
     #[error("cannot access field on non-struct type")]
     IllegalFieldAccess,
@@ -43,7 +43,7 @@ pub enum AccessError {
     OutOfRange,
 }
 
-#[derive(thiserror::Error, miette::Diagnostic, Debug)]
+#[derive(thiserror::Error, miette::Diagnostic, Debug, Clone)]
 pub enum IncompatibleError<SymbolT: Symbol> {
     #[error("expected {expected:?}, found {found:?}")]
     UnexpectedTyKind {
@@ -83,7 +83,7 @@ pub enum IncompatibleError<SymbolT: Symbol> {
     },
 }
 
-#[derive(thiserror::Error, miette::Diagnostic, Debug)]
+#[derive(thiserror::Error, miette::Diagnostic, Debug, Clone)]
 pub enum StructIncompatibility<SymbolT: Symbol> {
     #[error("expected at offset {expected_offset}, found at offset {found_offset}")]
     BadOffset {

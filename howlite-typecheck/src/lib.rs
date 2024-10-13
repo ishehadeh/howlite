@@ -11,10 +11,10 @@
 //! - References (Slice, Reference)
 //!
 //!
-use std::rc::Rc;
+use std::{hash::Hash, rc::Rc};
 
 use errors::{IncompatibleError, OperationError, StructIncompatibility};
-use preseli::integer::num_bigint::BigInt;
+use preseli::integer::Scalar;
 pub use preseli::IntegerSet;
 
 mod access_path;
@@ -30,6 +30,7 @@ use util::try_collect::TryCollect;
 pub use access_path::{AccessPath, AccessPathElem};
 pub use errors::AccessError;
 use smallvec::SmallVec;
+pub mod constraints;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 /// A TyId is a reference to a single type.
@@ -199,13 +200,13 @@ impl<SymbolT: Symbol> Ty<SymbolT> {
         }
     }
 
-    pub fn access_index(&self, index: impl Into<BigInt>) -> Result<Ty<SymbolT>, AccessError> {
+    pub fn access_index(&self, index: impl Into<Scalar>) -> Result<Ty<SymbolT>, AccessError> {
         let index = index.into();
 
         let ty_index = match self {
             Ty::Array(s) => vec![(
                 s.element_ty.clone(),
-                IntegerSet::new_from_tuples(&[(0, s.length.saturating_sub(1))]),
+                IntegerSet::new_from_tuples(&[(0, s.length.saturating_sub(1) as i128)]),
             )],
             Ty::Slice(s) => vec![(s.element_ty.clone(), s.index_set.clone())],
             Ty::Union(u) => {
@@ -221,7 +222,10 @@ impl<SymbolT: Symbol> Ty<SymbolT> {
                             }
                             acc.push((
                                 s.element_ty.clone(),
-                                IntegerSet::new_from_tuples(&[(0, s.length.saturating_sub(1))]),
+                                IntegerSet::new_from_tuples(&[(
+                                    0,
+                                    s.length.saturating_sub(1) as i128,
+                                )]),
                             ));
                         }
                         Ty::Slice(s) => {
@@ -287,8 +291,11 @@ impl<SymbolT: Symbol> Ty<SymbolT> {
                     })?;
                 if subset.length <= superset.length {
                     Err(IncompatibleError::IncompatibleIndices {
-                        subset_indicies: IntegerSet::new_from_tuples(&[(0, subset.length)]),
-                        superset_indicies: IntegerSet::new_from_tuples(&[(0, superset.length)]),
+                        subset_indicies: IntegerSet::new_from_tuples(&[(0, subset.length as i128)]),
+                        superset_indicies: IntegerSet::new_from_tuples(&[(
+                            0,
+                            superset.length as i128,
+                        )]),
                     })
                 } else {
                     Ok(())
@@ -391,9 +398,9 @@ impl<SymbolT: Symbol> Ty<SymbolT> {
 pub trait IntRepr {
     fn sizeof(i: &TyInt) -> usize;
 }
-pub trait Symbol: Eq + std::fmt::Debug + Clone {}
+pub trait Symbol: Eq + std::fmt::Debug + Clone + Hash {}
 
-impl<T> Symbol for T where T: Eq + std::fmt::Debug + Clone {}
+impl<T> Symbol for T where T: Eq + std::fmt::Debug + Clone + Hash {}
 
 #[cfg(test)]
 mod test {

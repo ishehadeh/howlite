@@ -1,6 +1,7 @@
-use std::{cell::RefCell, cmp::Ordering};
+use std::{cell::RefCell, cmp::Ordering, os::unix::raw::off_t};
 
 use num_prime::buffer::NaiveBuffer;
+use num_traits::real;
 
 use crate::{
     bitfield::BitField,
@@ -86,6 +87,109 @@ impl<I: SetElement> DynSet<I> {
         &self.range
     }
 
+    // remove all elements above `n` and return them in a new set. (n is still in self)
+    pub fn take_above(&mut self, n: &I) -> Self {
+        let lower = self.take_below(&(I::one() + n));
+        // I love std::mem::replace :)
+        std::mem::replace(self, lower)
+    }
+
+    /// Remove elements below `n`, and return them in a new set
+    pub fn take_below(&mut self, n: &I) -> Self {
+        if self.is_empty() || self.range.lo() > n {
+            return Self::empty();
+        }
+
+        if n > self.range.hi() {
+            return std::mem::replace(self, Self::empty());
+        }
+
+        match &mut self.data {
+            DynSetData::Empty => unreachable!(),
+            DynSetData::Small(small_set) => {
+                // we checked above that we would actually have to split the set in the middle,
+                // so the offset into the small set must be valid
+                let real_offset = (n.clone() - &small_set.offset)
+                    .to_usize()
+                    .expect("bad offset into small set bit field - this should be unreachable");
+                assert!(
+                    real_offset < SMALL_SET_MAX_RANGE,
+                    "n - small_set.offset > SMALL_SET_MAX_RANGE: {} >= {}",
+                    real_offset,
+                    SMALL_SET_MAX_RANGE
+                );
+
+                let higher = Box::new(small_set.elements.take_ge(real_offset));
+                // we want self to be the higher end
+                let lower_field = std::mem::replace(&mut small_set.elements, higher);
+                let lower = SmallSet {
+                    elements: lower_field,
+                    offset: small_set.offset.clone(),
+                };
+
+                small_set.offset = small_set.offset.clone() + n;
+
+                if let Some(field_range) = small_set.elements.range() {
+                    self.range = Range::new(
+                        I::from_usize(*field_range.lo()).unwrap() + &small_set.offset,
+                        I::from_usize(*field_range.hi()).unwrap() + &small_set.offset,
+                    )
+                } else {
+                    self.data = DynSetData::Empty
+                };
+
+                if let Some(lt_n_range) = lower.elements.range() {
+                    Self {
+                        range: Range::new(
+                            I::from_usize(*lt_n_range.lo()).unwrap() + &lower.offset,
+                            I::from_usize(*lt_n_range.hi()).unwrap() + &lower.offset,
+                        ),
+                        data: DynSetData::Small(lower),
+                    }
+                } else {
+                    Self::empty()
+                }
+            }
+            DynSetData::Contiguous => {
+                let (lo, hi) = self
+                    .range
+                    .clone()
+                    .split_around(Range::new(n.clone() - I::one(), n.clone()));
+                if let Some(hi) = hi {
+                    self.range = hi
+                } else {
+                    self.data = DynSetData::Empty
+                }
+
+                if let Some(lo) = lo {
+                    let (lo, hi) = lo.into_tuple();
+                    Self::new_from_range(lo, hi)
+                } else {
+                    Self::empty()
+                }
+            }
+            DynSetData::Stripe(stripe_set) => {
+                // this return/mutate behavior is the inverse of what we want.
+                let elems_ge_n = stripe_set.split_at_exclusive(n);
+                let elems_lt_n = std::mem::replace(stripe_set, elems_ge_n);
+                if let Some(self_range) = stripe_set.get_range() {
+                    self.range = self_range
+                } else {
+                    self.data = DynSetData::Empty
+                };
+
+                if let Some(lt_n_range) = elems_lt_n.get_range() {
+                    Self {
+                        data: DynSetData::Stripe(elems_lt_n),
+                        range: lt_n_range,
+                    }
+                } else {
+                    Self::empty()
+                }
+            }
+        }
+    }
+
     pub fn is_divisible_by(&self, n: &I) -> bool {
         assert!(n > &I::zero());
         match &self.data {
@@ -161,7 +265,7 @@ impl<I: SetElement> DynSet<I> {
                 self.data = DynSetData::Small(SmallSet {
                     elements: {
                         let mut set = Box::new(BitField::new());
-                        set.include_between(0, len_usize);
+                        set.include_between(0, len_usize + 1);
                         set
                     },
                     offset,
@@ -197,125 +301,113 @@ impl<I: SetElement> DynSet<I> {
     }
 }
 
-impl<I: SetElement> Union<DynSet<I>> for DynSet<I>
-where
-    for<'a> &'a I: std::ops::Sub<&'a I, Output = I>,
-{
-    type Output = DynSet<I>;
+impl<I: SetElement> Union<DynSet<I>> for DynSet<I> {
+    type Output = Self;
+
+    fn union(mut self, rhs: DynSet<I>) -> Self::Output {
+        (&mut self).union(rhs);
+        self
+    }
+}
+impl<'a, I: SetElement> Union<DynSet<I>> for &'a mut DynSet<I> {
+    type Output = Self;
 
     fn union(self, rhs: DynSet<I>) -> Self::Output {
-        let data = match (self.data, rhs.data) {
+        let DynSet {
+            range: rhs_range,
+            data: rhs_data,
+        } = rhs;
+        match (&mut self.data, rhs_data) {
+            (d @ DynSetData::Empty, data) => {
+                *d = data;
+                self.range = rhs_range;
+            }
+            (_, DynSetData::Empty) => (),
+
             // one set completely contained within the other
-            (_, DynSetData::Contiguous)
-                if self.range.lo() >= rhs.range.lo() && self.range.hi() <= rhs.range.hi() =>
+            (data, DynSetData::Contiguous)
+                if self.range.lo() >= rhs_range.lo() && self.range.hi() <= rhs_range.hi() =>
             {
-                DynSet {
-                    data: DynSetData::Contiguous,
-                    range: rhs.range,
-                }
+                *data = DynSetData::Contiguous;
+                self.range = rhs_range;
             }
             (DynSetData::Contiguous, _)
-                if self.range.lo() < rhs.range.lo() && self.range.hi() > rhs.range.hi() =>
-            {
-                DynSet {
-                    data: DynSetData::Contiguous,
-                    range: self.range,
-                }
-            }
+                if self.range.lo() < rhs_range.lo() && self.range.hi() > rhs_range.hi() => {}
 
             (DynSetData::Small(s1), DynSetData::Small(s2)) => {
-                let data = match s1.offset.cmp(&s2.offset) {
+                match s1.offset.cmp(&s2.offset) {
                     Ordering::Less => {
-                        let offset = (&s2.offset - &s1.offset).to_usize().expect(
+                        let offset = (s2.offset.clone() - &s1.offset).to_usize().expect(
                             "bitfield offset during union too large, this should be unreachable",
                         );
-                        if offset + rhs.range.hi().to_usize().unwrap() < SMALL_SET_MAX_RANGE {
-                            DynSetData::Small(SmallSet {
-                                elements: Box::new(
-                                    s2.elements.arith_add_scalar(offset).union(*s1.elements),
-                                ),
-                                offset: s1.offset,
-                            })
+                        if offset + rhs_range.hi().to_usize().unwrap() < SMALL_SET_MAX_RANGE {
+                            let offset_s2_elems = s2.elements.arith_add_scalar(offset);
+                            s1.elements =
+                                Box::new(std::mem::take(&mut s1.elements).union(offset_s2_elems));
                         } else {
                             todo!()
                         }
                     }
 
                     Ordering::Greater => {
-                        let offset = (&s1.offset - &s2.offset).to_usize().expect(
+                        let offset = (s1.offset.clone() - &s2.offset).to_usize().expect(
                             "bitfield offset during union too large, this should be unreachable",
                         );
                         if offset + self.range.hi().to_usize().unwrap() < SMALL_SET_MAX_RANGE {
-                            DynSetData::Small(SmallSet {
-                                elements: Box::new(
-                                    s1.elements.arith_add_scalar(offset).union(*s2.elements),
-                                ),
-                                offset: s2.offset,
-                            })
+                            s1.elements = Box::new(
+                                std::mem::take(&mut s1.elements)
+                                    .arith_add_scalar(offset)
+                                    .union(*s2.elements),
+                            );
+                            s1.offset = s2.offset;
                         } else {
                             todo!()
                         }
                     }
 
-                    Ordering::Equal => DynSetData::Small(SmallSet {
-                        elements: Box::new(s2.elements.union(*s1.elements)),
-                        offset: s2.offset,
-                    }),
+                    Ordering::Equal => {
+                        s1.elements =
+                            Box::new(std::mem::take(&mut s1.elements).union(*s2.elements));
+                    }
                 };
 
-                DynSet {
-                    data,
-                    range: Range::new(
-                        self.range.lo().min(rhs.range.lo()).clone(),
-                        self.range.hi().max(rhs.range.hi()).clone(),
-                    ),
-                }
+                self.range = Range::new(
+                    self.range.lo().min(rhs_range.lo()).clone(),
+                    self.range.hi().max(rhs_range.hi()).clone(),
+                );
             }
             (DynSetData::Contiguous, DynSetData::Contiguous) => {
-                let s1 = self.range;
-                let s2 = rhs.range;
+                let s1 = self.range.clone();
+                let s2 = rhs_range;
+                self.range = Range::new(s1.lo().min(s2.lo()).clone(), s1.hi().max(s1.hi()).clone());
                 // first check if the two ranges overlap - if so we can create a new contiguous range.
-                if s1.lo() < s2.hi() && s1.hi() > s2.hi() {
-                    Self {
-                        data: DynSetData::Contiguous,
-                        range: Range::new(s2.into_tuple().0, s1.into_tuple().1),
-                    }
-                } else if s2.lo() < s1.hi() && s2.hi() > s1.hi() {
-                    Self {
-                        data: DynSetData::Contiguous,
-                        range: Range::new(s1.into_tuple().0, s2.into_tuple().1),
-                    }
+                if (s1.lo() < s2.hi() && s2.hi() < s1.hi())
+                    || (s2.lo() < s1.hi() && s1.hi() < s2.hi())
+                {
+
+                    // nothing to do - we already updated the range
                 } else {
                     // if they don't overlap convert into a stripe set.
-                    Self {
-                        range: Range::new(
-                            s1.lo().min(s2.lo()).clone(),
-                            s1.hi().max(s2.hi()).clone(),
-                        ),
-                        data: DynSetData::Stripe(StripeSet::new(vec![s1.into(), s2.into()])),
-                    }
+                    self.data = DynSetData::Stripe(StripeSet::new(vec![s1.into(), s2.into()]));
                 }
             }
-            (DynSetData::Stripe(s1), DynSetData::Stripe(s2)) => Self {
-                range: Range::new(
-                    self.range.lo().min(rhs.range.lo()).clone(),
-                    self.range.hi().max(rhs.range.hi()).clone(),
-                ),
-                data: DynSetData::Stripe(s1.union(s2)),
-            },
+            (DynSetData::Stripe(s1), DynSetData::Stripe(s2)) => {
+                self.range = Range::new(
+                    self.range.lo().min(rhs_range.lo()).clone(),
+                    self.range.hi().max(rhs_range.hi()).clone(),
+                );
+                s1.union(s2);
+            }
 
-            (DynSetData::Stripe(mut s1), DynSetData::Contiguous) => Self {
-                range: Range::new(
-                    self.range.lo().min(rhs.range.lo()).clone(),
-                    self.range.hi().max(rhs.range.hi()).clone(),
-                ),
-                data: DynSetData::Stripe({
-                    s1.add_range(rhs.range.into());
-                    s1
-                }),
-            },
+            (DynSetData::Stripe(s1), DynSetData::Contiguous) => {
+                self.range = Range::new(
+                    self.range.lo().min(rhs_range.lo()).clone(),
+                    self.range.hi().max(rhs_range.hi()).clone(),
+                );
+                s1.add_range(rhs_range.into());
+            }
 
-            (DynSetData::Stripe(mut s1), DynSetData::Small(s2)) => {
+            (DynSetData::Stripe(s1), DynSetData::Small(s2)) => {
                 let mut little_stripe: StripeSet<usize> = StripeSet::new(vec![]);
 
                 s2.elements.add_to_stripe(&mut little_stripe);
@@ -325,20 +417,86 @@ where
                         s2.offset.clone() + I::from_usize(*stripe.hi()).unwrap(),
                         I::from_usize(*stripe.step()).unwrap(),
                     ));
-                    dbg!(&s1);
                 }
-                Self {
-                    range: Range::new(
-                        self.range.lo().min(rhs.range.lo()).clone(),
-                        self.range.hi().max(rhs.range.hi()).clone(),
-                    ),
-                    data: DynSetData::Stripe(s1),
-                }
+                self.range = Range::new(
+                    self.range.lo().min(rhs_range.lo()).clone(),
+                    self.range.hi().max(rhs_range.hi()).clone(),
+                );
             }
-
-            _ => todo!(),
+            (DynSetData::Small(small), DynSetData::Contiguous) => {
+                if rhs_range.hi().clone() - &small.offset < DynSet::small_set_max_range()
+                    && rhs_range.lo() >= &small.offset
+                {
+                    let small_range = Range::new(
+                        (rhs_range.lo().clone() - &small.offset).to_usize().unwrap(),
+                        (I::one() + rhs_range.hi() - &small.offset)
+                            .to_usize()
+                            .unwrap(),
+                    );
+                    small
+                        .elements
+                        .include_between(*small_range.lo(), *small_range.hi());
+                } else if rhs_range.len_clone() < DynSet::small_set_max_range() {
+                    if let Some(shift_needed) = (small.offset.clone() - rhs_range.lo()).to_isize() {
+                        if shift_needed < 0
+                            && small
+                                .elements
+                                .hi()
+                                .map(|h| SMALL_SET_MAX_RANGE - h > (-shift_needed) as usize)
+                                .unwrap_or(false)
+                        {
+                            small.elements.add_scalar(-shift_needed as usize);
+                            small.offset = rhs_range.lo().clone();
+                        } else if small
+                            .elements
+                            .lo()
+                            .map(|l| l > shift_needed as usize)
+                            .unwrap_or(false)
+                        {
+                            small.elements = Box::new(
+                                std::mem::take(&mut small.elements)
+                                    .arith_sub_scalar(shift_needed as usize),
+                            );
+                            small.offset = rhs_range.lo().clone();
+                        } else {
+                            self.upgrade_from_small();
+                            return self.union(DynSet {
+                                data: DynSetData::Contiguous,
+                                range: rhs_range,
+                            });
+                        }
+                    } else {
+                        self.upgrade_from_small();
+                        return self.union(DynSet {
+                            data: DynSetData::Contiguous,
+                            range: rhs_range,
+                        });
+                    }
+                } else {
+                    self.upgrade_from_small();
+                    return self.union(DynSet {
+                        data: DynSetData::Contiguous,
+                        range: rhs_range,
+                    });
+                }
+                self.range = Range::new(
+                    self.range.lo().min(rhs_range.lo()).clone(),
+                    self.range.hi().max(rhs_range.hi()).clone(),
+                );
+            }
+            (DynSetData::Contiguous, data) => {
+                let old_self = std::mem::replace(
+                    self,
+                    DynSet {
+                        data,
+                        range: rhs_range,
+                    },
+                );
+                self.union(old_self);
+            }
+            a => todo!("impl union for {:?}", a),
         };
-        data
+        self
     }
 }
 
@@ -354,7 +512,7 @@ impl<'a, I: SetElement> ArithmeticSet<&'a Self, &'a I> for DynSet<I> {
                     + (rhs.range.hi().clone() - &s2.offset))
                     .to_usize()
                 {
-                    if new_max_in_field <= SMALL_SET_MAX_RANGE {
+                    if new_max_in_field < SMALL_SET_MAX_RANGE {
                         s1.offset = s2.offset.clone() + &s1.offset;
                         s1.elements =
                             Box::new(s1.elements.arith_add::<SMALL_SET_WORD_COUNT>(&s2.elements));
@@ -374,19 +532,17 @@ impl<'a, I: SetElement> ArithmeticSet<&'a Self, &'a I> for DynSet<I> {
                 new_rhs.upgrade_from_contiguous();
                 self.add_all(&new_rhs);
             }
-            (DynSetData::Small(_), DynSetData::Stripe(stripe_set)) => {
+            (DynSetData::Small(_), DynSetData::Stripe(_stripe_set)) => {
                 //    TODO: performance, we could effiecently add stripe here, if its small enough
-
                 self.upgrade_from_small();
-                self.add_all(&rhs);
+                self.add_all(rhs);
             }
             (DynSetData::Contiguous, DynSetData::Contiguous) => {
                 self.range = rhs.range.clone() + self.range.clone();
             }
             (DynSetData::Contiguous, _) => {
-                let mut new_rhs = rhs.clone();
-                new_rhs.upgrade_from_contiguous();
-                self.add_all(&new_rhs);
+                self.upgrade_from_contiguous();
+                self.add_all(rhs);
             }
             (DynSetData::Stripe(s1), DynSetData::Contiguous) => {
                 let rhs_stripe_set = StripeSet::new(vec![rhs.range.clone().into()]);
@@ -493,14 +649,16 @@ impl<'a, I: SetElement> ArithmeticSet<&'a Self, &'a I> for DynSet<I> {
                             .hi()
                             .mod_floor(rhs)
                             .to_usize()
-                            .unwrap_or_else(|| unreachable!()),
+                            .unwrap_or_else(|| unreachable!())
+                            + 1,
                     );
                     new_field.include_between(
                         self.range
                             .lo()
                             .mod_floor(rhs)
                             .to_usize()
-                            .unwrap_or_else(|| unreachable!()),
+                            .unwrap_or_else(|| unreachable!())
+                            + 1,
                         rhs.to_usize().unwrap_or_else(|| unreachable!()) - 1,
                     );
                     self.range = Range::new(I::zero(), rhs.clone() - I::one());
@@ -658,6 +816,7 @@ impl<'a, I: SetElement> SetOpIncludes<&'a I> for DynSet<I> {
 
 impl<'a, I: SetElement> Subset<&'a DynSet<I>> for &'a DynSet<I> {
     fn subset_of(self, rhs: Self) -> bool {
+        dbg!(&self, &rhs);
         if !matches!(self.data, DynSetData::Empty) && !self.range.subset_of(&rhs.range) {
             return false;
         }
@@ -695,22 +854,29 @@ impl<'a, I: SetElement> Subset<&'a DynSet<I>> for &'a DynSet<I> {
                 ))
             }
             (DynSetData::Small(small_set), DynSetData::Stripe(stripe_set)) => {
-                for range in stripe_set.stripes() {
-                    let has_range = small_set.elements.includes_step_range(StepRange::new(
-                        (range.lo().clone() - &small_set.offset).to_usize().unwrap(),
-                        (range.hi().clone() - &small_set.offset).to_usize().unwrap(),
-                        (range.step().clone() - &small_set.offset)
-                            .to_usize()
-                            .unwrap(),
-                    ));
-                    if !has_range {
+                for n in small_set.elements.iter_values_from(0, 0) {
+                    let val = I::from_usize(n).unwrap() + &small_set.offset;
+                    if !stripe_set.includes(val) {
                         return false;
                     }
                 }
 
                 true
             }
-            (DynSetData::Stripe(_stripe_set), DynSetData::Small(_small_set)) => todo!(),
+            (DynSetData::Stripe(stripe_set), DynSetData::Small(small_set)) => {
+                stripe_set.stripes().all(|a| {
+                    match (
+                        (a.lo().clone() - &small_set.offset).to_usize(),
+                        (a.hi().clone() - &small_set.offset).to_usize(),
+                        a.step().to_usize(),
+                    ) {
+                        (Some(lo), Some(hi), Some(step)) => small_set
+                            .elements
+                            .includes_step_range(StepRange::new(lo, hi, step)),
+                        _ => false,
+                    }
+                })
+            }
             (DynSetData::Stripe(_stripe_set), DynSetData::Contiguous) => todo!(),
             (DynSetData::Stripe(s1), DynSetData::Stripe(s2)) => s1.subset_of(s2),
         }

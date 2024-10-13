@@ -21,15 +21,8 @@ pub struct BitField<const WIDTH: usize = 1> {
 impl<const WIDTH: usize> std::fmt::Debug for BitField<WIDTH> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "BitField {{ ")?;
-        for (block_no, block) in self.field.iter().copied().enumerate() {
-            let mut rem_values = block;
-            for i in 0..Self::block_width() {
-                if rem_values & 1 != 0 {
-                    write!(f, " {},", i + block_no * 64)?
-                }
-
-                rem_values >>= 1;
-            }
+        for val in self.iter_values_from(0, 0) {
+            write!(f, " {},", val)?
         }
 
         write!(f, " }}")
@@ -87,7 +80,7 @@ impl<const BLOCKS: usize> BitField<BLOCKS> {
         });
 
         match series_length.into_iter().filter(|(_, l)| *l > 2).max() {
-            Some((size, length)) => dbg!(StepRange::new(n, size * length + n, size)),
+            Some((size, length)) => StepRange::new(n, size * length + n, size),
             None => StepRange::new(n, n, 1),
         }
     }
@@ -130,6 +123,7 @@ impl<const BLOCKS: usize> BitField<BLOCKS> {
         None
     }
 
+    // include all elements from lo (inclusive) up to hi (exclusive)
     pub fn include_between(&mut self, lo: usize, hi: usize) {
         let (lo_block_ind, lo_bit_ind) = Self::elem_addr(lo);
         let (hi_block_ind, hi_bit_ind) = Self::elem_addr(hi);
@@ -141,11 +135,15 @@ impl<const BLOCKS: usize> BitField<BLOCKS> {
             }
         }
 
-        self.field[lo_block_ind] |= u64::MAX << lo_bit_ind;
-        self.field[hi_block_ind] |= !(u64::MAX << hi_bit_ind);
+        if lo_block_ind < hi_block_ind {
+            self.field[lo_block_ind] |= u64::MAX << lo_bit_ind;
+            self.field[hi_block_ind] |= !(u64::MAX << hi_bit_ind);
+        } else {
+            self.field[lo_block_ind] |= (u64::MAX << lo_bit_ind) & !(u64::MAX << hi_bit_ind);
+        }
     }
 
-    // remove a range, endpoints are inclusive
+    // remove all elements from lo (inclusive) up to hi (exclusive)
     pub fn exclude_range(&mut self, lo: usize, hi: usize) {
         // FIXME: there's some bug here if lo and hi are on a small interval
         let (lo_block_ind, lo_bit_ind) = Self::elem_addr(lo);
@@ -158,8 +156,12 @@ impl<const BLOCKS: usize> BitField<BLOCKS> {
             }
         }
 
-        self.field[lo_block_ind] &= !(u64::MAX << lo_bit_ind);
-        self.field[hi_block_ind] &= u64::MAX << hi_bit_ind;
+        if lo_block_ind < hi_block_ind {
+            self.field[lo_block_ind] &= !(u64::MAX << lo_bit_ind);
+            self.field[hi_block_ind] &= u64::MAX << hi_bit_ind;
+        } else {
+            self.field[lo_block_ind] &= !((u64::MAX << lo_bit_ind) & (u64::MAX << hi_bit_ind));
+        }
     }
 
     pub fn includes_step_range(&self, step_range: StepRange<usize>) -> bool {
@@ -257,7 +259,6 @@ impl<const BLOCKS: usize> BitField<BLOCKS> {
             }
         }
         while field_block_offset < BLOCKS {
-            dbg!(field_block_offset, field_bit_offset);
             if field_bit_offset >= Self::block_width() {
                 if self.field[field_block_offset] != 0 {
                     return false;
@@ -381,13 +382,27 @@ impl<const BLOCKS: usize> BitField<BLOCKS> {
     pub fn arith_add<const SUM_WIDTH: usize>(&self, other: &Self) -> BitField<SUM_WIDTH> {
         let mut sum = BitField::<SUM_WIDTH>::new();
         for i in 0..self.field.len() {
+            if self.field[i] == 0 {
+                continue;
+            }
+
             for j in 0..other.field.len() {
+                if other.field[j] == 0 {
+                    continue;
+                }
+
                 let block_offset = i + j;
-                for bit_offset in 0..u64::BITS {
+
+                for bit_offset in 0..Self::block_width() {
                     if self.field[i] & (1 << bit_offset) > 0 {
-                        let upper_mask = u64::MAX << (u64::BITS - bit_offset);
+                        // offset the entire other block by this bit & block index in self
                         sum.field[block_offset] |= other.field[j] << bit_offset;
-                        sum.field[block_offset + 1] |= other.field[j] & upper_mask;
+
+                        // if necessary overflow to the next block in the sum
+                        if bit_offset > 0 {
+                            let upper_mask = u64::MAX << (Self::block_width() - bit_offset);
+                            sum.field[block_offset + 1] |= other.field[j] & upper_mask;
+                        }
                     }
                 }
             }
@@ -405,11 +420,8 @@ impl<const BLOCKS: usize> BitField<BLOCKS> {
     fn get_range(&self, start: usize, end: usize) -> u64 {
         assert!(end >= start);
         assert!(end - start <= 63);
-        dbg!(start, end);
         let (block, bit) = Self::elem_addr(start);
         let (block_end, bit_end) = Self::elem_addr(end);
-        dbg!(block, bit);
-        dbg!(block_end, bit_end);
         if block == block_end {
             let end_offset = Self::block_width() - 1 - bit_end;
             (self.field[block] << end_offset) >> (bit + end_offset)
@@ -417,8 +429,21 @@ impl<const BLOCKS: usize> BitField<BLOCKS> {
             let lower = self.field[block] >> bit;
             let upper = self.field[block_end] << (Self::block_width() - 1 - bit_end);
 
-            lower | (upper >> bit << bit_end)
+            lower | upper
         }
+    }
+
+    /// return a new set: { x - n : x in self, x >= n }
+    pub fn take_ge(&mut self, n: usize) -> Self {
+        let mut new = Self::new();
+        let (first_block, bit_offset) = Self::elem_addr(n);
+        for i in first_block..BLOCKS {
+            let start = i * Self::block_width() + bit_offset;
+            let end = (start + Self::block_width() - 1).min(Self::block_width() * BLOCKS - 1);
+            new.field[i - first_block] = self.get_range(start, end);
+        }
+        self.exclude_range(n, Self::block_width() * BLOCKS - 1);
+        new
     }
 
     pub fn set_subtract_mut_with_offset(&mut self, rhs: &Self, offset: isize) {
@@ -655,7 +680,6 @@ impl<const WIDTH: usize> ArithmeticSet<&Self, usize> for BitField<WIDTH> {
                 );
                 lo_block_ind += 1;
             }
-            dbg!(split_point, len, end, num_blocks);
             self.field[lo_block_ind] |=
                 self.get_range(split_point + num_blocks * Self::block_width(), end);
             split_point += rhs;
@@ -799,7 +823,7 @@ mod test {
                 a.include_mut(x);
             }
         }
-        let val = a.get_range(10, 74);
+        let val = a.get_range(10, 73);
         let expect = (1u64 << (10 - 10))
             | (1u64 << (15 - 10))
             | (1u64 << (20 - 10))
@@ -829,7 +853,7 @@ exp: {:#064b}",
             val, expect
         );
 
-        assert_eq!(a.get_range(10, 15), 0b10001)
+        assert_eq!(a.get_range(10, 15), 0b110001)
     }
 
     #[test]
@@ -838,5 +862,15 @@ exp: {:#064b}",
         a.include_mut(8);
         a.mod_scalar(5);
         assert_eq!(a, BitField::default().include(3));
+    }
+
+    #[test]
+    pub fn include_between() {
+        let mut a: BitField<4> = BitField::default();
+        a.include_between(0, 27);
+        assert_eq!(
+            a.iter_values_from(0, 0).collect::<Vec<_>>(),
+            (0usize..=26usize).collect::<Vec<_>>()
+        );
     }
 }

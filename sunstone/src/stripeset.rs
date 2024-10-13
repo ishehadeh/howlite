@@ -163,7 +163,8 @@ where
         self.merge_all();
     }
 
-    pub fn split_at(&mut self, num: &I) -> Self {
+    /// Return a set: { x : x in self, x >= num }, and subtract this set from self.
+    pub fn split_at_exclusive(&mut self, num: &I) -> Self {
         let mut first_el_to_remove = None;
 
         // first, if some ranges are entirely above the split, get those
@@ -192,7 +193,7 @@ where
 
     pub fn modulo(&mut self, n: &I) {
         while self.get_range().is_some_and(|r| r.hi() >= n) {
-            let mut hi = self.split_at(n);
+            let mut hi = self.split_at_exclusive(n);
             dbg!(&hi);
             hi.arith_sub_scalar(n);
             dbg!(&hi);
@@ -318,9 +319,6 @@ where
 {
     fn includes(&self, element: &'a I) -> bool {
         for range in &self.ranges {
-            if range.hi() < element {
-                break;
-            }
             if range.includes(element) {
                 return true;
             }

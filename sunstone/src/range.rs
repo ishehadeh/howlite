@@ -29,6 +29,55 @@ impl<T: std::cmp::Ord> Range<T> {
     pub fn into_tuple(self) -> (T, T) {
         (self.lo, self.hi)
     }
+
+    /// Split self around the other
+    /// Return values:
+    ///     (None, None)       - other completely covers this range
+    ///     (Some(a), None)    - other covers the upper bound of this range or exceeds the range entirely, a is [self.lo, min(other.lo, self.hi)]
+    ///     (None, Some(b))    - other covers the lower bound of this range or is smaller than the range entirely, b is [max(other.hi, self.lo), self.hi]
+    ///     (Some(a), Some(b)) - a is [self.lo, other.lo], and b is [other.hi, self.hi]
+    pub fn split_around(self, other: Range<T>) -> (Option<Self>, Option<Self>) {
+        let (abs_lo, abs_hi) = self.into_tuple();
+        let (inner_lo, inner_hi) = other.into_tuple();
+
+        // you could do this much easier with two `if` trees
+        // This stupid match is to convince the compiler I wont use-after-move
+        // there's likely an easier way, but this works ok.
+        match (
+            inner_lo.cmp(&abs_hi),
+            inner_hi.cmp(&abs_lo),
+            inner_hi.cmp(&abs_hi),
+            inner_lo.cmp(&abs_lo),
+        ) {
+            // inner exceeds the self:
+            //   > self
+            (Ordering::Greater, _, _, _) => (Some(Self::new(abs_lo, abs_hi)), None),
+
+            //   < self
+            (_, Ordering::Less, _, _) => (None, Some(Self::new(abs_lo, abs_hi))),
+
+            // inner is entirely within self
+            (_, _, Ordering::Less, Ordering::Greater) => (
+                Some(Self::new(abs_lo, inner_lo)),
+                Some(Self::new(inner_hi, abs_hi)),
+            ),
+
+            // inner covers self completely
+            (_, _, Ordering::Greater | Ordering::Equal, Ordering::Less | Ordering::Equal) => {
+                (None, None)
+            }
+
+            // partial cover:
+            //   self.lo covered by inner
+            (_, _, Ordering::Greater | Ordering::Equal, Ordering::Greater) => {
+                (None, Some(Self::new(inner_hi, abs_hi)))
+            }
+
+            (_, _, Ordering::Less, Ordering::Less | Ordering::Equal) => {
+                (Some(Self::new(abs_lo, inner_hi)), None)
+            }
+        }
+    }
 }
 
 impl<T: Integer> Range<T> {
