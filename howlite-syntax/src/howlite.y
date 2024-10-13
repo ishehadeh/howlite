@@ -207,6 +207,16 @@ DefFuncParam -> Result<AstRef>:
 
 /// END: Top-Level Declarations
 
+ExprTypeConstruction -> Result<AstRef>:
+    Term ':' Trivia TyTerm {
+      node!(tree, $span,
+        ExprTypeConstruction { 
+          ty: trivia!(left trivia_tree, $3, $4?),
+          value: $1?
+        })
+    }
+  ;
+
 /// BEGIN: Full Expressions
 
 Expr -> Result<AstRef>:
@@ -215,6 +225,7 @@ Expr -> Result<AstRef>:
   | ExprIf { $1 }
   | ExprBlock { $1 }
   | ExprWhile { $1 }
+  | ExprTypeConstruction { $1 }
   ;
 
 /// END: Full Expression
@@ -252,7 +263,7 @@ ExprBlockStmtList -> Result<Vec<AstRef>>:
 /// BEGIN: Let Expression
 ExprLet -> Result<AstRef>:
     // TODO: (both productions) inner trivia
-    'let' TriviaRequired IDENT Trivia ':' Trivia TyExpr '=' Trivia ExprSimple { 
+    'let' TriviaRequired 'IDENT' Trivia ':' Trivia TyExpr '=' Trivia ExprSimple { 
       node!(tree, $span, ExprLet {
         name: $3?.span(),
         ty: trivia!(left trivia_tree, $6, $7?),
@@ -260,7 +271,7 @@ ExprLet -> Result<AstRef>:
         mutable: false,
       })
     }
-  | 'let' TriviaRequired 'mut' TriviaRequired IDENT TriviaRequired ':' Trivia TyExpr '=' Trivia ExprSimple { 
+  | 'let' TriviaRequired 'mut' TriviaRequired 'IDENT' TriviaRequired ':' Trivia TyExpr '=' Trivia ExprSimple { 
       node!(tree, $span, ExprLet {
         name: $5?.span(),
         ty: trivia!(left trivia_tree, $8, $9?),
@@ -333,7 +344,7 @@ ExprCall -> Result<AstRef>:
           ty_params: vec![]
         }))
     }
-  | Term '[' Trivia TyParamList ']' Trivia '(' Trivia ExprCallParamListOpt ')' Trivia {
+  | Term ':[' Trivia TyParamList ']' Trivia '(' Trivia ExprCallParamListOpt ')' Trivia {
       // TODO: inner trivia
       trivia!(right trivia_tree, $11,
         node!(tree, $span, ExprCall {
@@ -486,7 +497,6 @@ Term -> Result<AstRef>:
   | LiteralChar { $1 }
   | LiteralStruct { $1 }
   | LiteralArray { $1 }
-  | ExprTypeConstruction { $1 }
   | Ident { $1 }
   | ExprCall { $1 }
   | ExprArrayAccess { $1 }
@@ -522,23 +532,12 @@ LiteralString -> Result<AstRef>:
     }
   ;
 
-ExprTypeConstruction -> Result<AstRef>:
-    Term ':' Trivia TyExpr {
-      node!(tree, $span,
-        ExprTypeConstruction { 
-          ty: trivia!(left trivia_tree, $3, $4?),
-          value: $1?
-        })
-    }
-  ;
-
-
 LiteralStruct -> Result<AstRef>:
     '#{' Trivia LiteralStructMemberListOpt '}' Trivia {
       trivia!(right trivia_tree, $10,
         node!(tree, $span,
           LiteralStruct { 
-            members: $8?
+            members: $3?
           }))
     }
   ;
@@ -576,7 +575,7 @@ LiteralArray -> Result<AstRef>:
       trivia!(right trivia_tree, $10,
         node!(tree, $span,
           LiteralArray { 
-            values: $8?
+            values: $3?
           }))
     }
   ;
@@ -660,8 +659,6 @@ TyStructMember -> Result<AstRef>:
 
 TyIntegerRangeTerm -> Result<AstRef>:
     LiteralInt { $1 }
-  | ExprPrefixOnly { $1 }
-  | ExprBlock { $1 }
   ;
 
 TyIntegerRange -> Result<AstRef>:
