@@ -47,7 +47,7 @@ impl<H: BuildHasher> OwnedSymbolTable<H> {
 }
 
 // implementation note: symbols are offset + length into a string table packed into a u64
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Symbol(u64, u64); // store the hash and sequence number of the symbol
 
 impl std::fmt::Debug for Symbol {

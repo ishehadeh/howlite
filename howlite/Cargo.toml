@@ -11,7 +11,7 @@ sunstone = { path = "../sunstone" }
 thiserror = "*"
 hashbrown = "*"
 bumpalo = { version = "*", features = ["boxed"] }
-# memchr = { version = "2" }
+smallvec = "*"
 
 [dev-dependencies]
 # used for stress-testing symbol table
