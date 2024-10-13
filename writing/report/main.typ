@@ -253,28 +253,28 @@ For example, given $T = { 1, 2, 3}$ and $U = { -5, -7 }$, we'd compute the follo
 
 === Storage Classes
 
-Scalar types belong to a _storage class_ that identifies how they are encoded in memory. Storage classes are organized by size, whether or not they include a sign bit. The signed storage classes are `s8`, `s16`, `s32`, `s64`, and the unsigned are `u8`,`u16`,`u32`,`u64`. Going forward, we will identify the storage class of a scalar `T` using the notation `u32<{T}>`.
+Scalar types belong to a _storage class_ that identifies how they are encoded in memory. Storage classes are organized by size, whether or not they include a sign bit. The signed storage classes are `s8`, `s16`, `s32`, `s64`, and the unsigned are `u8`,`u16`,`u32`,`u64`. Going forward, we will identify the storage class of a scalar `T` using the notation `u32[T]`.
 
 The storage class of a number influences how arithmetic and bitwise operations behave on the inner type.
 
 ==== Unsigned Storage Classes
 
-given a storage class `uN`, where $N$ is the width in bits, and variables `a : uN<{T}>`, and `b : uN<{T}>`
+given a storage class `uN`, where $N$ is the width in bits, and variables `a : uN[T]`, and `b : uN[T]`
 - $a + b = (a + b) mod 2^N$
 - $a - b = 2^N - |a - b| mod 2^N$
 - $a * b = (a * b) mod 2^N$
-- $a / b = (a - (a mod b)) / b$ (i.e. division is always rounded down)
+- $a div b = (a - (a mod b)) div b$ (i.e. division is always rounded down)
 - $~a = (2^N - 1) - a$
 - TODO other bitwise ops defined in terms of the above operations
 - TODO except xor, maybe?
 
 ==== Signed Storage Classes
 
-given a storage class `uN`, where $N$ is the width in bits, and variables `a : sN<{T}>`, and `b : sN<{T}>`
+given a storage class `uN`, where $N$ is the width in bits, and variables `a : sN[T]`, and `b : sN[T]`
 - $a + b = (a + b) mod 2^N$
 - $a - b = 2^N - |a - b| mod 2^N$
 - $a * b = (a * b) mod 2^N$
-- $a / b = (a - (a mod b)) / b$ (i.e. division is always rounded down)
+- $a div b = (a - (a mod b)) div b$
 - $~a = (2^N - 1) - a$
 - TODO other bitwise ops defined in terms of the above operations
 - TODO except xor, maybe?
