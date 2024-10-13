@@ -1,12 +1,67 @@
-use preseli::IntegerSet;
+use num_traits::FromPrimitive;
+use preseli::{integer::Scalar, IntegerRange, IntegerSet};
 use sunstone::ops::{ArithmeticSet, Bounded, PartialBounded, Union};
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TyInt {
     pub values: IntegerSet,
+    pub storage: StorageClass,
+}
+
+pub fn infer_storage(range: &IntegerRange) -> Option<StorageClass> {
+    const OPTIONS: [StorageClass; 4] = [
+        StorageClass::signed(32),
+        StorageClass::unsigned(32),
+        StorageClass::signed(64),
+        StorageClass::unsigned(64),
+    ];
+    for opt in OPTIONS {
+        let opt_lo = Scalar::from_i64(opt.min_value()).unwrap();
+        let opt_hi = Scalar::from_u64(opt.max_value()).unwrap();
+        if range.lo() >= &opt_lo && range.hi() <= &opt_hi {
+            return Some(opt);
+        }
+    }
+
+    None
 }
 
 impl TyInt {
+    pub fn empty(signed: bool, bits: usize) -> Self {
+        assert!(bits <= 64);
+        Self {
+            values: IntegerSet::empty(),
+            storage: StorageClass {
+                is_signed: signed,
+                bits,
+            },
+        }
+    }
+
+    /// Use the default storage class for value val.
+    /// assumes val fits within a u64 if unsigned, and an i64 if signed
+    pub fn single(val: Scalar) -> Self {
+        #[allow(
+            clippy::clone_on_copy,
+            reason = "preseli::Scalar is not guarenteed to implement copy, if e.g. we switch to big ints in the future"
+        )]
+        let values = IntegerSet::new_from_range(val.clone(), val);
+
+        let storage = infer_storage(&values.partial_bounds().unwrap().clone_endpoints())
+            .unwrap_or_else(|| panic!("no storage class to support value: {}", val));
+        Self { values, storage }
+    }
+
+    pub fn from_set(values: IntegerSet) -> Self {
+        let storage = if let Some(bounds) = values.partial_bounds() {
+            infer_storage(&bounds.clone_endpoints())
+                .unwrap_or_else(|| panic!("no storage class to support value: {:?}", bounds))
+        } else {
+            StorageClass::signed(32)
+        };
+
+        Self { values, storage }
+    }
+
     pub fn add(&self, rhs: &TyInt) -> TyInt {
         let mut result = self.clone();
         result.values.add_all(&rhs.values);
@@ -20,6 +75,7 @@ impl TyInt {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct StorageClass {
     pub is_signed: bool,
 
@@ -28,6 +84,20 @@ pub struct StorageClass {
 }
 
 impl StorageClass {
+    pub const fn signed(bits: usize) -> StorageClass {
+        StorageClass {
+            is_signed: true,
+            bits,
+        }
+    }
+
+    pub const fn unsigned(bits: usize) -> StorageClass {
+        StorageClass {
+            is_signed: false,
+            bits,
+        }
+    }
+
     pub fn normalize(&self, set: &mut IntegerSet) {
         // sanity checks, if this the follow isn't true we'll have problems...
         assert!(self.bits <= 64);
