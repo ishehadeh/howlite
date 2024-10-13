@@ -1,13 +1,11 @@
 use std::{
     cmp::Ordering,
-    collections::btree_map::OccupiedEntry,
     ops::{Add, Mul, Sub},
-    process::Output,
 };
 
 use num::Integer;
 
-use crate::ops::{self, Bounded, SetSubtract};
+use crate::ops::{self, Bounded};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Range<T: std::cmp::Ord> {

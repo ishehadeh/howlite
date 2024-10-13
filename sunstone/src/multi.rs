@@ -43,12 +43,17 @@ struct SmallSet<I: SetElement> {
 }
 
 impl<I: SetElement> DynSet<I> {
+    fn small_set_max_range() -> I {
+        I::from_usize(SMALL_SET_MAX_RANGE).expect("I must be constructable from a usize")
+    }
+
     pub fn new_from_range(lo: I, hi: I) -> DynSet<I> {
         DynSet {
             data: DynSetData::Contiguous,
             range: Range::new(lo, hi),
         }
     }
+
     pub fn new_from_tuples<IntLikeT: Into<I> + Clone>(
         ranges: &[(IntLikeT, IntLikeT)],
     ) -> DynSet<I> {
@@ -112,6 +117,7 @@ impl<I: SetElement> DynSet<I> {
             }
         }
     }
+
     pub fn new_from_individual(slice: &[I]) -> DynSet<I> {
         let (min, max) = slice.iter().fold((&slice[0], &slice[0]), |(min, max), el| {
             if el < min {
@@ -341,7 +347,7 @@ impl<'a, I: SetElement> ArithmeticSet<&'a Self, &'a I> for DynSet<I> {
         match (&mut self.data, &rhs.data) {
             // TODO: how do we define arithmetic with empty???
             (_, DynSetData::Empty) => (),
-            (DynSetData::Empty, data) => *self = rhs.clone(),
+            (DynSetData::Empty, _data) => *self = rhs.clone(),
 
             (DynSetData::Small(s1), DynSetData::Small(s2)) => {
                 if let Some(new_max_in_field) = ((self.range.hi().clone() - &s1.offset)
@@ -427,6 +433,97 @@ impl<'a, I: SetElement> ArithmeticSet<&'a Self, &'a I> for DynSet<I> {
         let (lo, hi) = self.range.clone().into_tuple();
         self.range = Range::new(lo / rhs, hi / rhs);
         self.data = DynSetData::Contiguous;
+    }
+
+    fn mod_scalar(&mut self, rhs: &'a I) {
+        match &mut self.data {
+            DynSetData::Empty => (),
+            DynSetData::Small(small_set) => {
+                if &(Self::small_set_max_range() + &small_set.offset) < rhs {
+                    // we don't have to change the set at all, its already entirely in the remainer
+                } else {
+                    // shift the set to the right offset:
+                    // Baby proof:
+                    //    let A = small_set.elements
+                    //        O = small_set.offset
+                    //        R = rhs
+                    //    forall i : (Ai + O) mod rhs = Bi
+                    //    modulo distributs, so: Bi = (Ai mod rhs) + (O mod rhs)
+
+                    if let Some(shift_needed) = small_set.offset.mod_floor(rhs).to_usize() {
+                        let bitmap_hi = small_set.elements.hi().expect(
+                            "small bitmap was empty, this should be converted to the empty variant of a multiset",
+                        );
+
+                        if bitmap_hi + shift_needed < SMALL_SET_MAX_RANGE {
+                            small_set.elements.add_scalar(shift_needed);
+                            small_set
+                                .elements
+                                .mod_scalar(rhs.to_usize().unwrap_or_else(|| unreachable!()));
+                            small_set.offset = I::zero();
+                            return;
+                        }
+                    }
+
+                    // if we were able to mod the bitfield, then we would have returned by this point
+                    // now, try upgrading and re-doing the operation
+                    self.upgrade_from_small();
+                    self.mod_scalar(rhs);
+                }
+            }
+            DynSetData::Contiguous => {
+                if self.range.hi() < rhs {
+                    // do nothing, we're already in the remainer
+                } else if self.range.lo().is_zero() {
+                    self.range =
+                        Range::new(self.range.lo().clone(), self.range.hi().min(rhs).clone());
+                } else if self.range.lo().mod_floor(rhs) < self.range.hi().mod_floor(rhs) {
+                    // after taking mod rhs, we're still continuous!
+                    self.range = Range::new(
+                        self.range.lo().mod_floor(rhs),
+                        self.range.hi().mod_floor(rhs),
+                    );
+
+                    // at this point we have to upgrade...
+                } else if rhs < &Self::small_set_max_range() {
+                    let mut new_field = Box::new(BitField::new());
+                    new_field.include_between(
+                        0,
+                        self.range
+                            .hi()
+                            .mod_floor(rhs)
+                            .to_usize()
+                            .unwrap_or_else(|| unreachable!()),
+                    );
+                    new_field.include_between(
+                        self.range
+                            .lo()
+                            .mod_floor(rhs)
+                            .to_usize()
+                            .unwrap_or_else(|| unreachable!()),
+                        rhs.to_usize().unwrap_or_else(|| unreachable!()) - 1,
+                    );
+                    self.range = Range::new(I::zero(), rhs.clone() - I::one());
+                    self.data = DynSetData::Small(SmallSet {
+                        elements: new_field,
+                        offset: I::zero(),
+                    })
+                } else {
+                    let mut stripe = StripeSet::new(vec![self.range.clone().into()]);
+                    stripe.modulo(rhs);
+                    self.range = stripe.get_range().expect(
+                        "modulo should never result in an empty set, this is a stripe set bug.",
+                    );
+                    self.data = DynSetData::Stripe(stripe);
+                }
+            }
+            DynSetData::Stripe(stripe_set) => {
+                stripe_set.modulo(rhs);
+                self.range = stripe_set.get_range().expect(
+                    "modulo should never result in an empty set, this is a stripe set bug.",
+                );
+            }
+        }
     }
 }
 
@@ -613,13 +710,13 @@ impl<'a, I: SetElement> Subset<&'a DynSet<I>> for &'a DynSet<I> {
 
                 true
             }
-            (DynSetData::Stripe(stripe_set), DynSetData::Small(small_set)) => todo!(),
-            (DynSetData::Stripe(stripe_set), DynSetData::Contiguous) => todo!(),
+            (DynSetData::Stripe(_stripe_set), DynSetData::Small(_small_set)) => todo!(),
+            (DynSetData::Stripe(_stripe_set), DynSetData::Contiguous) => todo!(),
             (DynSetData::Stripe(s1), DynSetData::Stripe(s2)) => s1.subset_of(s2),
         }
     }
 
-    fn strict_subset_of(self, rhs: Self) -> bool {
+    fn strict_subset_of(self, _rhs: Self) -> bool {
         todo!()
     }
 }
@@ -651,8 +748,9 @@ impl<I: SetElement> PartialEq for DynSet<I> {
 impl<I: SetElement> SetOpIncludeExclude<I> for DynSet<I> {
     type Output = Self;
 
-    fn include(self, element: I) -> Self::Output {
-        todo!()
+    fn include(mut self, element: I) -> Self::Output {
+        self.include_mut(element);
+        self
     }
 
     fn include_mut(&mut self, element: I) {
@@ -728,7 +826,7 @@ impl<I: SetElement> SetOpIncludeExclude<I> for DynSet<I> {
         }
     }
 
-    fn exclude_mut(&mut self, element: &I) {
+    fn exclude_mut(&mut self, _element: &I) {
         todo!()
     }
 }
@@ -816,18 +914,4 @@ impl<'a, I: SetElement> SetSubtract<&'a Self> for DynSet<I> {
             }
         }
     }
-}
-
-#[test]
-fn dyn_union() {
-    let a = DynSet::new_from_individual(&[1, 5, 11, 1000, 1024]);
-    dbg!(&a);
-    let b = DynSet::new_from_individual(&[3, 8, 13, 100, 200]);
-    dbg!(&b);
-
-    let c: DynSet<i32> = DynSet::new_from_range(0, 100);
-    let d: DynSet<i32> = DynSet::new_from_range(200, 400);
-    dbg!(&c);
-    let e = dbg!(c.union(d));
-    panic!("{:?}", e.union(a));
 }

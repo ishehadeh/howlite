@@ -81,7 +81,9 @@ pub trait ArithmeticSet<RhsSetT, RhsElemT> {
     fn add_all(&mut self, rhs: RhsSetT);
     fn mul_all(&mut self, rhs: RhsSetT);
     // fn div_all(&mut self, rhs: RhsSetT);
+
     fn add_scalar(&mut self, rhs: RhsElemT);
     fn mul_scalar(&mut self, rhs: RhsElemT);
     fn div_scalar(&mut self, rhs: RhsElemT);
+    fn mod_scalar(&mut self, rhs: RhsElemT);
 }

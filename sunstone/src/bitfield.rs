@@ -4,7 +4,7 @@ use num::ToPrimitive;
 use num_prime::BitTest;
 
 use crate::{
-    ops::{self, Bounded, IntersectMut, SetOpIncludes, SetSubtract, UnionMut},
+    ops::{self, ArithmeticSet, Bounded, IntersectMut, SetOpIncludes, SetSubtract, UnionMut},
     range::Range,
     step_range::StepRange,
     stripeset::StripeSet,
@@ -147,6 +147,7 @@ impl<const BLOCKS: usize> BitField<BLOCKS> {
 
     // remove a range, endpoints are inclusive
     pub fn exclude_range(&mut self, lo: usize, hi: usize) {
+        // FIXME: there's some bug here if lo and hi are on a small interval
         let (lo_block_ind, lo_bit_ind) = Self::elem_addr(lo);
         let (hi_block_ind, hi_bit_ind) = Self::elem_addr(hi);
 
@@ -281,6 +282,11 @@ impl<const BLOCKS: usize> BitField<BLOCKS> {
     }
 
     pub fn arith_add_scalar(mut self, n: usize) -> Self {
+        self.arith_add_scalar_mut(n);
+        self
+    }
+
+    pub fn arith_add_scalar_mut(&mut self, n: usize) {
         #[cfg(debug_assertions)]
         {
             if let Some(hi) = self.hi() {
@@ -316,11 +322,14 @@ impl<const BLOCKS: usize> BitField<BLOCKS> {
                 i -= 1;
             }
         }
-
-        self
     }
 
     pub fn arith_sub_scalar(mut self, n: usize) -> Self {
+        self.arith_sub_scalar_mut(n);
+        self
+    }
+
+    pub fn arith_sub_scalar_mut(&mut self, n: usize) {
         #[cfg(debug_assertions)]
         {
             if let Some(lo) = self.lo() {
@@ -358,8 +367,6 @@ impl<const BLOCKS: usize> BitField<BLOCKS> {
                 }
             }
         }
-
-        self
     }
 
     pub fn from_slice(slice: &[usize]) -> Self {
@@ -393,6 +400,25 @@ impl<const BLOCKS: usize> BitField<BLOCKS> {
         let bit_index = el % Self::block_width();
         let block_index = el / Self::block_width();
         (block_index, bit_index)
+    }
+
+    fn get_range(&self, start: usize, end: usize) -> u64 {
+        assert!(end >= start);
+        assert!(end - start <= 63);
+        dbg!(start, end);
+        let (block, bit) = Self::elem_addr(start);
+        let (block_end, bit_end) = Self::elem_addr(end);
+        dbg!(block, bit);
+        dbg!(block_end, bit_end);
+        if block == block_end {
+            let end_offset = Self::block_width() - 1 - bit_end;
+            (self.field[block] << end_offset) >> (bit + end_offset)
+        } else {
+            let lower = self.field[block] >> bit;
+            let upper = self.field[block_end] << (Self::block_width() - 1 - bit_end);
+
+            lower | (upper >> bit << bit_end)
+        }
     }
 
     pub fn set_subtract_mut_with_offset(&mut self, rhs: &Self, offset: isize) {
@@ -585,6 +611,59 @@ impl<'a, const WIDTH: usize> SetSubtract<&'a Self> for BitField<WIDTH> {
     }
 }
 
+impl<const WIDTH: usize> ArithmeticSet<&Self, usize> for BitField<WIDTH> {
+    fn add_all(&mut self, rhs: &Self) {
+        self.arith_add::<WIDTH>(rhs);
+    }
+
+    fn mul_all(&mut self, _rhs: &Self) {
+        todo!()
+    }
+
+    fn add_scalar(&mut self, rhs: usize) {
+        self.arith_add_scalar_mut(rhs);
+    }
+
+    fn mul_scalar(&mut self, rhs: usize) {
+        todo!()
+    }
+
+    fn div_scalar(&mut self, rhs: usize) {
+        todo!()
+    }
+
+    fn mod_scalar(&mut self, rhs: usize) {
+        // divide the set into n slices:
+        //  M_1 = [rhs, 2*rhs)
+        //  M_2 = [2*rhs, 3*rhs)
+        //  ...
+        //  M_n = [n*rhs, (n+1)*rhs]
+        // and union each of these sets with [0, rhs):
+        //     [0, rhs) | (M_1 - rhs) | (M_2 - 2 * rhs) | ... | (M_n - n * rhs)
+
+        let mut split_point = rhs;
+
+        while split_point <= WIDTH * Self::block_width() {
+            let mut lo_block_ind = 0;
+            let end: usize = (split_point + rhs - 1).min(Self::block_width() * WIDTH - 1);
+            let len = end - split_point;
+            let num_blocks = len / Self::block_width();
+            for i in 0..num_blocks {
+                self.field[lo_block_ind] |= self.get_range(
+                    split_point + i * Self::block_width(),
+                    split_point + (i + 1) * Self::block_width() - 1,
+                );
+                lo_block_ind += 1;
+            }
+            dbg!(split_point, len, end, num_blocks);
+            self.field[lo_block_ind] |=
+                self.get_range(split_point + num_blocks * Self::block_width(), end);
+            split_point += rhs;
+        }
+        self.exclude_range(rhs, Self::block_width() * WIDTH - 1);
+    }
+}
+
 impl Copy for BitField<1> {}
 impl Copy for BitField<2> {}
 
@@ -592,7 +671,7 @@ impl Copy for BitField<2> {}
 mod test {
     use crate::{
         bitfield::BitField,
-        ops::{Intersect, Set, SetOpIncludeExclude, SetOpIncludes, Union},
+        ops::{ArithmeticSet, Intersect, Set, SetOpIncludeExclude, SetOpIncludes, Union},
     };
 
     #[test]
@@ -710,5 +789,54 @@ mod test {
         b.include_mut(253);
         assert!(b.is_divisible_by_with_offset(253, 0));
         assert!(b.is_divisible_by_with_offset(248, 243));
+    }
+
+    #[test]
+    pub fn test_get_range() {
+        let mut a: BitField<4> = BitField::default();
+        for x in 0..(64 * 4) {
+            if x % 5 == 0 || x % 7 == 0 {
+                a.include_mut(x);
+            }
+        }
+        let val = a.get_range(10, 74);
+        let expect = (1u64 << (10 - 10))
+            | (1u64 << (15 - 10))
+            | (1u64 << (20 - 10))
+            | (1u64 << (25 - 10))
+            | (1u64 << (30 - 10))
+            | (1u64 << (35 - 10))
+            | (1u64 << (40 - 10))
+            | (1u64 << (45 - 10))
+            | (1u64 << (50 - 10))
+            | (1u64 << (55 - 10))
+            | (1u64 << (60 - 10))
+            | (1u64 << (65 - 10))
+            | (1u64 << (70 - 10))
+            | (1u64 << (14 - 10))
+            | (1u64 << (21 - 10))
+            | (1u64 << (28 - 10))
+            | (1u64 << (35 - 10))
+            | (1u64 << (42 - 10))
+            | (1u64 << (49 - 10))
+            | (1u64 << (56 - 10))
+            | (1u64 << (63 - 10))
+            | (1u64 << (70 - 10));
+        assert_eq!(
+            val, expect,
+            "\ngot: {:#064b}
+exp: {:#064b}",
+            val, expect
+        );
+
+        assert_eq!(a.get_range(10, 15), 0b10001)
+    }
+
+    #[test]
+    pub fn test_mod() {
+        let mut a: BitField<4> = BitField::default();
+        a.include_mut(8);
+        a.mod_scalar(5);
+        assert_eq!(a, BitField::default().include(3));
     }
 }
