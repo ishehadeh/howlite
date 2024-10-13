@@ -523,23 +523,21 @@ LiteralString -> Result<AstRef>:
   ;
 
 ExprTypeConstruction -> Result<AstRef>:
-    '[' Trivia TyExpr ']' Trivia '(' Trivia Expr ')' Trivia {
-      trivia!(right trivia_tree, $10,
-        node!(tree, $span,
-          ExprTypeConstruction { 
-            ty: trivia!(left trivia_tree, $2, $3?),
-            value: $8?
-          }))
+    Term ':' Trivia TyExpr {
+      node!(tree, $span,
+        ExprTypeConstruction { 
+          ty: trivia!(left trivia_tree, $3, $4?),
+          value: $1?
+        })
     }
   ;
 
 
 LiteralStruct -> Result<AstRef>:
-    '[' Trivia TyExpr ']' Trivia '{' Trivia LiteralStructMemberListOpt '}' Trivia {
+    '#{' Trivia LiteralStructMemberListOpt '}' Trivia {
       trivia!(right trivia_tree, $10,
         node!(tree, $span,
           LiteralStruct { 
-            struct_ty: trivia!(left trivia_tree, $2, $3?),
             members: $8?
           }))
     }
@@ -574,11 +572,10 @@ LiteralStructMember -> Result<AstRef>:
 
 
 LiteralArray -> Result<AstRef>:
-    '[' Trivia TyExpr ']' Trivia '[' Trivia LiteralArrayValueListOpt ']' Trivia {
+    '#[' Trivia LiteralArrayValueListOpt ']' Trivia {
       trivia!(right trivia_tree, $10,
         node!(tree, $span,
           LiteralArray { 
-            values_ty: trivia!(left trivia_tree, $2, $3?),
             values: $8?
           }))
     }

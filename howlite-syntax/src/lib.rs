@@ -6,7 +6,7 @@ use howlite_y::AstRef;
 use std::{env, error::Error};
 use tree::{Tree, TreeBuilder};
 
-use lrpar::{LexParseError, ParseError, Span};
+use lrpar::{LexParseError, Span};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NewlineKind {

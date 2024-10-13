@@ -1,8 +1,10 @@
+mod assoc;
 mod read;
 mod write;
 
-use std::{fmt::Debug, hash::Hash, marker::PhantomData};
+use std::{hash::Hash, marker::PhantomData};
 
+pub use assoc::{AssociatedTree, AssociatedTreeBuildContext, PartialAssociatedTree};
 pub use read::*;
 pub use write::*;
 
