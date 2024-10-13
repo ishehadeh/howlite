@@ -1,4 +1,4 @@
-{
+func main() {
     let a: 0 = 0;
     let b: 0..100 = 50;
     let c: -100..+100 = 0;
@@ -8,7 +8,7 @@
     let g: &TypeT = t;
     let h: &(TypeT) = t;
     let i: &[0..255; 0..255] = t;
-    let j: ParamTypeT<{TypeT}> = pt;
-    let k: ParamType2T<{TypeT, Type2T}> = p2t;
+    let j: ParamTypeT[TypeT] = pt;
+    let k: ParamType2T[TypeT, Type2T] = p2t;
     let l: { a: bool, b: bool } = _;
 }

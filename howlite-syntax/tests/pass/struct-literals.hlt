@@ -4,13 +4,13 @@ type False = 0;
 
 type alias Bool = True | False;
 
-type A<{N: -100..100}> = { n: N };
+type A[N: -100..100] = { n: N };
 //bool defs end
 
-func main(): A<{5..10}> {
+func main(): A[5..10] {
 
     let true: True = (1 : Bool);
     let false: False = (0 : Bool);
 
-    let obj: A<{0..5}> = #{ n: 0 };
+    let obj: A[0..5] = #{ n: 0 };
 }

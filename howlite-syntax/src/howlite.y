@@ -47,7 +47,7 @@ DefGlobal -> Result<NodeId<AstNode>>:
   ;
 
 DeclTy -> Result<NodeId<AstNode>>:
-    'type' TriviaRequired 'IDENT' Trivia '<{' Trivia TyParamDeclList '}>' Trivia '=' Trivia TyExpr ';' Trivia {
+    'type' TriviaRequired 'IDENT' Trivia '[' Trivia TyParamDeclList ']' Trivia '=' Trivia TyExpr ';' Trivia {
       // TODO: inner trivia
       trivia!(right trivia_tree, $14,
         node!(tree, $span, DefType {
@@ -57,7 +57,7 @@ DeclTy -> Result<NodeId<AstNode>>:
             ty_params: $7?,
         }))
     }
-  | 'type' TriviaRequired 'alias' TriviaRequired 'IDENT' Trivia '<{' Trivia TyParamDeclList '}>' Trivia '=' Trivia TyExpr ';' Trivia {
+  | 'type' TriviaRequired 'alias' TriviaRequired 'IDENT' Trivia '[' Trivia TyParamDeclList ']' Trivia '=' Trivia TyExpr ';' Trivia {
       // TODO: inner trivia
       trivia!(right trivia_tree, $15,
         node!(tree, $span, DefType {
@@ -121,7 +121,7 @@ DefFunc -> Result<NodeId<AstNode>>:
         body: $13?
       })
     }
-  | 'func' TriviaRequired IDENT Trivia '<{' Trivia TyParamDeclList '}>' '(' Trivia DefFuncParamList ')' Trivia ':' Trivia TyExpr ExprBlock {
+  | 'func' TriviaRequired IDENT Trivia '[' Trivia TyParamDeclList ']' '(' Trivia DefFuncParamList ')' Trivia ':' Trivia TyExpr ExprBlock {
       node!(tree, $span, DefFunc {
         name: $3?.span(),
         params: $11?,
@@ -143,7 +143,7 @@ DefExternFunc -> Result<NodeId<AstNode>>:
           return_ty: trivia!(left trivia_tree, $13, $14?),
         }))
     }
-  | 'extern' TriviaRequired 'func' TriviaRequired IDENT Trivia '<{' Trivia TyParamDeclList '}>' '(' Trivia DefFuncParamList ')' Trivia ':' Trivia TyExpr ';' Trivia {
+  | 'extern' TriviaRequired 'func' TriviaRequired IDENT Trivia '[' Trivia TyParamDeclList ']' '(' Trivia DefFuncParamList ')' Trivia ':' Trivia TyExpr ';' Trivia {
       trivia!(left trivia_tree, $20,
         node!(tree, $span, DefExternFunc {
           name: $5?.span(),
@@ -333,7 +333,7 @@ ExprCall -> Result<AstRef>:
           ty_params: vec![]
         }))
     }
-  | Term '<{' Trivia TyParamList '}>' Trivia '(' Trivia ExprCallParamListOpt ')' Trivia {
+  | Term '[' Trivia TyParamList ']' Trivia '(' Trivia ExprCallParamListOpt ')' Trivia {
       // TODO: inner trivia
       trivia!(right trivia_tree, $11,
         node!(tree, $span, ExprCall {
@@ -718,7 +718,7 @@ TyNamed -> Result<AstRef>:
         parameters: vec![],
       })
     }
-  | Ident '<{' Trivia TyParamList '}>' Trivia {
+  | Ident '[' Trivia TyParamList ']' Trivia {
       // TODO: inner trivia
       trivia!(right trivia_tree, $6,
         node!(tree, $span, TyNamed { 
