@@ -258,7 +258,7 @@ For example, given $T = { 1, 2, 3}$ and $U = { -5, -7 }$, we'd compute the follo
 Howlite times to do not explicitly define their size (in practice, all scalars are encoded as register-sized twos complement integers). This makes operations like bitwise not (set complement) difficult to define.
 
 #figure(caption: [Example: Working with Masks])[
-  Consider the following `C` code, wich sets the n'th bit of a 16-bit field to zero:
+  Consider the following `C` code, which sets the n'th bit of a 16-bit field to zero:
   ```c
     uint16_t n = 9;
     uint16_t field = 0b1010101010110011;
@@ -301,42 +301,30 @@ For any type `A : PadN<{T}>`, where `N` is `8`, `16`, `32`, or `64`, and `T` is 
 
 Similarly, for any type `B : SignN<{T}>`, where `N` is `8`, `16`, `32`, or `64`, and $T$ is some subtype of $-(2^(N - 1)).. (2^(N-1) - 1)$, we define bitwise not as all elements of $-(2^(N - 1)).. (2^(N-1) - 1)$ not in $T$: $~B = { x : forall x in ZZ, x in.not T, -(2^(N - 1)) < x < 2^(N - 1)-1}$
 
-=== Universes, Registers, and Overflow
+=== Storage Classes
 
-During code generation, the intermediate values in an expression must be stored somewhere.
-Ideally, they're kept in a CPU register.
-But, the synthesized type of a particular expression may not fit into a single register.
-For example, on a 32-bit machine, if `x` is of type `UINT32`, then `x + 1` is of type `0..0x100000000`.
-Many systems programming languages do not check these operations.
-Some languages check overflow at runtime, and a small set check at compile time. /* TODO: references: https://github.com/meircif/lumi-lang, https://www.absint.com/astree/index.htm, SPARK, https://github.com/google/wuffs */
+Scalar types belong to a _storage class_ that identifies how they are encoded in memory. Storage classes are organized by size, whether or not they include a sign bit. The signed storage classes are `s8`, `s16`, `s32`, `s64`, and the unsigned are `u8`,`u16`,`u32`,`u64`. Going forward, we will identify the storage class of a scalar `T` using the notation `u32<{T}>`.
 
-Howlite does not prevent overflow, but instead defines overflow in the type system.
-For a given scalar universe type, with a size of $N$ bits, the following reductions are defined:
+The storage class of a number influences how arithmetic and bitwise operations behave on the inner type.
 
-If a scalar type $T$ has the minimum and maximum values $T_"min"$, and $T_"max"$, then we define the canonical form $C$ of $T$
-- If $T_"min" >= 0$ and $T_"max" <  2^N$, then $C = T$
-- If $T_"min" >= 0$ and $T_"max" >= 2^N$, then $C = { t, o : t in T, t < 2^N, o in NN, o < T_"max" - 2^N}$
-- TODO differentiate between signed and unsigned universe types.
+==== Unsigned Storage Classes
 
-- If $-(2^(N - 1)) <= T_"min" < 0$ and $T_"max" <  2^(N - 1)$, then $C = T$
-- If $T_"min" < -(2^(N - 1)) < 0$ and $T_"max" <  2^(N - 1)$, then $C = { t, o : t in T, -(2^(N - 1)) <= t < 2^(N - 1), o in NN, 2^N + T_"min" <= o < 2^(N - 1)}$
-- If $-(2^(N - 1)) <= T_"min" < 0$ and $2^(N - 1) <= T_"max"$, then $C = { t, o : t in T, -(2^(N - 1)) <= t < 2^(N - 1), o in ZZ, o < T_"max" - 2^N}$
-- If $T_"min" < -(2^(N - 1)) < 0$ and $2^(N - 1) <= T_"max"$, then $C = { t, o, p : t in T, -(2^(N - 1)) <= t < 2^(N - 1), o in ZZ, o < T_"max" - 2^N, p in NN, 2^N + T_"min" <= o < 2^(N - 1)}$
+given a storage class `uN`, where $N$ is the width in bits, and variables `a : uN<{T}>`, and `b : uN<{T}>`
+- $a + b = (a + b) mod 2^N$
+- $a - b = 2^N - |a - b| mod 2^N$
+- $a * b = (a * b) mod 2^N$
+- $a / b = (a - (a mod b)) / b$ (i.e. division is always rounded down)
+- $~a = (2^N - 1) - a$
+- TODO other bitwise ops defined in terms of the above operations
+- TODO except xor, maybe?
 
+==== Signed Storage Classes
 
-An example of this kind of operation, on 32-bit hardware: 
-
-```
-let arr: &[UInt8; 0..100];
-let x: Pad8<{0..100}> = 100;
-while x >= 0 {
-  
-  x = x - 1;
-  // x : 0..100 | 0xff
-  // because x may be zero, and 0 - 1 is 0xff 
-  // INVALID
-  if (arr[x]) {
-    break
-  }
-}
-```
+given a storage class `uN`, where $N$ is the width in bits, and variables `a : sN<{T}>`, and `b : sN<{T}>`
+- $a + b = (a + b) mod 2^N$
+- $a - b = 2^N - |a - b| mod 2^N$
+- $a * b = (a * b) mod 2^N$
+- $a / b = (a - (a mod b)) / b$ (i.e. division is always rounded down)
+- $~a = (2^N - 1) - a$
+- TODO other bitwise ops defined in terms of the above operations
+- TODO except xor, maybe?
