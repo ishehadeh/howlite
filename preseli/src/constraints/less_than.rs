@@ -1,23 +1,23 @@
-use num_traits::One;
+use num_traits::{One, Zero};
 use sunstone::ops::Bounded;
 
 use crate::{
     environment::{Constraint, Event, NarrowResult, PropogationEnvironment},
-    integer::num_bigint::BigInt,
+    integer::Scalar,
     variables::{Mutation, VariableId},
 };
 
 #[derive(Clone, Debug)]
 pub struct OffsetLtConstraint {
     pub lhs: VariableId,
-    pub lhs_offset: BigInt,
+    pub lhs_offset: Scalar,
     pub rhs: VariableId,
 }
 
 impl OffsetLtConstraint {
     pub fn lt_offset(
         lhs: VariableId,
-        offset: impl Into<BigInt>,
+        offset: impl Into<Scalar>,
         rhs: VariableId,
     ) -> OffsetLtConstraint {
         OffsetLtConstraint {
@@ -29,7 +29,7 @@ impl OffsetLtConstraint {
 
     pub fn gt_offset(
         lhs: VariableId,
-        offset: impl Into<BigInt>,
+        offset: impl Into<Scalar>,
         rhs: VariableId,
     ) -> OffsetLtConstraint {
         OffsetLtConstraint {
@@ -41,7 +41,7 @@ impl OffsetLtConstraint {
 
     pub fn lt_eq_offset(
         lhs: VariableId,
-        offset: impl Into<BigInt>,
+        offset: impl Into<Scalar>,
         rhs: VariableId,
     ) -> OffsetLtConstraint {
         Self::lt_offset(lhs, offset.into() + 1, rhs)
@@ -49,26 +49,26 @@ impl OffsetLtConstraint {
 
     pub fn gt_eq_offset(
         lhs: VariableId,
-        offset: impl Into<BigInt>,
+        offset: impl Into<Scalar>,
         rhs: VariableId,
     ) -> OffsetLtConstraint {
         Self::gt_offset(lhs, offset.into() - 1, rhs)
     }
 
     pub fn gt_eq(lhs: VariableId, rhs: VariableId) -> OffsetLtConstraint {
-        Self::gt_eq_offset(lhs, BigInt::ZERO, rhs)
+        Self::gt_eq_offset(lhs, Scalar::zero(), rhs)
     }
 
     pub fn lt_eq(lhs: VariableId, rhs: VariableId) -> OffsetLtConstraint {
-        Self::lt_eq_offset(lhs, BigInt::ZERO, rhs)
+        Self::lt_eq_offset(lhs, Scalar::zero(), rhs)
     }
 
     pub fn gt(lhs: VariableId, rhs: VariableId) -> OffsetLtConstraint {
-        Self::gt_offset(lhs, BigInt::ZERO, rhs)
+        Self::gt_offset(lhs, Scalar::zero(), rhs)
     }
 
     pub fn lt(lhs: VariableId, rhs: VariableId) -> OffsetLtConstraint {
-        Self::lt_offset(lhs, BigInt::ZERO, rhs)
+        Self::lt_offset(lhs, Scalar::zero(), rhs)
     }
 
     /// Try to constrain the right hand side in order to satisfy the constraint.
@@ -76,24 +76,24 @@ impl OffsetLtConstraint {
     fn constrain_rhs(
         &self,
         ctx: &mut PropogationEnvironment,
-        adjustment: Option<BigInt>,
+        adjustment: Option<Scalar>,
     ) -> NarrowResult {
         let rhs_range = ctx.variable_range(self.rhs).unwrap();
         let lhs_range = ctx.variable_range(self.lhs).unwrap();
 
         let adjustment_needed = adjustment.unwrap_or(
-            (lhs_range.hi().clone() + &self.lhs_offset + BigInt::one()) - rhs_range.lo(),
+            (lhs_range.hi().clone() + &self.lhs_offset + Scalar::one()) - rhs_range.lo(),
         );
-        if adjustment_needed <= BigInt::ZERO {
+        if adjustment_needed <= Scalar::zero() {
             // no adjustment needed if rhs lo > lhs hi
             return NarrowResult::Satisfied;
         }
         dbg!(&adjustment_needed);
 
         let allowed_rhs_lo_adjustment = rhs_range.hi().clone() - rhs_range.lo();
-        assert!(allowed_rhs_lo_adjustment >= BigInt::ZERO);
+        assert!(allowed_rhs_lo_adjustment >= Scalar::zero());
 
-        if allowed_rhs_lo_adjustment == BigInt::ZERO {
+        if allowed_rhs_lo_adjustment == Scalar::zero() {
             NarrowResult::Violation
         } else {
             NarrowResult::Narrow(
@@ -108,7 +108,7 @@ impl OffsetLtConstraint {
     fn constrain_lhs(
         &self,
         ctx: &mut PropogationEnvironment,
-        adjustment: Option<BigInt>,
+        adjustment: Option<Scalar>,
     ) -> NarrowResult {
         // TODO: merge at least part of this with constraint rhs
         let rhs_range = ctx.variable_range(self.rhs).unwrap();
@@ -116,14 +116,14 @@ impl OffsetLtConstraint {
 
         let adjustment_needed =
             adjustment.unwrap_or((lhs_range.hi().clone() + &self.lhs_offset + 1) - rhs_range.lo());
-        if adjustment_needed <= BigInt::ZERO {
+        if adjustment_needed <= Scalar::zero() {
             // no adjustment needed if rhs lo > lhs hi
             return NarrowResult::Satisfied;
         }
 
         let allowed_lhs_hi_adjustment = lhs_range.hi() - lhs_range.lo();
-        assert!(allowed_lhs_hi_adjustment >= BigInt::ZERO);
-        if allowed_lhs_hi_adjustment == BigInt::ZERO {
+        assert!(allowed_lhs_hi_adjustment >= Scalar::zero());
+        if allowed_lhs_hi_adjustment == Scalar::zero() {
             NarrowResult::Violation
         } else {
             NarrowResult::Narrow(

@@ -23,7 +23,7 @@ pub mod errors;
 pub mod types;
 mod util;
 use types::{StructField, TyInt, TyStruct};
-
+mod typetable;
 use sunstone::ops::{SetOpIncludes, Subset};
 use util::try_collect::TryCollect;
 

@@ -12,6 +12,7 @@ thiserror = "*"
 hashbrown = "*"
 bumpalo = { version = "*", features = ["boxed"] }
 smallvec = "*"
+slotmap = "*"
 
 [dev-dependencies]
 # used for stress-testing symbol table

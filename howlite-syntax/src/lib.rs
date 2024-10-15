@@ -3,10 +3,11 @@ pub mod span;
 pub mod tree;
 pub use ast::{AstNode, AstNodeData};
 use howlite_y::AstRef;
+pub use lrpar::Span;
 use std::{env, error::Error};
 use tree::{Tree, TreeBuilder};
 
-use lrpar::{LexParseError, Span};
+use lrpar::LexParseError;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NewlineKind {

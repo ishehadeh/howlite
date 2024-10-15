@@ -1,17 +1,16 @@
 use std::{num::NonZeroUsize, sync::atomic::AtomicUsize, sync::atomic::Ordering};
 
-use num_bigint::BigInt;
-use sunstone::ops::{PartialBounded, SetOpIncludeExclude, SetOpIncludes, SetSubtract, Subset};
+use sunstone::ops::{PartialBounded, SetOpIncludes, SetSubtract, Subset};
 use thiserror::Error;
 
-use crate::integer::{IntegerRange, IntegerSet};
+use crate::integer::{IntegerRange, IntegerSet, Scalar};
 
 #[derive(Clone, Debug)]
 pub enum Mutation {
     Instantiate { value: IntegerSet },
     Exclude { values: IntegerSet },
-    BoundLo { lo: BigInt },
-    BoundHi { hi: BigInt },
+    BoundLo { lo: Scalar },
+    BoundHi { hi: Scalar },
 }
 
 #[derive(Debug, Clone)]
@@ -101,16 +100,16 @@ pub enum InvalidMutationError {
     },
 
     #[error("cannot exclude value {value}, not in domain {domain:?}")]
-    ExcludeOutOfDomain { value: BigInt, domain: IntegerSet },
+    ExcludeOutOfDomain { value: Scalar, domain: IntegerSet },
 
     #[error("cannot adjust bounds of an empty set")]
     BoundEmptySet,
 
     #[error("cannot adjust lower bound to expand domain: {value}, outside of range {range:?}")]
-    LoOutOfRange { value: BigInt, range: IntegerRange },
+    LoOutOfRange { value: Scalar, range: IntegerRange },
 
     #[error("cannot adjust lower bound to expand domain: {value}, outside of range {range:?}")]
-    HiOutOfRange { value: BigInt, range: IntegerRange },
+    HiOutOfRange { value: Scalar, range: IntegerRange },
 }
 
 impl std::fmt::Debug for VariableId {

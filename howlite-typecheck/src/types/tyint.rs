@@ -235,7 +235,6 @@ pub fn normalize_storage_class_i8() {
     );
 
     // replicate this with normal ints.
-    // like Howlite, rust guarentees wrapping on overflow (I think)
     let mut a: i8 = 110;
     for _ in *range.lo()..*range.hi() {
         assert!(

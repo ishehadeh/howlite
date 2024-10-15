@@ -1,6 +1,6 @@
 use crate::{
     environment::{Constraint, Event, NarrowResult, PropogationEnvironment},
-    integer::{num_bigint::BigInt, shift_hi_mutation, shift_lo_mutation},
+    integer::{shift_hi_mutation, shift_lo_mutation, Scalar},
     variables::{Mutation, Variable, VariableId},
 };
 use num_integer::Integer;
@@ -9,14 +9,14 @@ use sunstone::ops::{ArithmeticSet, Bounded, SetSubtract};
 #[derive(Clone, Debug)]
 pub struct MultiplyConstEqConstraint {
     pub lhs: VariableId,
-    pub lhs_coefficient: BigInt,
+    pub lhs_coefficient: Scalar,
     pub rhs: VariableId,
 }
 
 impl MultiplyConstEqConstraint {
     pub fn new(
         lhs: VariableId,
-        lhs_coefficient: BigInt,
+        lhs_coefficient: Scalar,
         rhs: VariableId,
     ) -> MultiplyConstEqConstraint {
         MultiplyConstEqConstraint {

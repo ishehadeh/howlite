@@ -1,5 +1,4 @@
 use lrpar::Span;
-use num_bigint::BigInt;
 
 use crate::tree::NodeId;
 
@@ -7,7 +6,7 @@ use super::AstNode;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LiteralInteger {
-    pub value: BigInt,
+    pub value: i128,
 }
 
 #[derive(Debug, Clone, PartialEq)]

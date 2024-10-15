@@ -9,6 +9,7 @@ pub use read::*;
 pub use write::*;
 
 #[derive(Clone, Copy)]
+#[repr(transparent)]
 pub struct NodeId<T> {
     _t: PhantomData<T>,
     index: usize,

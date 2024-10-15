@@ -9,12 +9,14 @@ use crate::Mutation;
 // mod set;
 // pub use range::*;
 // pub use set::IntegerSet;
-pub type IntegerSet = sunstone::multi::DynSet<num_bigint::BigInt>;
-pub type IntegerRange = sunstone::range::Range<num_bigint::BigInt>;
+
+pub type Scalar = i128;
+pub type IntegerSet = sunstone::multi::DynSet<Scalar>;
+pub type IntegerRange = sunstone::range::Range<Scalar>;
 
 pub(crate) fn shift_lo_mutation(
-    range: &impl PartialBounded<num_bigint::BigInt>,
-    upward_shift: num_bigint::BigInt,
+    range: &impl PartialBounded<Scalar>,
+    upward_shift: Scalar,
 ) -> Option<Mutation> {
     if let Some(range) = range.partial_bounds() {
         if range.len() < upward_shift {
@@ -30,8 +32,8 @@ pub(crate) fn shift_lo_mutation(
 }
 
 pub(crate) fn shift_hi_mutation(
-    range: &impl PartialBounded<num_bigint::BigInt>,
-    downward_shift: num_bigint::BigInt,
+    range: &impl PartialBounded<Scalar>,
+    downward_shift: Scalar,
 ) -> Option<Mutation> {
     if let Some(range) = range.partial_bounds() {
         if range.len() < downward_shift {

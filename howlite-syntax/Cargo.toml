@@ -7,7 +7,6 @@ edition = "2021"
 cfgrammar = "=0.13.7"
 lrlex = "=0.13.7"
 lrpar = "=0.13.7"
-num-bigint = "=0.4.6"
 
 [build-dependencies]
 cfgrammar = "=0.13.7"
