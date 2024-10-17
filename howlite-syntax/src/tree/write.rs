@@ -28,6 +28,15 @@ impl<T, A: Allocator> TreeBuilder<T, A> {
             store: UnsafeCell::new(Vec::new_in(alloc)),
         }
     }
+
+    /// Create a new, blank tree builder using the backing store from an existing tree
+    pub fn rebuild(mut base: Tree<T, A>) -> Self {
+        base.tree.clear();
+        Self {
+            store: UnsafeCell::new(base.tree),
+        }
+    }
+
     pub fn push(&self, node: T) -> NodeId<T> {
         unsafe {
             let index = (*self.store.get()).len();
