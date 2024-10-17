@@ -32,12 +32,6 @@ pub use errors::AccessError;
 use smallvec::SmallVec;
 pub mod constraints;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-/// A TyId is a reference to a single type.
-pub struct TyId {
-    index: usize,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TyArray<SymbolT: Symbol> {
     pub length: usize,
@@ -104,6 +98,13 @@ macro_rules! _impl_as {
     };
 }
 impl<SymbolT: Symbol> Ty<SymbolT> {
+    /// A type with a single value
+    pub const fn unit() -> Self {
+        Ty::Struct(TyStruct {
+            fields: SmallVec::new_const(),
+        })
+    }
+
     _impl_as!(as_struct(&Ty::Struct) => &TyStruct<SymbolT>);
     _impl_as!(as_int(&Ty::Int) => &TyInt);
     _impl_as!(as_array(&Ty::Array) => &TyArray<SymbolT>);
@@ -246,7 +247,7 @@ impl<SymbolT: Symbol> Ty<SymbolT> {
                 return Err(AccessError::MixedSeriesElementSizeUnion);
             }
 
-            if !index_set.includes(&index) {
+            if !index_set.includes(index) {
                 return Err(AccessError::OutOfRange);
             }
 
