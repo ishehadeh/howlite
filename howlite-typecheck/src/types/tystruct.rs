@@ -8,7 +8,7 @@ use crate::{Symbol, Ty};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StructField<SymbolT: Symbol> {
     pub name: SymbolT,
-    pub ty: Ty<SymbolT>,
+    pub ty: Rc<Ty<SymbolT>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -23,19 +23,19 @@ impl<SymbolT: Symbol> TyStruct<SymbolT> {
 }
 
 impl<SymbolT: Symbol> TyStruct<SymbolT> {
-    pub fn cursor(rc: Rc<Self>) -> StructCursor<SymbolT> {
+    pub fn cursor(&self) -> StructCursor<SymbolT> {
         StructCursor {
-            past: smallvec![(0, rc)],
+            past: smallvec![(0, self)],
             next_index: 0,
         }
     }
 
-    pub fn accessible_intersect(first: Rc<Self>, second: Rc<Self>) -> Vec<AccessPath<SymbolT>> {
+    pub fn accessible_intersect(&self, other: &Self) -> Vec<AccessPath<SymbolT>> {
         // TODO: accessible_intersect could return an iterator
         let mut acc = Vec::new();
 
-        let mut cursor_l = TyStruct::cursor(first);
-        let mut cursor_r = TyStruct::cursor(second);
+        let mut cursor_l = TyStruct::cursor(self);
+        let mut cursor_r = TyStruct::cursor(other);
 
         let mut l_offset = 0;
         let mut r_offset = 0;
@@ -76,13 +76,13 @@ impl<SymbolT: Symbol> TyStruct<SymbolT> {
     }
 }
 
-pub struct StructCursor<SymbolT: Symbol> {
-    past: SmallVec<[(usize, Rc<TyStruct<SymbolT>>); 4]>,
+pub struct StructCursor<'a, SymbolT: Symbol> {
+    past: SmallVec<[(usize, &'a TyStruct<SymbolT>); 4]>,
     next_index: usize,
 }
 
-impl<SymbolT: Symbol> StructCursor<SymbolT> {
-    pub fn advance(&mut self) -> Option<&[(usize, Rc<TyStruct<SymbolT>>)]> {
+impl<'a, SymbolT: Symbol> StructCursor<'a, SymbolT> {
+    pub fn advance(&mut self) -> Option<&[(usize, &'a TyStruct<SymbolT>)]> {
         // update the history with the last returned index
 
         match self.past.last_mut() {
@@ -147,17 +147,11 @@ mod test {
         };
         let struc = struc_ty.as_struct().expect("didn't construct a struct?");
         let b_struc = b_struc_ty.as_struct().unwrap();
-        let mut cursor = TyStruct::cursor(struc.clone());
+        let mut cursor = struc.cursor();
 
-        assert_eq!(cursor.advance().unwrap(), [(0, struc.clone())]);
-        assert_eq!(
-            cursor.advance().unwrap(),
-            [(1, struc.clone()), (0, b_struc.clone())]
-        );
-        assert_eq!(
-            cursor.advance().unwrap(),
-            [(1, struc.clone()), (1, b_struc)]
-        );
+        assert_eq!(cursor.advance().unwrap(), [(0, struc)]);
+        assert_eq!(cursor.advance().unwrap(), [(1, struc), (0, b_struc)]);
+        assert_eq!(cursor.advance().unwrap(), [(1, struc), (1, b_struc)]);
         assert_eq!(cursor.advance().unwrap(), [(2, struc)]);
     }
 
@@ -171,10 +165,8 @@ mod test {
             "a" => t_int!(0..10),
             "e" => t_int!(2),
         };
-        let b_struc: std::rc::Rc<TyStruct<&str>> =
-            b_struc_ty.as_struct().expect("didn't construct a struct?");
-        let a_struc: std::rc::Rc<TyStruct<&str>> =
-            a_struc_ty.as_struct().expect("didn't construct a struct?");
+        let b_struc: &TyStruct<&str> = b_struc_ty.as_struct().expect("didn't construct a struct?");
+        let a_struc: &TyStruct<&str> = a_struc_ty.as_struct().expect("didn't construct a struct?");
         assert_eq!(
             TyStruct::accessible_intersect(a_struc, b_struc),
             vec![AccessPath::default().field("a")]
@@ -196,10 +188,8 @@ mod test {
             "d" => t_int!(1),
             "f" => t_int!(2),
         },        };
-        let b_struc: std::rc::Rc<TyStruct<&str>> =
-            b_struc_ty.as_struct().expect("didn't construct a struct?");
-        let a_struc: std::rc::Rc<TyStruct<&str>> =
-            a_struc_ty.as_struct().expect("didn't construct a struct?");
+        let b_struc: &TyStruct<&str> = b_struc_ty.as_struct().expect("didn't construct a struct?");
+        let a_struc: &TyStruct<&str> = a_struc_ty.as_struct().expect("didn't construct a struct?");
         assert_eq!(
             TyStruct::accessible_intersect(a_struc, b_struc),
             vec![AccessPath::default().field("b").field("f")]

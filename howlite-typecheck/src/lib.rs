@@ -41,33 +41,33 @@ pub struct TyId {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TyArray<SymbolT: Symbol> {
     pub length: usize,
-    pub element_ty: Ty<SymbolT>,
+    pub element_ty: Rc<Ty<SymbolT>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TySlice<SymbolT: Symbol> {
     pub index_set: IntegerSet,
-    pub element_ty: Ty<SymbolT>,
+    pub element_ty: Rc<Ty<SymbolT>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TyReference<SymbolT: Symbol> {
-    pub referenced_ty: Ty<SymbolT>,
+    pub referenced_ty: Rc<Ty<SymbolT>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TyUnion<SymbolT: Symbol> {
-    pub tys: SmallVec<[Ty<SymbolT>; 16]>,
+    pub tys: SmallVec<[Rc<Ty<SymbolT>>; 8]>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Ty<SymbolT: Symbol> {
     Hole,
     Int(TyInt),
-    Struct(Rc<TyStruct<SymbolT>>),
-    Array(Rc<TyArray<SymbolT>>),
-    Slice(Rc<TySlice<SymbolT>>),
-    Reference(Rc<TyReference<SymbolT>>),
-    Union(Rc<TyUnion<SymbolT>>),
+    Struct(TyStruct<SymbolT>),
+    Array(TyArray<SymbolT>),
+    Slice(TySlice<SymbolT>),
+    Reference(TyReference<SymbolT>),
+    Union(TyUnion<SymbolT>),
 }
 
 impl<SymbolT: Symbol> Clone for Ty<SymbolT> {
@@ -104,12 +104,12 @@ macro_rules! _impl_as {
     };
 }
 impl<SymbolT: Symbol> Ty<SymbolT> {
-    _impl_as!(as_struct(Ty::Struct) => Rc<TyStruct<SymbolT>>);
+    _impl_as!(as_struct(&Ty::Struct) => &TyStruct<SymbolT>);
     _impl_as!(as_int(&Ty::Int) => &TyInt);
-    _impl_as!(as_array(Ty::Array) => Rc<TyArray<SymbolT>>);
-    _impl_as!(as_slice(Ty::Slice) => Rc<TySlice<SymbolT>>);
-    _impl_as!(as_union(Ty::Union) => Rc<TyUnion<SymbolT>>);
-    _impl_as!(as_reference(Ty::Reference) => Rc<TyReference<SymbolT>>);
+    _impl_as!(as_array(&Ty::Array) => &TyArray<SymbolT>);
+    _impl_as!(as_slice(&Ty::Slice) => &TySlice<SymbolT>);
+    _impl_as!(as_union(&Ty::Union) => &TyUnion<SymbolT>);
+    _impl_as!(as_reference(&Ty::Reference) => &TyReference<SymbolT>);
 
     pub fn sizeof(&self) -> usize {
         // TODO: this assumes 32 bit, make some way to chance that...
@@ -153,19 +153,15 @@ impl<SymbolT: Symbol> Ty<SymbolT> {
         }
     }
 
-    pub fn access_field(&self, access_symbol: SymbolT) -> Result<Ty<SymbolT>, AccessError> {
+    pub fn access_field(&self, access_symbol: SymbolT) -> Result<Rc<Ty<SymbolT>>, AccessError> {
         let strucs = match self {
-            Ty::Struct(s) => vec![s.clone()],
+            Ty::Struct(s) => vec![s],
             Ty::Union(u) => u
                 .tys
                 .iter()
-                .map(|t| {
-                    t.as_struct()
-                        .clone()
-                        .ok_or(AccessError::NonStructUnionVariant)
-                })
+                .map(|t| t.as_struct().ok_or(AccessError::NonStructUnionVariant))
                 .try_collect_poly()?,
-            Ty::Hole => return Ok(Ty::Hole),
+            Ty::Hole => return Ok(Rc::new(Ty::Hole)),
             _ => return Result::Err(AccessError::IllegalFieldAccess),
         };
         let fields_with_offset: Vec<(usize, &StructField<SymbolT>)> = strucs
@@ -184,7 +180,7 @@ impl<SymbolT: Symbol> Ty<SymbolT> {
             .try_collect_poly()?;
 
         let req_offset = fields_with_offset[0].0;
-        let mut union_tys: SmallVec<[Ty<SymbolT>; 16]> = SmallVec::new();
+        let mut union_tys: SmallVec<[Rc<Ty<SymbolT>>; 8]> = SmallVec::new();
         for (offset, struc_field) in fields_with_offset {
             if offset != req_offset {
                 return Err(AccessError::FieldMisaligned);
@@ -196,11 +192,11 @@ impl<SymbolT: Symbol> Ty<SymbolT> {
         if union_tys.len() == 1 {
             Ok(union_tys[0].clone())
         } else {
-            Ok(Ty::Union(Rc::new(TyUnion { tys: union_tys })))
+            Ok(Rc::new(Ty::Union(TyUnion { tys: union_tys })))
         }
     }
 
-    pub fn access_index(&self, index: impl Into<Scalar>) -> Result<Ty<SymbolT>, AccessError> {
+    pub fn access_index(&self, index: impl Into<Scalar>) -> Result<Rc<Ty<SymbolT>>, AccessError> {
         let index = index.into();
 
         let ty_index = match self {
@@ -215,7 +211,7 @@ impl<SymbolT: Symbol> Ty<SymbolT> {
 
                 let mut acc = Vec::new();
                 for x in &u.tys {
-                    match x {
+                    match x.as_ref() {
                         Ty::Array(s) => {
                             if !req_arr {
                                 return Result::Err(AccessError::MixedSliceAndArrayUnion);
@@ -239,12 +235,12 @@ impl<SymbolT: Symbol> Ty<SymbolT> {
                 }
                 acc
             }
-            Ty::Hole => return Ok(Ty::Hole),
+            Ty::Hole => return Ok(Rc::new(Ty::Hole)),
             _ => return Result::Err(AccessError::IllegalFieldAccess),
         };
 
         let req_size = ty_index[0].0.sizeof();
-        let mut union_tys: SmallVec<[_; 16]> = SmallVec::with_capacity(ty_index.len());
+        let mut union_tys: SmallVec<[_; 8]> = SmallVec::with_capacity(ty_index.len());
         for (ty, index_set) in ty_index {
             if ty.sizeof() != req_size {
                 return Err(AccessError::MixedSeriesElementSizeUnion);
@@ -260,7 +256,7 @@ impl<SymbolT: Symbol> Ty<SymbolT> {
         if union_tys.len() == 1 {
             Ok(union_tys[0].clone())
         } else {
-            Ok(Ty::Union(Rc::new(TyUnion { tys: union_tys })))
+            Ok(Rc::new(Ty::Union(TyUnion { tys: union_tys })))
         }
     }
 
@@ -404,6 +400,8 @@ impl<T> Symbol for T where T: Eq + std::fmt::Debug + Clone + Hash {}
 
 #[cfg(test)]
 mod test {
+    use std::rc::Rc;
+
     use crate::{errors::IncompatibleError, t_array, t_int, t_slice, t_struct, t_union, Ty};
 
     #[test]
@@ -429,8 +427,8 @@ mod test {
 
     #[test]
     fn array_access() {
-        let a1: Ty<()> = t_array! [ t_int!(0..10); 10 ];
-        let a2: Ty<()> = t_array! [ t_int!(20..25); 15 ];
+        let a1: Rc<Ty<()>> = t_array! [ t_int!(0..10); 10 ];
+        let a2: Rc<Ty<()>> = t_array! [ t_int!(20..25); 15 ];
 
         let x1 = a1.access_index(1).unwrap();
         assert_eq!(x1, t_int!(0..10));
@@ -463,24 +461,24 @@ mod test {
 
     #[test]
     fn compat_array() {
-        let a1: Ty<()> = t_array![t_int!(0..10); 10];
+        let a1: Rc<Ty<()>> = t_array![t_int!(0..10); 10];
         let a2 = t_array![t_int!(0..5); 5];
 
         a2.is_assignable_to(&a1).unwrap();
 
-        let a3: Ty<()> = t_array![t_int!(0..10); 9];
+        let a3: Rc<Ty<()>> = t_array![t_int!(0..10); 9];
 
         a1.is_assignable_to(&a3).unwrap_err();
     }
 
     #[test]
     fn compat_slice() {
-        let a1: Ty<()> = t_slice![t_int!(0..10); 0..10];
+        let a1: Rc<Ty<()>> = t_slice![t_int!(0..10); 0..10];
         let a2 = t_slice![t_int!(0..5); 0..5];
 
         a2.is_assignable_to(&a1).unwrap();
 
-        let a3: Ty<()> = t_array![t_int!(0..10); 9];
+        let a3 = t_array![t_int!(0..10); 9];
 
         a1.is_assignable_to(&a3).unwrap_err();
     }

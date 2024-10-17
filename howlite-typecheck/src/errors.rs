@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use preseli::IntegerSet;
 use sunstone::ops::SetSubtract;
 
@@ -77,8 +75,8 @@ pub enum IncompatibleError<SymbolT: Symbol> {
 
     #[error("incompatible structures, field mismatches: {bad_fields:?}. When comparing {subset_struct:?} and {superset_struct:?}")]
     StructIncompatibility {
-        subset_struct: Rc<TyStruct<SymbolT>>,
-        superset_struct: Rc<TyStruct<SymbolT>>,
+        subset_struct: TyStruct<SymbolT>,
+        superset_struct: TyStruct<SymbolT>,
         bad_fields: Vec<(SymbolT, StructIncompatibility<SymbolT>)>,
     },
 }

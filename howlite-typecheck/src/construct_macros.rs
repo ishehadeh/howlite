@@ -14,7 +14,7 @@ macro_rules! t_struct {
     (
         $($field:expr => $ty:expr),*
     ) => {
-        $crate::Ty::Struct(std::rc::Rc::new($crate::TyStruct {
+        std::rc::Rc::new($crate::Ty::Struct($crate::TyStruct {
             fields: smallvec::smallvec![
                 $($crate::types::StructField {
                     name: $field,
@@ -28,16 +28,16 @@ macro_rules! t_struct {
 #[macro_export]
 macro_rules! t_int {
     ($($toks:tt)*) => {
-        $crate::Ty::Int({
+        std::rc::Rc::new($crate::Ty::Int({
             $crate::TyInt::from_set($crate::construct_macros::preseli::iset!($($toks)*))
-        })
+        }))
     };
 }
 
 #[macro_export]
 macro_rules! t_array {
     ($ty:expr ; $len:expr) => {
-        $crate::Ty::Array(std::rc::Rc::new($crate::TyArray {
+        std::rc::Rc::new($crate::Ty::Array($crate::TyArray {
             length: $len,
             element_ty: $ty,
         }))
@@ -47,7 +47,7 @@ macro_rules! t_array {
 #[macro_export]
 macro_rules! t_union {
     ($($ty:expr),*) => {
-        $crate::Ty::Union(std::rc::Rc::new($crate::TyUnion {
+        std::rc::Rc::new($crate::Ty::Union($crate::TyUnion {
             tys: smallvec::smallvec![$($ty),*]
         }))
     };
@@ -56,7 +56,7 @@ macro_rules! t_union {
 #[macro_export]
 macro_rules! t_slice {
     ($ty:expr ; $($toks:tt)*) => {
-        $crate::Ty::Slice(std::rc::Rc::new($crate::TySlice {
+        std::rc::Rc::new($crate::Ty::Slice($crate::TySlice {
             index_set: preseli::iset!($($toks)*),
             element_ty: $ty,
         }))
