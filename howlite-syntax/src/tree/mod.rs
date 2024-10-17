@@ -8,12 +8,21 @@ pub use assoc::{AssociatedTree, AssociatedTreeBuildContext, PartialAssociatedTre
 pub use read::*;
 pub use write::*;
 
-#[derive(Clone, Copy)]
 #[repr(transparent)]
 pub struct NodeId<T> {
     _t: PhantomData<T>,
     index: usize,
 }
+
+impl<T> Clone for NodeId<T> {
+    fn clone(&self) -> Self {
+        Self {
+            _t: PhantomData,
+            index: self.index.clone(),
+        }
+    }
+}
+impl<T> Copy for NodeId<T> {}
 
 impl<T> Hash for NodeId<T> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {

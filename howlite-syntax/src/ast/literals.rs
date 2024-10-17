@@ -1,3 +1,4 @@
+use allocator_api2::{alloc::Allocator, vec::Vec};
 use lrpar::Span;
 
 use crate::tree::NodeId;
@@ -26,11 +27,11 @@ pub struct LiteralStructMember {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct LiteralStruct {
-    pub members: Vec<NodeId<AstNode>>,
+pub struct LiteralStruct<A: Allocator> {
+    pub members: Vec<NodeId<AstNode>, A>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct LiteralArray {
-    pub values: Vec<NodeId<AstNode>>,
+pub struct LiteralArray<A: Allocator> {
+    pub values: Vec<NodeId<AstNode>, A>,
 }

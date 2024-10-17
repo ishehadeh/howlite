@@ -1,3 +1,4 @@
+use allocator_api2::{alloc::Allocator, vec::Vec};
 use lrpar::Span;
 
 use crate::tree::NodeId;
@@ -5,18 +6,18 @@ use crate::tree::NodeId;
 use super::AstNode;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct DefType {
+pub struct DefType<A: Allocator> {
     pub name: Span,
     pub alias: bool,
     pub ty: NodeId<AstNode>,
-    pub ty_params: Vec<NodeId<AstNode>>,
+    pub ty_params: Vec<NodeId<AstNode>, A>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct DefExternFunc {
+pub struct DefExternFunc<A: Allocator> {
     pub name: Span,
-    pub params: Vec<NodeId<AstNode>>,
-    pub ty_params: Vec<NodeId<AstNode>>,
+    pub params: Vec<NodeId<AstNode>, A>,
+    pub ty_params: Vec<NodeId<AstNode>, A>,
     pub return_ty: NodeId<AstNode>,
 }
 
@@ -28,16 +29,16 @@ pub struct DefExternVar {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct DefImport {
+pub struct DefImport<A: Allocator> {
     pub file: Span,
-    pub identifiers: Option<Vec<NodeId<AstNode>>>,
+    pub identifiers: Option<Vec<NodeId<AstNode>, A>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct DefFunc {
+pub struct DefFunc<A: Allocator> {
     pub name: Span,
-    pub params: Vec<NodeId<AstNode>>,
-    pub ty_params: Vec<NodeId<AstNode>>,
+    pub params: Vec<NodeId<AstNode>, A>,
+    pub ty_params: Vec<NodeId<AstNode>, A>,
     pub return_ty: NodeId<AstNode>,
     pub body: NodeId<AstNode>,
 }

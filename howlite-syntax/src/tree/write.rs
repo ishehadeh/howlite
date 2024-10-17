@@ -1,10 +1,11 @@
 use super::{NodeId, Tree};
+use allocator_api2::alloc::{Allocator, Global};
+use allocator_api2::vec::Vec;
 use std::{cell::UnsafeCell, marker::PhantomData};
-
 /// Tree Builder is a write-only store for AST nodes.
 /// Because the tree is write-only, writers do not need mutable access
-pub struct TreeBuilder<T> {
-    store: UnsafeCell<Vec<T>>,
+pub struct TreeBuilder<T, A: Allocator = Global> {
+    store: UnsafeCell<Vec<T, A>>,
 }
 
 impl<T> Default for TreeBuilder<T> {
@@ -16,6 +17,17 @@ impl<T> Default for TreeBuilder<T> {
 }
 
 impl<T> TreeBuilder<T> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl<T, A: Allocator> TreeBuilder<T, A> {
+    pub fn new_in(alloc: A) -> Self {
+        Self {
+            store: UnsafeCell::new(Vec::new_in(alloc)),
+        }
+    }
     pub fn push(&self, node: T) -> NodeId<T> {
         unsafe {
             let index = (*self.store.get()).len();
@@ -28,7 +40,7 @@ impl<T> TreeBuilder<T> {
         }
     }
 
-    pub fn finalize(self) -> Tree<T> {
+    pub fn finalize(self) -> Tree<T, A> {
         Tree {
             tree: self.store.into_inner(),
         }

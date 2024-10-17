@@ -1,6 +1,9 @@
 pub mod ast;
 pub mod span;
 pub mod tree;
+use allocator_api2::alloc::Allocator;
+use allocator_api2::alloc::Global;
+use allocator_api2::vec::Vec;
 pub use ast::{AstNode, AstNodeData};
 use howlite_y::AstRef;
 pub use lrpar::Span;
@@ -36,8 +39,8 @@ pub struct TriviaPeice {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Trivia {
-    pub peices: Vec<TriviaPeice>,
+pub struct Trivia<A: Allocator = Global> {
+    pub peices: Vec<TriviaPeice, A>,
 }
 
 impl TriviaPeice {
@@ -70,16 +73,17 @@ lrpar_mod!("howlite.y");
 pub use howlite_l::lexerdef;
 pub use howlite_y::parse;
 pub use howlite_y::token_epp;
+
 pub fn lex_and_parse(
     text: &str,
 ) -> (
     Tree<AstNode>,
     Result<AstRef, Box<dyn Error>>,
-    Vec<LexParseError<u32, DefaultLexerTypes>>,
+    std::vec::Vec<LexParseError<u32, DefaultLexerTypes>>,
 ) {
     let lexerdef: lrlex::LRNonStreamingLexerDef<lrlex::DefaultLexerTypes> = howlite_l::lexerdef();
     let lexer = lexerdef.lexer(text);
-    let tree_builder: TreeBuilder<_> = TreeBuilder::default();
+    let tree_builder: TreeBuilder<_> = TreeBuilder::new();
     let (res, errs) = howlite_y::parse(&lexer, &tree_builder);
     let tree = tree_builder.finalize();
     match res {

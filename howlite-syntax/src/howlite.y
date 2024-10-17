@@ -672,7 +672,7 @@ TyIntegerRange -> Result<AstRef>:
   ;
 
 TyArray -> Result<AstRef>: 
-    '[' Trivia TyExpr ';' Trivia LiteralInt ']' Trivia {
+    '[' Trivia TyExpr ';' Trivia _UInt Trivia ']' Trivia {
       trivia!(right trivia_tree, $8,
         node!(tree, $span, TyArray { 
           element_ty: trivia!(left trivia_tree, $2?, $3?),
@@ -796,6 +796,7 @@ MultiLineComment -> Result<TriviaPeice>:
 %%
 
 use crate::{Trivia, TriviaData, TriviaPeice, NewlineKind, tree::NodeId, CommentKind, ast::*};
+use allocator_api2::{vec::Vec, vec};
 
 pub type Result<T, E = Box<dyn std::error::Error>> = std::result::Result<T, E>;
 

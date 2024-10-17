@@ -1,13 +1,18 @@
 use std::mem::MaybeUninit;
 
+use allocator_api2::{
+    alloc::{Allocator, Global},
+    vec::Vec,
+};
+
 use super::NodeId;
 
 #[derive(Debug, Clone)]
-pub struct Tree<T> {
-    pub(crate) tree: Vec<T>,
+pub struct Tree<T, A: Allocator = Global> {
+    pub(crate) tree: Vec<T, A>,
 }
 
-impl<T> Tree<T> {
+impl<T, A: Allocator> Tree<T, A> {
     pub fn get(&self, node: NodeId<T>) -> &T {
         &self.tree[node.index]
     }

@@ -1,14 +1,19 @@
 use std::marker::PhantomData;
 
+use allocator_api2::{
+    alloc::{Allocator, Global},
+    vec::Vec,
+};
+
 use super::{NodeId, Tree};
 
 #[derive(Debug, Clone)]
-pub struct AssociatedTree<T, BaseT> {
+pub struct AssociatedTree<T, BaseT, A: Allocator = Global> {
     _t: PhantomData<BaseT>,
-    tree: Vec<T>,
+    tree: Vec<T, A>,
 }
 
-impl<T, BaseT> AssociatedTree<T, BaseT> {
+impl<T, BaseT, A: Allocator> AssociatedTree<T, BaseT, A> {
     pub fn get(&self, node: NodeId<BaseT>) -> &T {
         &self.tree[node.index]
     }
@@ -18,23 +23,48 @@ impl<T, BaseT> AssociatedTree<T, BaseT> {
     }
 }
 
-pub enum PartialBuildResult<'a, T, BaseT, E> {
-    Incomplete(PartialAssociatedTree<'a, T, BaseT>),
-    Complete(AssociatedTree<T, BaseT>),
-    Err(PartialAssociatedTree<'a, T, BaseT>, E),
+pub enum PartialBuildResult<
+    'a,
+    T,
+    BaseT,
+    E,
+    TreeAllocT: Allocator = Global,
+    AssocTreeAllocT: Allocator = TreeAllocT,
+> {
+    Incomplete(PartialAssociatedTree<'a, T, BaseT, TreeAllocT, AssocTreeAllocT>),
+    Complete(AssociatedTree<T, BaseT, AssocTreeAllocT>),
+    Err(
+        PartialAssociatedTree<'a, T, BaseT, TreeAllocT, AssocTreeAllocT>,
+        E,
+    ),
 }
 
 #[derive(Debug, Clone)]
-pub struct PartialAssociatedTree<'a, T, BaseT> {
-    base: &'a Tree<BaseT>,
-    pub(crate) items: Vec<T>,
+pub struct PartialAssociatedTree<
+    'a,
+    T,
+    BaseT,
+    TreeAllocT: Allocator = Global,
+    AssocTreeAllocT: Allocator = TreeAllocT,
+> {
+    base: &'a Tree<BaseT, TreeAllocT>,
+    pub(crate) items: Vec<T, AssocTreeAllocT>,
 }
 
-pub struct AssociatedTreeBuildContext<'a, 'b, T, BaseT> {
-    tree: &'b PartialAssociatedTree<'a, T, BaseT>,
+pub struct AssociatedTreeBuildContext<
+    'a,
+    'b,
+    T,
+    BaseT,
+    TreeAllocT: Allocator,
+    AssocTreeAllocT: Allocator,
+> {
+    tree: &'b PartialAssociatedTree<'a, T, BaseT, TreeAllocT, AssocTreeAllocT>,
 }
 
-impl<'a, 'b: 'a, T, BaseT> AssociatedTreeBuildContext<'a, 'b, T, BaseT> {
+impl<'a, 'b: 'a, T, BaseT, TreeAllocT: Allocator, AssocTreeAllocT: Allocator>
+    AssociatedTreeBuildContext<'a, 'b, T, BaseT, TreeAllocT, AssocTreeAllocT>
+{
     pub fn get(&self, node: NodeId<BaseT>) -> &'a T {
         self.tree.items.get(node.index)
             .expect("invalid node ID used during associated tree construction, was this an outside reference?")
@@ -45,21 +75,26 @@ impl<'a, 'b: 'a, T, BaseT> AssociatedTreeBuildContext<'a, 'b, T, BaseT> {
     }
 }
 
-impl<'a, T, BaseT> PartialAssociatedTree<'a, T, BaseT> {
-    pub fn new(base: &'a Tree<BaseT>) -> Self {
+impl<'a, T, BaseT, TreeAllocT: Allocator, AssocTreeAllocT: Allocator>
+    PartialAssociatedTree<'a, T, BaseT, TreeAllocT, AssocTreeAllocT>
+{
+    pub fn new_in(base: &'a Tree<BaseT, TreeAllocT>, alloc: AssocTreeAllocT) -> Self {
         Self {
             base,
-            items: Vec::with_capacity(base.tree.len()),
+            items: Vec::with_capacity_in(base.tree.len(), alloc),
         }
     }
 
     pub fn create_next<
         E,
-        F: FnOnce(&'a BaseT, AssociatedTreeBuildContext<'a, '_, T, BaseT>) -> Result<T, E>,
+        F: FnOnce(
+            &'a BaseT,
+            AssociatedTreeBuildContext<'a, '_, T, BaseT, TreeAllocT, AssocTreeAllocT>,
+        ) -> Result<T, E>,
     >(
         mut self,
         builder: F,
-    ) -> PartialBuildResult<'a, T, BaseT, E> {
+    ) -> PartialBuildResult<'a, T, BaseT, E, TreeAllocT, AssocTreeAllocT> {
         if self.items.len() >= self.base.tree.len() {
             PartialBuildResult::Complete(AssociatedTree {
                 _t: PhantomData::<BaseT>,
