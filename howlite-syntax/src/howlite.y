@@ -803,7 +803,10 @@ pub type Result<T, E = Box<dyn std::error::Error>> = std::result::Result<T, E>;
 #[inline(always)]
 fn must_parse_int_radix<const RADIX: u32>(s: &str) -> i128 {
   let radix_prefix_size = if RADIX == 10 { 0 } else { 2 };
-  i128::from_str_radix(&s[radix_prefix_size..], RADIX).unwrap()
+  let mut parsable = String::with_capacity(s.len());
+  parsable.extend(s.chars().skip(radix_prefix_size).filter(|&c| c != '_'));
+
+  i128::from_str_radix(&parsable, RADIX).unwrap()
 }
 
 pub type AstRef = NodeId<AstNode>;

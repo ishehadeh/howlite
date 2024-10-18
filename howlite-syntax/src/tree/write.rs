@@ -4,8 +4,17 @@ use allocator_api2::vec::Vec;
 use std::{cell::UnsafeCell, marker::PhantomData};
 /// Tree Builder is a write-only store for AST nodes.
 /// Because the tree is write-only, writers do not need mutable access
+#[derive(Debug)]
 pub struct TreeBuilder<T, A: Allocator = Global> {
     store: UnsafeCell<Vec<T, A>>,
+}
+
+impl<T: Clone, A: Allocator + Clone> Clone for TreeBuilder<T, A> {
+    fn clone(&self) -> Self {
+        Self {
+            store: UnsafeCell::new(unsafe { self.store.get().as_ref().unwrap().clone() }),
+        }
+    }
 }
 
 impl<T> Default for TreeBuilder<T> {

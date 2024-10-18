@@ -12,6 +12,21 @@ pub struct Tree<T, A: Allocator = Global> {
     pub(crate) tree: Vec<T, A>,
 }
 
+impl<T: PartialEq, A: Allocator> PartialEq for Tree<T, A> {
+    fn eq(&self, other: &Self) -> bool {
+        if other.node_count() != self.node_count() {
+            false
+        } else {
+            for (a, b) in self.iter().zip(other.iter()) {
+                if !a.eq(b) {
+                    return false;
+                }
+            }
+            true
+        }
+    }
+}
+
 impl<T, A: Allocator> Tree<T, A> {
     pub fn get(&self, node: NodeId<T>) -> &T {
         &self.tree[node.index]

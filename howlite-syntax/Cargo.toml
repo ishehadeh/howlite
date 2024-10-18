@@ -8,11 +8,15 @@ cfgrammar = "=0.13.7"
 lrlex = "=0.13.7"
 lrpar = "=0.13.7"
 allocator-api2 = "*"
+proptest = { version = "=1.5.0", optional = true }
 
 [build-dependencies]
 cfgrammar = "=0.13.7"
 lrlex = "=0.13.7"
 lrpar = "=0.13.7"
+
+[features]
+proptest = ["dep:proptest"]
 
 [[bin]]
 name = "parse"

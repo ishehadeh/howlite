@@ -8,8 +8,10 @@ pub use ast::{AstNode, AstNodeData};
 use howlite_y::AstRef;
 pub use lrpar::Span;
 use std::{env, error::Error};
+use tree::NodeId;
 use tree::{Tree, TreeBuilder};
-
+// #[cfg(feature = "proptest")]
+// pub mod gen;
 use lrpar::LexParseError;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -74,6 +76,10 @@ pub use howlite_l::lexerdef;
 pub use howlite_y::parse;
 pub use howlite_y::token_epp;
 
+pub trait TreeChildren<T> {
+    fn children(&self) -> impl Iterator<Item = NodeId<T>>;
+}
+
 pub fn lex_and_parse(
     text: &str,
 ) -> (
@@ -91,29 +97,4 @@ pub fn lex_and_parse(
         Some(Ok(v)) => (tree, Ok(v), errs),
         None => (tree, Err("no tree root".to_string().into()), errs),
     }
-}
-
-#[test]
-fn main() {
-    use tree::TreeBuilder;
-
-    // Get the `LexerDef` for the `calc` language.
-    let lexerdef = howlite_l::lexerdef();
-    // Now we create a lexer with the `lexer` method with which we can lex an
-    // input.
-    let lexer = lexerdef.lexer("func main(): unit { let a: 100 = 100 } ");
-    // Pass the lexer to the parser and lex and parse the input.
-    let tree_builder: TreeBuilder<_> = TreeBuilder::default();
-    let (res, errs) = howlite_y::parse(&lexer, &tree_builder);
-    let tree = tree_builder.finalize();
-    dbg!(&tree);
-
-    for e in errs {
-        println!("{}", e.pp(&lexer, &howlite_y::token_epp));
-    }
-    match res {
-        Some(r) => println!("Result: {:?}", r),
-        _ => eprintln!("Unable to evaluate expression."),
-    }
-    panic!("");
 }
