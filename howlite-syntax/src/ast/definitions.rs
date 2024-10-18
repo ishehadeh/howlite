@@ -1,7 +1,8 @@
+use crate::gen_node_impls;
 use allocator_api2::{alloc::Allocator, vec::Vec};
 use lrpar::Span;
 
-use crate::{tree::NodeId, TreeChildren};
+use crate::tree::NodeId;
 
 use super::AstNode;
 
@@ -12,21 +13,7 @@ pub struct DefType<A: Allocator> {
     pub ty: NodeId<AstNode>,
     pub ty_params: Vec<NodeId<AstNode>, A>,
 }
-
-impl<A: Allocator> TreeChildren<AstNode> for DefType<A> {
-    fn children(&self) -> impl Iterator<Item = NodeId<AstNode>> {
-        std::iter::once(self.ty).chain(self.ty_params.iter().copied())
-    }
-}
-
-impl<A: Allocator> PartialEq for DefType<A> {
-    fn eq(&self, other: &Self) -> bool {
-        self.name == other.name
-            && self.alias == other.alias
-            && self.ty == other.ty
-            && self.ty_params == other.ty_params
-    }
-}
+gen_node_impls!(DefType<A> { name, alias, &ty_params*, &ty });
 
 #[derive(Debug, Clone)]
 pub struct DefExternFunc<A: Allocator> {
@@ -35,25 +22,7 @@ pub struct DefExternFunc<A: Allocator> {
     pub params: Vec<NodeId<AstNode>, A>,
     pub return_ty: NodeId<AstNode>,
 }
-
-impl<A: Allocator> TreeChildren<AstNode> for DefExternFunc<A> {
-    fn children(&self) -> impl Iterator<Item = NodeId<AstNode>> {
-        self.ty_params
-            .iter()
-            .copied()
-            .chain(self.params.iter().copied())
-            .chain(std::iter::once(self.return_ty))
-    }
-}
-
-impl<A: Allocator> PartialEq for DefExternFunc<A> {
-    fn eq(&self, other: &Self) -> bool {
-        self.name == other.name
-            && self.params == other.params
-            && self.ty_params == other.ty_params
-            && self.return_ty == other.return_ty
-    }
-}
+gen_node_impls!(DefExternFunc<A> { name, &ty_params*, &params*, &return_ty });
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct DefExternVar {
@@ -61,30 +30,13 @@ pub struct DefExternVar {
     pub mutable: bool,
     pub ty: NodeId<AstNode>,
 }
-
-impl TreeChildren<AstNode> for DefExternVar {
-    fn children(&self) -> impl Iterator<Item = NodeId<AstNode>> {
-        std::iter::once(self.ty)
-    }
-}
+gen_node_impls!(DefExternVar { name, mutable, &ty });
 
 #[derive(Debug, Clone)]
-pub struct DefImport<A: Allocator> {
+pub struct DefImport {
     pub file: Span,
-    pub identifiers: Option<Vec<NodeId<AstNode>, A>>,
 }
-
-impl<A: Allocator> TreeChildren<AstNode> for DefImport<A> {
-    fn children(&self) -> impl Iterator<Item = NodeId<AstNode>> {
-        self.identifiers.iter().flat_map(|v| v.iter()).copied()
-    }
-}
-
-impl<A: Allocator> PartialEq for DefImport<A> {
-    fn eq(&self, other: &Self) -> bool {
-        self.file == other.file && self.identifiers == other.identifiers
-    }
-}
+gen_node_impls!(DefImport { file });
 
 #[derive(Debug, Clone)]
 pub struct DefFunc<A: Allocator> {
@@ -94,26 +46,7 @@ pub struct DefFunc<A: Allocator> {
     pub return_ty: NodeId<AstNode>,
     pub body: NodeId<AstNode>,
 }
-
-impl<A: Allocator> TreeChildren<AstNode> for DefFunc<A> {
-    fn children(&self) -> impl Iterator<Item = NodeId<AstNode>> {
-        self.ty_params
-            .iter()
-            .copied()
-            .chain(self.params.iter().copied())
-            .chain(std::iter::once(self.return_ty))
-    }
-}
-
-impl<A: Allocator> PartialEq for DefFunc<A> {
-    fn eq(&self, other: &Self) -> bool {
-        self.name == other.name
-            && self.params == other.params
-            && self.ty_params == other.ty_params
-            && self.return_ty == other.return_ty
-            && self.body == other.body
-    }
-}
+gen_node_impls!(DefFunc<A> { name, &ty_params*, &params*, &return_ty, &body });
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct DefParam {
@@ -121,9 +54,4 @@ pub struct DefParam {
     pub name: Span,
     pub ty: NodeId<AstNode>,
 }
-
-impl TreeChildren<AstNode> for DefParam {
-    fn children(&self) -> impl Iterator<Item = NodeId<AstNode>> {
-        std::iter::once(self.ty)
-    }
-}
+gen_node_impls!(DefParam { name, mutable, &ty });

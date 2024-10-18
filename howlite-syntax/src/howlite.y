@@ -35,7 +35,6 @@ DefImport -> Result<NodeId<AstNode>>:
       trivia!(right trivia_tree, $6,
         node!(tree, $span, DefImport {
           file: $3?.span(),
-          identifiers: None,
         }))
     }
   ;

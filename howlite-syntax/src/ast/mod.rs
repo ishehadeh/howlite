@@ -1,4 +1,4 @@
-use crate::{tree::NodeId, TreeChildren};
+use crate::{gen_node_impls, tree::NodeId};
 
 use allocator_api2::{
     alloc::{Allocator, Global},
@@ -36,8 +36,8 @@ pub enum AstNodeData<A: Allocator = Global> {
 
     DefFunc(DefFunc<A>),
     DefParam(DefParam),
-    DefImport(DefImport<A>),
-    Block(Block),
+    DefImport(DefImport),
+    Block(Block<A>),
     ExprIf(ExprIf),
     ExprCall(ExprCall<A>),
     ExprInfix(ExprInfix),
@@ -72,12 +72,6 @@ pub struct AstNode<A: Allocator = Global> {
     pub data: AstNodeData<A>,
 }
 
-impl<A: Allocator> PartialEq for AstNode<A> {
-    fn eq(&self, other: &Self) -> bool {
-        self.span == other.span && self.data == other.data
-    }
-}
-
 impl<A: Allocator> AstNode<A> {
     pub fn new<S: Into<Span>, T: Into<AstNodeData<A>>>(span: S, data: T) -> Self {
         AstNode {
@@ -92,35 +86,21 @@ pub struct Repaired {
     pub tree: Option<NodeId<AstNode>>,
 }
 
-impl TreeChildren<AstNode> for Repaired {
-    fn children(&self) -> impl Iterator<Item = NodeId<AstNode>> {
-        self.tree.iter().copied()
-    }
-}
+gen_node_impls!(Repaired { &tree?, });
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct FieldAccess {
     pub field: Span,
     pub lhs: NodeId<AstNode>,
 }
-
-impl TreeChildren<AstNode> for FieldAccess {
-    fn children(&self) -> impl Iterator<Item = NodeId<AstNode>> {
-        std::iter::once(self.lhs)
-    }
-}
+gen_node_impls!(FieldAccess { field, &lhs, });
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ArrayAccess {
     pub lhs: NodeId<AstNode>,
     pub index: NodeId<AstNode>,
 }
-
-impl TreeChildren<AstNode> for ArrayAccess {
-    fn children(&self) -> impl Iterator<Item = NodeId<AstNode>> {
-        std::iter::once(self.lhs).chain(std::iter::once(self.index))
-    }
-}
+gen_node_impls!(ArrayAccess { &lhs, &index, });
 
 #[derive(Debug, Clone)]
 pub struct ExprCall<A: Allocator> {
@@ -128,22 +108,7 @@ pub struct ExprCall<A: Allocator> {
     pub ty_params: Vec<NodeId<AstNode>, A>,
     pub params: Vec<NodeId<AstNode>, A>,
 }
-
-impl<A: Allocator> TreeChildren<AstNode> for ExprCall<A> {
-    fn children(&self) -> impl Iterator<Item = NodeId<AstNode>> {
-        std::iter::once(self.callee)
-            .chain(self.ty_params.iter().copied())
-            .chain(self.params.iter().copied())
-    }
-}
-
-impl<A: Allocator> PartialEq for ExprCall<A> {
-    fn eq(&self, other: &Self) -> bool {
-        self.callee == other.callee
-            && self.ty_params == other.ty_params
-            && self.params == other.params
-    }
-}
+gen_node_impls!(ExprCall<A> { &callee, &ty_params*, &params*, });
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprLet {
@@ -152,29 +117,13 @@ pub struct ExprLet {
     pub mutable: bool,
     pub value: NodeId<AstNode>,
 }
-
-impl TreeChildren<AstNode> for ExprLet {
-    fn children(&self) -> impl Iterator<Item = NodeId<AstNode>> {
-        std::iter::once(self.ty).chain(std::iter::once(self.value))
-    }
-}
+gen_node_impls!(ExprLet { name, &ty, mutable, &value, });
 
 #[derive(Debug, Clone)]
 pub struct Program<A: Allocator> {
     pub definitions: Vec<NodeId<AstNode>, A>,
 }
-
-impl<A: Allocator> TreeChildren<AstNode> for Program<A> {
-    fn children(&self) -> impl Iterator<Item = NodeId<AstNode>> {
-        self.definitions.iter().copied()
-    }
-}
-
-impl<A: Allocator> PartialEq for Program<A> {
-    fn eq(&self, other: &Self) -> bool {
-        self.definitions == other.definitions
-    }
-}
+gen_node_impls!(Program<A> { &definitions*, });
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprIf {
@@ -182,17 +131,10 @@ pub struct ExprIf {
     pub success: NodeId<AstNode>,
     pub failure: Option<NodeId<AstNode>>,
 }
-
-impl TreeChildren<AstNode> for ExprIf {
-    fn children(&self) -> impl Iterator<Item = NodeId<AstNode>> {
-        std::iter::once(self.condition)
-            .chain(std::iter::once(self.success))
-            .chain(self.failure.into_iter())
-    }
-}
+gen_node_impls!(ExprIf { &condition, &success, &failure?, });
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Block {
+pub struct Block<A: Allocator> {
     /// Indicates that the value of the final value in `statements` should be the value of this block.
     /// For example:
     /// ```txt
@@ -209,25 +151,31 @@ pub struct Block {
     /// // evaluates to `unit`, `returns = false`
     /// ```
     pub returns: bool,
-    pub statements: Vec<NodeId<AstNode>>,
+    pub statements: Vec<NodeId<AstNode>, A>,
 }
+
+gen_node_impls!(Block<A> { returns, &statements*, });
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Ident {
     pub symbol: Span,
 }
+gen_node_impls!(Ident { symbol });
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprWhile {
     pub condition: NodeId<AstNode>,
     pub body: NodeId<AstNode>,
 }
+gen_node_impls!(ExprWhile { &condition, &body });
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprTypeConstruction {
+    // TODO: rename this "Assume Operator" or "Type Judgement" or something
     pub ty: NodeId<AstNode>,
     pub value: NodeId<AstNode>,
 }
+gen_node_impls!(ExprTypeConstruction { &ty, &value });
 
 macro_rules! impl_ast_intos {
     ($($a:tt($($b:tt)*)),+ ) => {
@@ -266,7 +214,7 @@ impl_ast_intos!(
     Repaired(Repaired),
     DefFunc(DefFunc<A>),
     DefParam(DefParam),
-    Block(Block),
+    Block(Block<A>),
     ExprIf(ExprIf),
     ExprCall(ExprCall<A>),
     ExprInfix(ExprInfix),
@@ -289,7 +237,7 @@ impl_ast_intos!(
     TyExprUnion(TyExprUnion),
     TySlice(TySlice),
     TyNamed(TyNamed<A>),
-    DefImport(DefImport<A>),
+    DefImport(DefImport),
     DefExternVar(DefExternVar)
 );
 
@@ -336,10 +284,137 @@ macro_rules! on_ast_node_pair {
     };
 }
 
-impl<A: Allocator> PartialEq for AstNodeData<A> {
-    fn eq(&self, other: &Self) -> bool {
-        on_ast_node_pair! {
-            (self => l, other => r) { l == r } else { false }
+#[macro_export]
+macro_rules! gen_node_impls {
+    /* #region gen_node_impls - Destructure Self */
+    (@field_unwrap $rhs:expr => ($($unwrapped:tt)*) &$field:ident*, $($rest:tt)*  ) => {
+        gen_node_impls!(@field_unwrap $rhs => ($($unwrapped)* $field,) $($rest)*)
+    };
+    (@field_unwrap $rhs:expr => ($($unwrapped:tt)*) &$field:ident?, $($rest:tt)*  ) => {
+        gen_node_impls!(@field_unwrap $rhs => ($($unwrapped)* $field,) $($rest)*)
+    };
+    (@field_unwrap $rhs:expr => ($($unwrapped:tt)*) &$field:ident, $($rest:tt)*  ) => {
+        gen_node_impls!(@field_unwrap $rhs => ($($unwrapped)* $field,) $($rest)*)
+    };
+    (@field_unwrap $rhs:expr => ($($unwrapped:tt)*) $field:ident, $($rest:tt)*  ) => {
+        gen_node_impls!(@field_unwrap $rhs => ($($unwrapped)* $field,) $($rest)*)
+    };
+    (@field_unwrap $rhs:expr => ($($unwrapped:tt)*) $($field:tt)+) => {
+        gen_node_impls!(@field_unwrap $rhs => ($($unwrapped)*) $($field)*,)
+    };
+    (@field_unwrap $rhs:expr => ($($unwrapped:tt)*) ) => {
+        #[allow(unused, reason = "we only destructure here to ensure all fields have been accounted for, some may be unused for various reasons")]
+        let Self { $($unwrapped)* } = $rhs;
+    };
+    /* #endregion */
+
+
+    /* #region gen_node_impls - Generate Child Iterators */
+
+
+    (@gen_iters ($($iters:expr);*) &$field:ident*, $($rest:tt)* ) => {
+        gen_node_impls!(@gen_iters ($($iters);*; $field.iter().copied()) $($rest)*)
+    };
+    (@gen_iters ($($iters:expr);*) &$field:ident?, $($rest:tt)*  ) => {
+        gen_node_impls!(@gen_iters ($($iters);* ; $field.into_iter().copied()) $($rest)*)
+    };
+    (@gen_iters ($($iters:expr);*) &$field:ident, $($rest:tt)*  ) => {
+        gen_node_impls!(@gen_iters ($($iters);* ; std::iter::once(*$field)) $($rest)*)
+    };
+    (@gen_iters ($($iters:expr);*) $field:ident, $($rest:tt)*  ) => {
+        // ignore non-ref fields
+        gen_node_impls!(@gen_iters ($($iters);*) $($rest)*)
+    };
+    (@gen_iters ($($iters:expr);*) $($rest:tt)+  ) => {
+        gen_node_impls!(@gen_iters ($($iters);*) $($rest)*,)
+    };
+    (@gen_iters ($($iters:expr);*) ) => {
+        gen_node_impls!(@chain_iters $($iters);* )
+    };
+    /* #endregion */
+
+    /* #region gen_node_impls - Chain a series of iterators */
+    (@chain_iters $_root:expr; $chain:expr; $next:expr; $($rest:expr);+ ) => {
+        gen_node_impls!(@chain_iters $_root; $chain.chain($next); $($rest);+)
+    };
+    (@chain_iters $_root:expr; $chain:expr; $last:expr $(;)? ) => {
+        $chain.chain($last)
+    };
+    (@chain_iters $_root:expr; $chain:expr $(;)? ) => {
+        $chain
+    };
+    /* #endregion */
+
+
+    /* #region gen_node_impls - Generate Local Comparison */
+    (@gen_cmp $other:ident ($bools:expr) &$field:ident*, $($rest:tt)* ) => {
+        gen_node_impls!(@gen_cmp $other ($bools && $field.len() == $other.$field.len()) $($rest)*)
+    };
+    (@gen_cmp $other:ident ($bools:expr) &$field:ident?, $($rest:tt)* ) => {
+        gen_node_impls!(@gen_cmp $other ($bools && $field.is_some() == $other.$field.is_some()) $($rest)*)
+    };
+    (@gen_cmp $other:ident ($bools:expr) &$field:ident, $($rest:tt)* ) => {
+        // ignore children which are required, without a reference resolver these are meaningless
+        gen_node_impls!(@gen_cmp $other ($bools) $($rest)*)
+    };
+    (@gen_cmp $other:ident ($bools:expr) $field:ident, $($rest:tt)* ) => {
+        gen_node_impls!(@gen_cmp $other ($bools && $field == &$other.$field) $($rest)*)
+    };
+    (@gen_cmp $other:ident ($bools:expr) $($rest:tt)+ ) => {
+        gen_node_impls!(@gen_cmp $other ($bools) $($rest)*,)
+    };
+    (@gen_cmp $other:ident ($bools:expr)) => {
+        $bools
+    };
+    /* #endregion */
+
+
+    (@impl_children { $($field:ident),* $(,)? }) => {
+        fn children(&self) -> impl Iterator<Item = NodeId<AstNode>> {
+            std::iter::empty()
         }
-    }
+    };
+
+    (@impl_children { $($field:tt)* }) => {
+        fn children(&self) -> impl Iterator<Item = NodeId<AstNode>> {
+            gen_node_impls!(@field_unwrap self => () $($field)*);
+            gen_node_impls!(@gen_iters (()) $($field)*)
+        }
+    };
+
+    // maybe a special marker trait when they just wrap references?
+    (@impl_local_eq { $(&$field:ident),* $(,)? }) => {
+        fn local_eq(&self, _: &Self) -> bool {
+            true
+        }
+    };
+
+    (@impl_local_eq { $($field:tt)* }) => {
+        fn local_eq(&self, other: &Self) -> bool {
+            gen_node_impls!(@field_unwrap self => () $($field)*);
+            gen_node_impls!(@gen_cmp other (true) $($field)*)
+        }
+    };
+
+    ($t:ident<A> { $($field:tt)*  }) => {
+        impl<A: Allocator> $crate::TreeChildren<AstNode> for $t<A> {
+            gen_node_impls!(@impl_children { $($field)* });
+        }
+
+        impl<A: Allocator> $crate::NodeLocalEquality for $t<A> {
+            gen_node_impls!(@impl_local_eq { $($field)* });
+        }
+    };
+
+    ($t:ident { $($field:tt)*  }) => {
+        impl $crate::TreeChildren<AstNode> for $t {
+            gen_node_impls!(@impl_children { $($field)* });
+        }
+
+        impl $crate::NodeLocalEquality for $t {
+            gen_node_impls!(@impl_local_eq { $($field)* });
+        }
+    };
+
+
 }

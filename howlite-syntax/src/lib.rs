@@ -80,6 +80,12 @@ pub trait TreeChildren<T> {
     fn children(&self) -> impl Iterator<Item = NodeId<T>>;
 }
 
+pub trait NodeLocalEquality {
+    /// Check if two tree nodes are equal, ignoring any attributes of their children.
+    /// Note this still takes into account number of children.
+    fn local_eq(&self, other: &Self) -> bool;
+}
+
 pub fn lex_and_parse(
     text: &str,
 ) -> (

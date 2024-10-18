@@ -1,4 +1,4 @@
-use crate::{tree::NodeId, TreeChildren};
+use crate::{gen_node_impls, tree::NodeId, TreeChildren};
 
 use super::AstNode;
 
@@ -17,8 +17,4 @@ pub struct ExprPrefix {
     pub rhs: NodeId<AstNode>,
 }
 
-impl TreeChildren<AstNode> for ExprPrefix {
-    fn children(&self) -> impl Iterator<Item = NodeId<AstNode>> {
-        std::iter::once(self.rhs)
-    }
-}
+gen_node_impls!(ExprPrefix { op, &rhs });

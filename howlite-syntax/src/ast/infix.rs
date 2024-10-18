@@ -1,4 +1,4 @@
-use crate::{tree::NodeId, TreeChildren};
+use crate::{gen_node_impls, tree::NodeId};
 
 use super::AstNode;
 
@@ -34,12 +34,7 @@ pub struct ExprInfix {
     pub op: InfixOp,
     pub rhs: NodeId<AstNode>,
 }
-
-impl TreeChildren<AstNode> for ExprInfix {
-    fn children(&self) -> impl Iterator<Item = NodeId<AstNode>> {
-        std::iter::once(self.lhs).chain(std::iter::once(self.rhs))
-    }
-}
+gen_node_impls!(ExprInfix { &lhs, op, &rhs });
 
 impl InfixOp {
     pub fn as_token(&self) -> &'static str {
