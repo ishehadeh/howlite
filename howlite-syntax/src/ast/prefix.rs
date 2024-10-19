@@ -1,4 +1,4 @@
-use crate::{gen_node_impls, tree::NodeId, TreeChildren};
+use crate::{gen_node_impls, tree::NodeId};
 
 use super::AstNode;
 

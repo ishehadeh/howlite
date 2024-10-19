@@ -1,4 +1,4 @@
-use crate::{gen_node_impls, tree::NodeId};
+use crate::{gen_node_impls, tree::NodeId, NodeLocalEquality, TreeChildren};
 
 use allocator_api2::{
     alloc::{Allocator, Global},
@@ -45,7 +45,7 @@ pub enum AstNodeData<A: Allocator = Global> {
     ExprTypeConstruction(ExprTypeConstruction),
 
     ExprLet(ExprLet),
-    StmtWhile(ExprWhile),
+    ExprWhile(ExprWhile),
 
     DefType(DefType<A>),
     DefExternFunc(DefExternFunc<A>),
@@ -57,7 +57,7 @@ pub enum AstNodeData<A: Allocator = Global> {
     TyRef(TyRef),
     TyExprUnion(TyExprUnion),
     TyStruct(TyStruct<A>),
-    StructMember(TyStructMember),
+    TyStructMember(TyStructMember),
     TyNumberRange(TyNumberRange),
     TyArray(TyArray),
     TyUnit(TyUnit),
@@ -177,6 +177,90 @@ pub struct ExprTypeConstruction {
 }
 gen_node_impls!(ExprTypeConstruction { &ty, &value });
 
+macro_rules! fold_tree_impl {
+    (@method $fname:ident($node:ident<L>)) => {
+        fn $fname(&self, id: NodeId<AstNode>, node: &$node) -> Self::Value;
+    };
+    (@method $fname:ident($node:ident<A>)) => {
+        fn $fname<A: allocator_api2::alloc::Allocator>(&self, id: NodeId<AstNode>, node: &$node<A>, children: paste::paste!([<$node Children>]<Self::Value>)) -> Self::Value;
+    };
+    (@method $fname:ident($node:ident)) => {
+        fn $fname(&self, id: NodeId<AstNode>, node: &$node, children: paste::paste!([<$node Children>]<Self::Value>)) -> Self::Value;
+    };
+
+    (@fold ($n:ident, $tree:ident, $root:ident, $fold:ident) $fname:ident$(<A>)?) => {{
+        let __children = $n.map_children(|__child_node_id| {
+            fold_tree_recursive($tree, __child_node_id, $fold)
+        });
+        $fold.$fname($root, $n, __children)
+    }};
+    (@fold ($n:ident, $tree:ident, $root:ident, $fold:ident) $fname:ident<L>) => { $fold.$fname($root, $n) };
+
+    ($($fname:ident($node:ident $(<$generic:ident>)?));+) => {
+        pub trait FoldTree {
+            type Value;
+            $(fold_tree_impl!(@method $fname($node $(<$generic>)?));)+
+        }
+
+        pub fn fold_tree_recursive<A: Allocator, Fold: FoldTree<Value = Value>, Value>(tree: &$crate::Tree<AstNode, A>, root: NodeId<AstNode>, fold: &Fold) -> Value {
+            let __node = tree.get(root);
+            match &__node.data {
+                $(
+                    AstNodeData::$node(n) => {
+                        fold_tree_impl!(@fold (n, tree, root, fold) $fname $(<$generic>)?)
+                    }
+                )+
+            }
+        }
+    }
+}
+
+fold_tree_impl! {
+    literal_integer(LiteralInteger<L>);
+    literal_char(LiteralChar<L>);
+    literal_string(LiteralString<L>);
+    literal_array(LiteralArray<A>);
+    literal_struct(LiteralStruct<A>);
+    literal_struct_member(LiteralStructMember);
+
+    ident(Ident<L>);
+    field_access(FieldAccess);
+    array_access(ArrayAccess);
+
+    repaired(Repaired);
+
+    def_func(DefFunc<A>);
+    def_param(DefParam);
+    def_import(DefImport<L>);
+    block(Block<A>);
+    expr_if(ExprIf);
+    expr_call(ExprCall<A>);
+    expr_infix(ExprInfix);
+    expr_prefix(ExprPrefix);
+    expr_type_construction(ExprTypeConstruction);
+
+    expr_let(ExprLet);
+    expr_while(ExprWhile);
+
+    def_type(DefType<A>);
+    def_extern_func(DefExternFunc<A>);
+    def_extern_var(DefExternVar);
+
+    program(Program<A>);
+
+    // Types
+    ty_ref(TyRef);
+    ty_expr_union(TyExprUnion);
+    ty_struct(TyStruct<A>);
+    ty_struct_member(TyStructMember);
+    ty_number_range(TyNumberRange);
+    ty_array(TyArray);
+    ty_unit(TyUnit<L>);
+    ty_param(TyParam);
+    ty_slice(TySlice);
+    ty_named(TyNamed<A>)
+}
+
 macro_rules! impl_ast_intos {
     ($($a:tt($($b:tt)*)),+ ) => {
         $(
@@ -221,7 +305,7 @@ impl_ast_intos!(
     ExprPrefix(ExprPrefix),
     LiteralStruct(LiteralStruct<A>),
     ExprLet(ExprLet),
-    StmtWhile(ExprWhile),
+    ExprWhile(ExprWhile),
     DefType(DefType<A>),
     DefExternFunc(DefExternFunc<A>),
     Program(Program<A>),
@@ -229,7 +313,7 @@ impl_ast_intos!(
     TyStruct(TyStruct<A>),
     LiteralStructMember(LiteralStructMember),
     ExprTypeConstruction(ExprTypeConstruction),
-    StructMember(TyStructMember),
+    TyStructMember(TyStructMember),
     TyNumberRange(TyNumberRange),
     TyArray(TyArray),
     TyUnit(TyUnit),
@@ -264,7 +348,7 @@ macro_rules! on_ast_node_pair {
             (Self::ExprPrefix($p0), Self::ExprPrefix($p1)) => { $($action);* }
             (Self::ExprTypeConstruction($p0), Self::ExprTypeConstruction($p1)) => { $($action);* }
             (Self::ExprLet($p0), Self::ExprLet($p1)) => { $($action);* }
-            (Self::StmtWhile($p0), Self::StmtWhile($p1)) => { $($action);* }
+            (Self::ExprWhile($p0), Self::ExprWhile($p1)) => { $($action);* }
             (Self::DefType($p0), Self::DefType($p1)) => { $($action);* }
             (Self::DefExternFunc($p0), Self::DefExternFunc($p1)) => { $($action);* }
             (Self::DefExternVar($p0), Self::DefExternVar($p1)) => { $($action);* }
@@ -272,7 +356,7 @@ macro_rules! on_ast_node_pair {
             (Self::TyRef($p0), Self::TyRef($p1)) => { $($action);* }
             (Self::TyExprUnion($p0), Self::TyExprUnion($p1)) => { $($action);* }
             (Self::TyStruct($p0), Self::TyStruct($p1)) => { $($action);* }
-            (Self::StructMember($p0), Self::StructMember($p1)) => { $($action);* }
+            (Self::TyStructMember($p0), Self::TyStructMember($p1)) => { $($action);* }
             (Self::TyNumberRange($p0), Self::TyNumberRange($p1)) => { $($action);* }
             (Self::TyArray($p0), Self::TyArray($p1)) => { $($action);* }
             (Self::TyUnit($p0), Self::TyUnit($p1)) => { $($action);* }
@@ -282,6 +366,81 @@ macro_rules! on_ast_node_pair {
             _ => $otherwise,
         }
     };
+}
+
+macro_rules! on_any_node_variant {
+    ($node:expr => $p0:ident { $($action:expr);* }) => {
+        match ($node) {
+            Self::LiteralInteger($p0) => { $($action);* }
+            Self::LiteralChar($p0) => { $($action);* }
+            Self::LiteralString($p0) => { $($action);* }
+            Self::LiteralArray($p0) => { $($action);* }
+            Self::LiteralStruct($p0) => { $($action);* }
+            Self::LiteralStructMember($p0) => { $($action);* }
+            Self::Ident($p0) => { $($action);* }
+            Self::FieldAccess($p0) => { $($action);* }
+            Self::ArrayAccess($p0) => { $($action);* }
+            Self::Repaired($p0) => { $($action);* }
+            Self::DefFunc($p0) => { $($action);* }
+            Self::DefParam($p0) => { $($action);* }
+            Self::DefImport($p0) => { $($action);* }
+            Self::Block($p0) => { $($action);* }
+            Self::ExprIf($p0) => { $($action);* }
+            Self::ExprCall($p0) => { $($action);* }
+            Self::ExprInfix($p0) => { $($action);* }
+            Self::ExprPrefix($p0) => { $($action);* }
+            Self::ExprTypeConstruction($p0) => { $($action);* }
+            Self::ExprLet($p0) => { $($action);* }
+            Self::ExprWhile($p0) => { $($action);* }
+            Self::DefType($p0) => { $($action);* }
+            Self::DefExternFunc($p0) => { $($action);* }
+            Self::DefExternVar($p0) => { $($action);* }
+            Self::Program($p0) => { $($action);* }
+            Self::TyRef($p0) => { $($action);* }
+            Self::TyExprUnion($p0) => { $($action);* }
+            Self::TyStruct($p0) => { $($action);* }
+            Self::TyStructMember($p0) => { $($action);* }
+            Self::TyNumberRange($p0) => { $($action);* }
+            Self::TyArray($p0) => { $($action);* }
+            Self::TyUnit($p0) => { $($action);* }
+            Self::TyParam($p0) => { $($action);* }
+            Self::TySlice($p0) => { $($action);* }
+            Self::TyNamed($p0) => { $($action);* }
+        }
+    };
+}
+
+impl TreeChildren<AstNode> for AstNodeData {
+    fn children(&self) -> impl Iterator<Item = NodeId<AstNode>> {
+        let boxed_iter: Box<dyn Iterator<Item = NodeId<AstNode>>> =
+            on_any_node_variant!(self => data  { Box::new(data.children()) });
+        boxed_iter
+    }
+}
+
+impl TreeChildren<AstNode> for AstNode {
+    fn children(&self) -> impl Iterator<Item = NodeId<AstNode>> {
+        self.data.children()
+    }
+}
+
+impl NodeLocalEquality for AstNodeData {
+    fn local_eq(&self, other: &Self) -> bool {
+        on_ast_node_pair!((self => lhs, other => rhs)  { lhs.local_eq(rhs) } else { false })
+    }
+}
+
+impl NodeLocalEquality for AstNode {
+    fn local_eq(&self, other: &Self) -> bool {
+        other.span == self.span && self.data.local_eq(&other.data)
+    }
+}
+
+pub trait HigherOrderNode {
+    type Child;
+    type MappedChildren<U>;
+
+    fn map_children<F: Fn(Self::Child) -> U, U>(&self, op: F) -> Self::MappedChildren<U>;
 }
 
 #[macro_export]
@@ -308,10 +467,54 @@ macro_rules! gen_node_impls {
     };
     /* #endregion */
 
+    /* #region gen_node_impls - Children Only Structure */
+    (@child_struct $name:ident $t:ident => ($($unwrapped:tt)*) &$field:ident*, $($rest:tt)*  ) => {
+        gen_node_impls!(@child_struct $name $t => ($($unwrapped)* pub $field: Vec<$t>,) $($rest)*);
+    };
+    (@child_struct $name:ident $t:ident => ($($unwrapped:tt)*) &$field:ident?, $($rest:tt)*  ) => {
+        gen_node_impls!(@child_struct $name $t => ($($unwrapped)* pub $field: Option<$t>,) $($rest)*);
+    };
+    (@child_struct $name:ident $t:ident => ($($unwrapped:tt)*) &$field:ident, $($rest:tt)*  ) => {
+        gen_node_impls!(@child_struct $name $t => ($($unwrapped)* pub $field: $t,) $($rest)*);
+    };
+    (@child_struct $name:ident $t:ident => ($($unwrapped:tt)*) $field:ident, $($rest:tt)*  ) => {
+        gen_node_impls!(@child_struct $name $t => ($($unwrapped)*) $($rest)*);
+    };
+    (@child_struct $name:ident $t:ident => ($($unwrapped:tt)*) $($field:tt)+) => {
+        gen_node_impls!(@child_struct $name $t => ($($unwrapped)*) $($field)*,);
+    };
+    (@child_struct $name:ident $t:ident => ($($unwrapped:tt)*) ) => {
+        pub struct $name<$t> {
+            $($unwrapped)*
+        }
+    };
+    /* #endregion */
+
+    /* #region gen_node_impls - Map Child Struct */
+    (@map_children $name:ident $t:ident, $mapper:ident => ($($unwrapped:tt)*) &$field:ident*, $($rest:tt)*  ) => {
+        gen_node_impls!(@map_children $name $t, $mapper => ($($unwrapped)* $field: $name.$field.iter().copied().map(&$mapper).collect(),) $($rest)*)
+    };
+    (@map_children $name:ident $t:ident, $mapper:ident => ($($unwrapped:tt)*) &$field:ident?, $($rest:tt)*  ) => {
+        gen_node_impls!(@map_children $name $t, $mapper => ($($unwrapped)* $field: $name.$field.map(&$mapper),) $($rest)*)
+    };
+    (@map_children $name:ident $t:ident, $mapper:ident => ($($unwrapped:tt)*) &$field:ident, $($rest:tt)*  ) => {
+        gen_node_impls!(@map_children $name $t, $mapper => ($($unwrapped)* $field: $mapper($name.$field),) $($rest)*)
+    };
+    (@map_children $name:ident $t:ident, $mapper:ident => ($($unwrapped:tt)*) $field:ident, $($rest:tt)*  ) => {
+        gen_node_impls!(@map_children $name $t, $mapper => ($($unwrapped)*) $($rest)*)
+    };
+    (@map_children $name:ident $t:ident, $mapper:ident => ($($unwrapped:tt)*) $($field:tt)+) => {
+        gen_node_impls!(@map_children $name $t, $mapper => ($($unwrapped)*) $($field)*,)
+    };
+    (@map_children $name:ident $t:ident, $mapper:ident => ($($unwrapped:tt)*) ) => {
+        $t {
+            $($unwrapped)*
+        }
+    };
+    /* #endregion */
+
 
     /* #region gen_node_impls - Generate Child Iterators */
-
-
     (@gen_iters ($($iters:expr);*) &$field:ident*, $($rest:tt)* ) => {
         gen_node_impls!(@gen_iters ($($iters);*; $field.iter().copied()) $($rest)*)
     };
@@ -344,7 +547,6 @@ macro_rules! gen_node_impls {
         $chain
     };
     /* #endregion */
-
 
     /* #region gen_node_impls - Generate Local Comparison */
     (@gen_cmp $other:ident ($bools:expr) &$field:ident*, $($rest:tt)* ) => {
@@ -396,6 +598,48 @@ macro_rules! gen_node_impls {
         }
     };
 
+
+    (@impl_map_children $t:ident { $($field:ident),* $(,)? }) => {
+        impl $crate::ast::HigherOrderNode for $t {
+            type Child = NodeId<AstNode>;
+            type MappedChildren<_U> = ();
+
+            fn map_children<F: Fn(Self::Child) -> U, U>(&self, _op: F) -> () {}
+        }
+    };
+
+    (@impl_map_children $t:ident { $($field:tt)* }) => {
+        paste::paste! {
+            gen_node_impls!(@child_struct [<$t Children>] T => () $($field)*);
+
+            impl $crate::ast::HigherOrderNode for $t {
+                type Child = NodeId<AstNode>;
+                type MappedChildren<U> = [<$t Children>]<U>;
+
+                fn map_children<F: Fn(Self::Child) -> U, U>(&self, __op: F) -> Self::MappedChildren<U> {
+                    gen_node_impls!(@map_children self [<$t Children>], __op => () $($field)*)
+                }
+            }
+        }
+    };
+
+    (@impl_map_children $t:ident<A> { $($field:tt)* }) => {
+        paste::paste! {
+            gen_node_impls!(@child_struct [<$t Children>] T => () $($field)*);
+
+            impl<A: Allocator> $crate::ast::HigherOrderNode for $t<A> {
+                type Child = NodeId<AstNode>;
+                type MappedChildren<U> = [<$t Children>]<U>;
+
+                fn map_children<F: Fn(Self::Child) -> U, U>(&self, __op: F) -> Self::MappedChildren<U> {
+                    gen_node_impls!(@map_children self [<$t Children>], __op => () $($field)*)
+                }
+            }
+        }
+    };
+
+
+
     ($t:ident<A> { $($field:tt)*  }) => {
         impl<A: Allocator> $crate::TreeChildren<AstNode> for $t<A> {
             gen_node_impls!(@impl_children { $($field)* });
@@ -404,6 +648,7 @@ macro_rules! gen_node_impls {
         impl<A: Allocator> $crate::NodeLocalEquality for $t<A> {
             gen_node_impls!(@impl_local_eq { $($field)* });
         }
+        gen_node_impls!(@impl_map_children $t<A> { $($field)* });
     };
 
     ($t:ident { $($field:tt)*  }) => {
@@ -414,6 +659,8 @@ macro_rules! gen_node_impls {
         impl $crate::NodeLocalEquality for $t {
             gen_node_impls!(@impl_local_eq { $($field)* });
         }
+
+        gen_node_impls!(@impl_map_children $t { $($field)* });
     };
 
 
