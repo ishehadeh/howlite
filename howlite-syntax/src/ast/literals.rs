@@ -1,43 +1,46 @@
-use allocator_api2::{alloc::Allocator, vec::Vec};
+use allocator_api2::{
+    alloc::{Allocator, Global},
+    vec::Vec,
+};
 use lrpar::Span;
 
-use crate::{gen_node_impls, tree::NodeId};
+use crate::{gen_node_impls, tree::DefaultLinearTreeId};
 
 use super::AstNode;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct LiteralInteger {
     pub value: i128,
 }
 gen_node_impls!(LiteralInteger { value });
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct LiteralChar {
     pub value: Span,
 }
 gen_node_impls!(LiteralChar { value });
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct LiteralString {
     pub value: Span,
 }
 gen_node_impls!(LiteralString { value });
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct LiteralStructMember {
+pub struct LiteralStructMember<ChildT = DefaultLinearTreeId> {
     pub field: Span,
-    pub value: NodeId<AstNode>,
+    pub value: ChildT,
 }
 gen_node_impls!(LiteralStructMember { field, &value });
 
 #[derive(Debug, Clone)]
-pub struct LiteralStruct<A: Allocator> {
-    pub members: Vec<NodeId<AstNode>, A>,
+pub struct LiteralStruct<ChildT = DefaultLinearTreeId, A: Allocator = Global> {
+    pub members: Vec<ChildT, A>,
 }
 gen_node_impls!(LiteralStruct<A> { &members* });
 
 #[derive(Debug, Clone)]
-pub struct LiteralArray<A: Allocator> {
-    pub values: Vec<NodeId<AstNode>, A>,
+pub struct LiteralArray<ChildT = DefaultLinearTreeId, A: Allocator = Global> {
+    pub values: Vec<ChildT, A>,
 }
 gen_node_impls!(LiteralArray<A> { &values* });

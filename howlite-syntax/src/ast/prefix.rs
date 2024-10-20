@@ -1,4 +1,4 @@
-use crate::{gen_node_impls, tree::NodeId};
+use crate::{gen_node_impls, tree::DefaultLinearTreeId};
 
 use super::AstNode;
 
@@ -12,9 +12,9 @@ pub enum PrefixOp {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ExprPrefix {
+pub struct ExprPrefix<ChildT = DefaultLinearTreeId> {
     pub op: PrefixOp,
-    pub rhs: NodeId<AstNode>,
+    pub rhs: ChildT,
 }
 
 gen_node_impls!(ExprPrefix { op, &rhs });

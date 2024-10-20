@@ -1,4 +1,4 @@
-use crate::{gen_node_impls, tree::NodeId, NodeLocalEquality, TreeChildren};
+use crate::{gen_node_impls, tree::DefaultLinearTreeId, NodeLocalEquality};
 
 use allocator_api2::{
     alloc::{Allocator, Global},
@@ -20,60 +20,60 @@ pub use prefix::*;
 pub use ty_expr::*;
 
 #[derive(Debug, Clone)]
-pub enum AstNodeData<A: Allocator = Global> {
+pub enum AstNodeData<ChildT = DefaultLinearTreeId, A: Allocator = Global> {
     LiteralInteger(LiteralInteger),
     LiteralChar(LiteralChar),
     LiteralString(LiteralString),
-    LiteralArray(LiteralArray<A>),
-    LiteralStruct(LiteralStruct<A>),
-    LiteralStructMember(LiteralStructMember),
+    LiteralArray(LiteralArray<ChildT, A>),
+    LiteralStruct(LiteralStruct<ChildT, A>),
+    LiteralStructMember(LiteralStructMember<ChildT>),
 
     Ident(Ident),
-    FieldAccess(FieldAccess),
-    ArrayAccess(ArrayAccess),
+    FieldAccess(FieldAccess<ChildT>),
+    ArrayAccess(ArrayAccess<ChildT>),
 
-    Repaired(Repaired),
+    Repaired(Repaired<ChildT>),
 
-    DefFunc(DefFunc<A>),
-    DefParam(DefParam),
+    DefFunc(DefFunc<ChildT, A>),
+    DefParam(DefParam<ChildT>),
     DefImport(DefImport),
-    Block(Block<A>),
-    ExprIf(ExprIf),
-    ExprCall(ExprCall<A>),
-    ExprInfix(ExprInfix),
-    ExprPrefix(ExprPrefix),
-    ExprTypeConstruction(ExprTypeConstruction),
+    Block(Block<ChildT, A>),
+    ExprIf(ExprIf<ChildT>),
+    ExprCall(ExprCall<ChildT, A>),
+    ExprInfix(ExprInfix<ChildT>),
+    ExprPrefix(ExprPrefix<ChildT>),
+    ExprTypeConstruction(ExprTypeConstruction<ChildT>),
 
-    ExprLet(ExprLet),
-    ExprWhile(ExprWhile),
+    ExprLet(ExprLet<ChildT>),
+    ExprWhile(ExprWhile<ChildT>),
 
-    DefType(DefType<A>),
-    DefExternFunc(DefExternFunc<A>),
-    DefExternVar(DefExternVar),
+    DefType(DefType<ChildT, A>),
+    DefExternFunc(DefExternFunc<ChildT, A>),
+    DefExternVar(DefExternVar<ChildT>),
 
-    Program(Program<A>),
+    Program(Program<ChildT, A>),
 
     // Types
-    TyRef(TyRef),
-    TyExprUnion(TyExprUnion),
-    TyStruct(TyStruct<A>),
-    TyStructMember(TyStructMember),
-    TyNumberRange(TyNumberRange),
-    TyArray(TyArray),
+    TyRef(TyRef<ChildT>),
+    TyExprUnion(TyExprUnion<ChildT>),
+    TyStruct(TyStruct<ChildT, A>),
+    TyStructMember(TyStructMember<ChildT>),
+    TyNumberRange(TyNumberRange<ChildT>),
+    TyArray(TyArray<ChildT>),
     TyUnit(TyUnit),
-    TyParam(TyParam),
-    TySlice(TySlice),
-    TyNamed(TyNamed<A>),
+    TyParam(TyParam<ChildT>),
+    TySlice(TySlice<ChildT>),
+    TyNamed(TyNamed<ChildT, A>),
 }
 
 #[derive(Debug, Clone)]
-pub struct AstNode<A: Allocator = Global> {
+pub struct AstNode<ChildT = DefaultLinearTreeId, A: Allocator = Global> {
     pub span: Span,
-    pub data: AstNodeData<A>,
+    pub data: AstNodeData<ChildT, A>,
 }
 
-impl<A: Allocator> AstNode<A> {
-    pub fn new<S: Into<Span>, T: Into<AstNodeData<A>>>(span: S, data: T) -> Self {
+impl<ChildT, A: Allocator> AstNode<ChildT, A> {
+    pub fn new<S: Into<Span>, T: Into<AstNodeData<ChildT, A>>>(span: S, data: T) -> Self {
         AstNode {
             span: span.into(),
             data: data.into(),
@@ -82,59 +82,59 @@ impl<A: Allocator> AstNode<A> {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Repaired {
-    pub tree: Option<NodeId<AstNode>>,
+pub struct Repaired<ChildT = DefaultLinearTreeId> {
+    pub tree: Option<ChildT>,
 }
 
 gen_node_impls!(Repaired { &tree?, });
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct FieldAccess {
+pub struct FieldAccess<ChildT = DefaultLinearTreeId> {
     pub field: Span,
-    pub lhs: NodeId<AstNode>,
+    pub lhs: ChildT,
 }
 gen_node_impls!(FieldAccess { field, &lhs, });
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ArrayAccess {
-    pub lhs: NodeId<AstNode>,
-    pub index: NodeId<AstNode>,
+pub struct ArrayAccess<ChildT = DefaultLinearTreeId> {
+    pub lhs: ChildT,
+    pub index: ChildT,
 }
 gen_node_impls!(ArrayAccess { &lhs, &index, });
 
 #[derive(Debug, Clone)]
-pub struct ExprCall<A: Allocator> {
-    pub callee: NodeId<AstNode>,
-    pub ty_params: Vec<NodeId<AstNode>, A>,
-    pub params: Vec<NodeId<AstNode>, A>,
+pub struct ExprCall<ChildT = DefaultLinearTreeId, A: Allocator = Global> {
+    pub callee: ChildT,
+    pub ty_params: Vec<ChildT, A>,
+    pub params: Vec<ChildT, A>,
 }
 gen_node_impls!(ExprCall<A> { &callee, &ty_params*, &params*, });
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ExprLet {
+pub struct ExprLet<ChildT = DefaultLinearTreeId> {
     pub name: Span,
-    pub ty: NodeId<AstNode>,
+    pub ty: ChildT,
     pub mutable: bool,
-    pub value: NodeId<AstNode>,
+    pub value: ChildT,
 }
 gen_node_impls!(ExprLet { name, &ty, mutable, &value, });
 
 #[derive(Debug, Clone)]
-pub struct Program<A: Allocator> {
-    pub definitions: Vec<NodeId<AstNode>, A>,
+pub struct Program<ChildT = DefaultLinearTreeId, A: Allocator = Global> {
+    pub definitions: Vec<ChildT, A>,
 }
 gen_node_impls!(Program<A> { &definitions*, });
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ExprIf {
-    pub condition: NodeId<AstNode>,
-    pub success: NodeId<AstNode>,
-    pub failure: Option<NodeId<AstNode>>,
+pub struct ExprIf<ChildT = DefaultLinearTreeId> {
+    pub condition: ChildT,
+    pub success: ChildT,
+    pub failure: Option<ChildT>,
 }
 gen_node_impls!(ExprIf { &condition, &success, &failure?, });
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Block<A: Allocator> {
+pub struct Block<ChildT = DefaultLinearTreeId, A: Allocator = Global> {
     /// Indicates that the value of the final value in `statements` should be the value of this block.
     /// For example:
     /// ```txt
@@ -151,296 +151,160 @@ pub struct Block<A: Allocator> {
     /// // evaluates to `unit`, `returns = false`
     /// ```
     pub returns: bool,
-    pub statements: Vec<NodeId<AstNode>, A>,
+    pub statements: Vec<ChildT, A>,
 }
 
 gen_node_impls!(Block<A> { returns, &statements*, });
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct Ident {
     pub symbol: Span,
 }
 gen_node_impls!(Ident { symbol });
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct ExprWhile {
-    pub condition: NodeId<AstNode>,
-    pub body: NodeId<AstNode>,
+#[derive(Debug, Clone)]
+pub struct ExprWhile<ChildT = DefaultLinearTreeId> {
+    pub condition: ChildT,
+    pub body: ChildT,
 }
 gen_node_impls!(ExprWhile { &condition, &body });
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct ExprTypeConstruction {
+#[derive(Debug, Clone)]
+pub struct ExprTypeConstruction<ChildT = DefaultLinearTreeId> {
     // TODO: rename this "Assume Operator" or "Type Judgement" or something
-    pub ty: NodeId<AstNode>,
-    pub value: NodeId<AstNode>,
+    pub ty: ChildT,
+    pub value: ChildT,
 }
 gen_node_impls!(ExprTypeConstruction { &ty, &value });
 
-macro_rules! fold_tree_impl {
-    (@method $fname:ident($node:ident<L>)) => {
-        fn $fname(&self, id: NodeId<AstNode>, node: &$node) -> Self::Value;
-    };
-    (@method $fname:ident($node:ident<A>)) => {
-        fn $fname<A: allocator_api2::alloc::Allocator>(&self, id: NodeId<AstNode>, node: &$node<A>, children: paste::paste!([<$node Children>]<Self::Value>)) -> Self::Value;
-    };
-    (@method $fname:ident($node:ident)) => {
-        fn $fname(&self, id: NodeId<AstNode>, node: &$node, children: paste::paste!([<$node Children>]<Self::Value>)) -> Self::Value;
-    };
-
-    (@fold ($n:ident, $tree:ident, $root:ident, $fold:ident) $fname:ident$(<A>)?) => {{
-        let __children = $n.map_children(|__child_node_id| {
-            fold_tree_recursive($tree, __child_node_id, $fold)
-        });
-        $fold.$fname($root, $n, __children)
-    }};
-    (@fold ($n:ident, $tree:ident, $root:ident, $fold:ident) $fname:ident<L>) => { $fold.$fname($root, $n) };
-
-    ($($fname:ident($node:ident $(<$generic:ident>)?));+) => {
-        pub trait FoldTree {
-            type Value;
-            $(fold_tree_impl!(@method $fname($node $(<$generic>)?));)+
-        }
-
-        pub fn fold_tree_recursive<A: Allocator, Fold: FoldTree<Value = Value>, Value>(tree: &$crate::Tree<AstNode, A>, root: NodeId<AstNode>, fold: &Fold) -> Value {
-            let __node = tree.get(root);
-            match &__node.data {
-                $(
-                    AstNodeData::$node(n) => {
-                        fold_tree_impl!(@fold (n, tree, root, fold) $fname $(<$generic>)?)
-                    }
-                )+
-            }
-        }
-    }
-}
-
-fold_tree_impl! {
-    literal_integer(LiteralInteger<L>);
-    literal_char(LiteralChar<L>);
-    literal_string(LiteralString<L>);
-    literal_array(LiteralArray<A>);
-    literal_struct(LiteralStruct<A>);
-    literal_struct_member(LiteralStructMember);
-
-    ident(Ident<L>);
-    field_access(FieldAccess);
-    array_access(ArrayAccess);
-
-    repaired(Repaired);
-
-    def_func(DefFunc<A>);
-    def_param(DefParam);
-    def_import(DefImport<L>);
-    block(Block<A>);
-    expr_if(ExprIf);
-    expr_call(ExprCall<A>);
-    expr_infix(ExprInfix);
-    expr_prefix(ExprPrefix);
-    expr_type_construction(ExprTypeConstruction);
-
-    expr_let(ExprLet);
-    expr_while(ExprWhile);
-
-    def_type(DefType<A>);
-    def_extern_func(DefExternFunc<A>);
-    def_extern_var(DefExternVar);
-
-    program(Program<A>);
-
-    // Types
-    ty_ref(TyRef);
-    ty_expr_union(TyExprUnion);
-    ty_struct(TyStruct<A>);
-    ty_struct_member(TyStructMember);
-    ty_number_range(TyNumberRange);
-    ty_array(TyArray);
-    ty_unit(TyUnit<L>);
-    ty_param(TyParam);
-    ty_slice(TySlice);
-    ty_named(TyNamed<A>)
-}
-
-macro_rules! impl_ast_intos {
-    ($($a:tt($($b:tt)*)),+ ) => {
-        $(
-            impl_ast_intos!(@imp $a ($($b)*));
-        )*
-    };
-
-    (@imp $enum_node:ident($node_name:ident<A>)) => {
-        impl<A: Allocator> From<$node_name<A>> for AstNodeData<A> {
-            fn from(n: $node_name<A>) -> Self {
-                AstNodeData::$enum_node(n)
-            }
-        }
-    };
-
-    (@imp $enum_node:ident($node_name:ident)) => {
-            impl<A: Allocator> From<$node_name> for AstNodeData<A> {
-                fn from(n: $node_name) -> Self {
-                    AstNodeData::$enum_node(n)
-                }
-            }
-    };
-
-
-}
-
-impl_ast_intos!(
-    LiteralInteger(LiteralInteger),
-    LiteralChar(LiteralChar),
-    LiteralString(LiteralString),
-    LiteralArray(LiteralArray<A>),
-    Ident(Ident),
-    FieldAccess(FieldAccess),
-    ArrayAccess(ArrayAccess),
-    Repaired(Repaired),
-    DefFunc(DefFunc<A>),
-    DefParam(DefParam),
-    Block(Block<A>),
-    ExprIf(ExprIf),
-    ExprCall(ExprCall<A>),
-    ExprInfix(ExprInfix),
-    ExprPrefix(ExprPrefix),
-    LiteralStruct(LiteralStruct<A>),
-    ExprLet(ExprLet),
-    ExprWhile(ExprWhile),
-    DefType(DefType<A>),
-    DefExternFunc(DefExternFunc<A>),
-    Program(Program<A>),
-    TyRef(TyRef),
-    TyStruct(TyStruct<A>),
-    LiteralStructMember(LiteralStructMember),
-    ExprTypeConstruction(ExprTypeConstruction),
-    TyStructMember(TyStructMember),
-    TyNumberRange(TyNumberRange),
-    TyArray(TyArray),
-    TyUnit(TyUnit),
-    TyParam(TyParam),
-    TyExprUnion(TyExprUnion),
-    TySlice(TySlice),
-    TyNamed(TyNamed<A>),
-    DefImport(DefImport),
-    DefExternVar(DefExternVar)
-);
-
 macro_rules! on_ast_node_pair {
-    (($lhs:expr => $p0:ident, $rhs:expr => $p1:ident) { $($action:expr);* } else $otherwise:expr) => {
+    (($lhs:expr => $p0:ident, $rhs:expr => $p1:ident) $action:block else $otherwise:expr) => {
         match ($lhs, $rhs) {
-            (Self::LiteralInteger($p0), Self::LiteralInteger($p1)) => { $($action);* }
-            (Self::LiteralChar($p0), Self::LiteralChar($p1)) => { $($action);* }
-            (Self::LiteralString($p0), Self::LiteralString($p1)) => { $($action);* }
-            (Self::LiteralArray($p0), Self::LiteralArray($p1)) => { $($action);* }
-            (Self::LiteralStruct($p0), Self::LiteralStruct($p1)) => { $($action);* }
-            (Self::LiteralStructMember($p0), Self::LiteralStructMember($p1)) => { $($action);* }
-            (Self::Ident($p0), Self::Ident($p1)) => { $($action);* }
-            (Self::FieldAccess($p0), Self::FieldAccess($p1)) => { $($action);* }
-            (Self::ArrayAccess($p0), Self::ArrayAccess($p1)) => { $($action);* }
-            (Self::Repaired($p0), Self::Repaired($p1)) => { $($action);* }
-            (Self::DefFunc($p0), Self::DefFunc($p1)) => { $($action);* }
-            (Self::DefParam($p0), Self::DefParam($p1)) => { $($action);* }
-            (Self::DefImport($p0), Self::DefImport($p1)) => { $($action);* }
-            (Self::Block($p0), Self::Block($p1)) => { $($action);* }
-            (Self::ExprIf($p0), Self::ExprIf($p1)) => { $($action);* }
-            (Self::ExprCall($p0), Self::ExprCall($p1)) => { $($action);* }
-            (Self::ExprInfix($p0), Self::ExprInfix($p1)) => { $($action);* }
-            (Self::ExprPrefix($p0), Self::ExprPrefix($p1)) => { $($action);* }
-            (Self::ExprTypeConstruction($p0), Self::ExprTypeConstruction($p1)) => { $($action);* }
-            (Self::ExprLet($p0), Self::ExprLet($p1)) => { $($action);* }
-            (Self::ExprWhile($p0), Self::ExprWhile($p1)) => { $($action);* }
-            (Self::DefType($p0), Self::DefType($p1)) => { $($action);* }
-            (Self::DefExternFunc($p0), Self::DefExternFunc($p1)) => { $($action);* }
-            (Self::DefExternVar($p0), Self::DefExternVar($p1)) => { $($action);* }
-            (Self::Program($p0), Self::Program($p1)) => { $($action);* }
-            (Self::TyRef($p0), Self::TyRef($p1)) => { $($action);* }
-            (Self::TyExprUnion($p0), Self::TyExprUnion($p1)) => { $($action);* }
-            (Self::TyStruct($p0), Self::TyStruct($p1)) => { $($action);* }
-            (Self::TyStructMember($p0), Self::TyStructMember($p1)) => { $($action);* }
-            (Self::TyNumberRange($p0), Self::TyNumberRange($p1)) => { $($action);* }
-            (Self::TyArray($p0), Self::TyArray($p1)) => { $($action);* }
-            (Self::TyUnit($p0), Self::TyUnit($p1)) => { $($action);* }
-            (Self::TyParam($p0), Self::TyParam($p1)) => { $($action);* }
-            (Self::TySlice($p0), Self::TySlice($p1)) => { $($action);* }
-            (Self::TyNamed($p0), Self::TyNamed($p1)) => { $($action);* }
+            (Self::LiteralInteger($p0), Self::LiteralInteger($p1)) => $action,
+            (Self::LiteralChar($p0), Self::LiteralChar($p1)) => $action,
+            (Self::LiteralString($p0), Self::LiteralString($p1)) => $action,
+            (Self::LiteralArray($p0), Self::LiteralArray($p1)) => $action,
+            (Self::LiteralStruct($p0), Self::LiteralStruct($p1)) => $action,
+            (Self::LiteralStructMember($p0), Self::LiteralStructMember($p1)) => $action,
+            (Self::Ident($p0), Self::Ident($p1)) => $action,
+            (Self::FieldAccess($p0), Self::FieldAccess($p1)) => $action,
+            (Self::ArrayAccess($p0), Self::ArrayAccess($p1)) => $action,
+            (Self::Repaired($p0), Self::Repaired($p1)) => $action,
+            (Self::DefFunc($p0), Self::DefFunc($p1)) => $action,
+            (Self::DefParam($p0), Self::DefParam($p1)) => $action,
+            (Self::DefImport($p0), Self::DefImport($p1)) => $action,
+            (Self::Block($p0), Self::Block($p1)) => $action,
+            (Self::ExprIf($p0), Self::ExprIf($p1)) => $action,
+            (Self::ExprCall($p0), Self::ExprCall($p1)) => $action,
+            (Self::ExprInfix($p0), Self::ExprInfix($p1)) => $action,
+            (Self::ExprPrefix($p0), Self::ExprPrefix($p1)) => $action,
+            (Self::ExprTypeConstruction($p0), Self::ExprTypeConstruction($p1)) => $action,
+            (Self::ExprLet($p0), Self::ExprLet($p1)) => $action,
+            (Self::ExprWhile($p0), Self::ExprWhile($p1)) => $action,
+            (Self::DefType($p0), Self::DefType($p1)) => $action,
+            (Self::DefExternFunc($p0), Self::DefExternFunc($p1)) => $action,
+            (Self::DefExternVar($p0), Self::DefExternVar($p1)) => $action,
+            (Self::Program($p0), Self::Program($p1)) => $action,
+            (Self::TyRef($p0), Self::TyRef($p1)) => $action,
+            (Self::TyExprUnion($p0), Self::TyExprUnion($p1)) => $action,
+            (Self::TyStruct($p0), Self::TyStruct($p1)) => $action,
+            (Self::TyStructMember($p0), Self::TyStructMember($p1)) => $action,
+            (Self::TyNumberRange($p0), Self::TyNumberRange($p1)) => $action,
+            (Self::TyArray($p0), Self::TyArray($p1)) => $action,
+            (Self::TyUnit($p0), Self::TyUnit($p1)) => $action,
+            (Self::TyParam($p0), Self::TyParam($p1)) => $action,
+            (Self::TySlice($p0), Self::TySlice($p1)) => $action,
+            (Self::TyNamed($p0), Self::TyNamed($p1)) => $action,
             _ => $otherwise,
         }
     };
 }
 
 macro_rules! on_any_node_variant {
-    ($node:expr => $p0:ident { $($action:expr);* }) => {
+    ($node:expr => $p0:ident $action:block ) => {
         match ($node) {
-            Self::LiteralInteger($p0) => { $($action);* }
-            Self::LiteralChar($p0) => { $($action);* }
-            Self::LiteralString($p0) => { $($action);* }
-            Self::LiteralArray($p0) => { $($action);* }
-            Self::LiteralStruct($p0) => { $($action);* }
-            Self::LiteralStructMember($p0) => { $($action);* }
-            Self::Ident($p0) => { $($action);* }
-            Self::FieldAccess($p0) => { $($action);* }
-            Self::ArrayAccess($p0) => { $($action);* }
-            Self::Repaired($p0) => { $($action);* }
-            Self::DefFunc($p0) => { $($action);* }
-            Self::DefParam($p0) => { $($action);* }
-            Self::DefImport($p0) => { $($action);* }
-            Self::Block($p0) => { $($action);* }
-            Self::ExprIf($p0) => { $($action);* }
-            Self::ExprCall($p0) => { $($action);* }
-            Self::ExprInfix($p0) => { $($action);* }
-            Self::ExprPrefix($p0) => { $($action);* }
-            Self::ExprTypeConstruction($p0) => { $($action);* }
-            Self::ExprLet($p0) => { $($action);* }
-            Self::ExprWhile($p0) => { $($action);* }
-            Self::DefType($p0) => { $($action);* }
-            Self::DefExternFunc($p0) => { $($action);* }
-            Self::DefExternVar($p0) => { $($action);* }
-            Self::Program($p0) => { $($action);* }
-            Self::TyRef($p0) => { $($action);* }
-            Self::TyExprUnion($p0) => { $($action);* }
-            Self::TyStruct($p0) => { $($action);* }
-            Self::TyStructMember($p0) => { $($action);* }
-            Self::TyNumberRange($p0) => { $($action);* }
-            Self::TyArray($p0) => { $($action);* }
-            Self::TyUnit($p0) => { $($action);* }
-            Self::TyParam($p0) => { $($action);* }
-            Self::TySlice($p0) => { $($action);* }
-            Self::TyNamed($p0) => { $($action);* }
+            Self::LiteralInteger($p0) => $action,
+            Self::LiteralChar($p0) => $action,
+            Self::LiteralString($p0) => $action,
+            Self::LiteralArray($p0) => $action,
+            Self::LiteralStruct($p0) => $action,
+            Self::LiteralStructMember($p0) => $action,
+            Self::Ident($p0) => $action,
+            Self::FieldAccess($p0) => $action,
+            Self::ArrayAccess($p0) => $action,
+            Self::Repaired($p0) => $action,
+            Self::DefFunc($p0) => $action,
+            Self::DefParam($p0) => $action,
+            Self::DefImport($p0) => $action,
+            Self::Block($p0) => $action,
+            Self::ExprIf($p0) => $action,
+            Self::ExprCall($p0) => $action,
+            Self::ExprInfix($p0) => $action,
+            Self::ExprPrefix($p0) => $action,
+            Self::ExprTypeConstruction($p0) => $action,
+            Self::ExprLet($p0) => $action,
+            Self::ExprWhile($p0) => $action,
+            Self::DefType($p0) => $action,
+            Self::DefExternFunc($p0) => $action,
+            Self::DefExternVar($p0) => $action,
+            Self::Program($p0) => $action,
+            Self::TyRef($p0) => $action,
+            Self::TyExprUnion($p0) => $action,
+            Self::TyStruct($p0) => $action,
+            Self::TyStructMember($p0) => $action,
+            Self::TyNumberRange($p0) => $action,
+            Self::TyArray($p0) => $action,
+            Self::TyUnit($p0) => $action,
+            Self::TyParam($p0) => $action,
+            Self::TySlice($p0) => $action,
+            Self::TyNamed($p0) => $action,
         }
     };
 }
 
-impl TreeChildren<AstNode> for AstNodeData {
-    fn children(&self) -> impl Iterator<Item = NodeId<AstNode>> {
-        let boxed_iter: Box<dyn Iterator<Item = NodeId<AstNode>>> =
-            on_any_node_variant!(self => data  { Box::new(data.children()) });
-        boxed_iter
-    }
-}
-
-impl TreeChildren<AstNode> for AstNode {
-    fn children(&self) -> impl Iterator<Item = NodeId<AstNode>> {
-        self.data.children()
-    }
-}
-
-impl NodeLocalEquality for AstNodeData {
+impl<ChildT> NodeLocalEquality for AstNodeData<ChildT> {
     fn local_eq(&self, other: &Self) -> bool {
         on_ast_node_pair!((self => lhs, other => rhs)  { lhs.local_eq(rhs) } else { false })
     }
 }
 
-impl NodeLocalEquality for AstNode {
+impl<ChildT> NodeLocalEquality for AstNode<ChildT> {
     fn local_eq(&self, other: &Self) -> bool {
         other.span == self.span && self.data.local_eq(&other.data)
     }
 }
 
-pub trait HigherOrderNode {
-    type Child;
-    type MappedChildren<U>;
+pub trait HigherOrderNode<ChildT>
+where
+    for<'a> ChildT: 'a,
+{
+    type Mapped<T>;
 
-    fn map_children<F: Fn(Self::Child) -> U, U>(&self, op: F) -> Self::MappedChildren<U>;
+    fn children<'a>(&'a self) -> impl Iterator<Item = &'a ChildT>;
+    fn map<F: Fn(ChildT) -> T, T>(self, op: F) -> Self::Mapped<T>;
+}
+
+impl<ChildT, A: Allocator> HigherOrderNode<ChildT> for AstNodeData<ChildT, A>
+where
+    for<'a> ChildT: 'a,
+{
+    type Mapped<T> = AstNodeData<T, A>;
+
+    fn children<'a>(&'a self) -> impl Iterator<Item = &'a ChildT> {
+        on_any_node_variant!(self => n
+        {
+            let iter: Box<dyn Iterator<Item = &'a ChildT>> = Box::new(HigherOrderNode::<ChildT>::children(n));
+            iter
+        })
+    }
+
+    fn map<F: Fn(ChildT) -> T, T>(self, op: F) -> Self::Mapped<T> {
+        on_any_node_variant!(self => n
+        {
+            let mapped_n = n.map(op);
+            mapped_n.into()
+        })
+    }
 }
 
 #[macro_export]
@@ -467,32 +331,29 @@ macro_rules! gen_node_impls {
     };
     /* #endregion */
 
-    /* #region gen_node_impls - Children Only Structure */
-    (@child_struct $name:ident $t:ident => ($($unwrapped:tt)*) &$field:ident*, $($rest:tt)*  ) => {
-        gen_node_impls!(@child_struct $name $t => ($($unwrapped)* pub $field: Vec<$t>,) $($rest)*);
-    };
-    (@child_struct $name:ident $t:ident => ($($unwrapped:tt)*) &$field:ident?, $($rest:tt)*  ) => {
-        gen_node_impls!(@child_struct $name $t => ($($unwrapped)* pub $field: Option<$t>,) $($rest)*);
-    };
-    (@child_struct $name:ident $t:ident => ($($unwrapped:tt)*) &$field:ident, $($rest:tt)*  ) => {
-        gen_node_impls!(@child_struct $name $t => ($($unwrapped)* pub $field: $t,) $($rest)*);
-    };
-    (@child_struct $name:ident $t:ident => ($($unwrapped:tt)*) $field:ident, $($rest:tt)*  ) => {
-        gen_node_impls!(@child_struct $name $t => ($($unwrapped)*) $($rest)*);
-    };
-    (@child_struct $name:ident $t:ident => ($($unwrapped:tt)*) $($field:tt)+) => {
-        gen_node_impls!(@child_struct $name $t => ($($unwrapped)*) $($field)*,);
-    };
-    (@child_struct $name:ident $t:ident => ($($unwrapped:tt)*) ) => {
-        pub struct $name<$t> {
-            $($unwrapped)*
-        }
-    };
-    /* #endregion */
 
     /* #region gen_node_impls - Map Child Struct */
     (@map_children $name:ident $t:ident, $mapper:ident => ($($unwrapped:tt)*) &$field:ident*, $($rest:tt)*  ) => {
-        gen_node_impls!(@map_children $name $t, $mapper => ($($unwrapped)* $field: $name.$field.iter().copied().map(&$mapper).collect(),) $($rest)*)
+        gen_node_impls!{
+            @map_children $name $t, $mapper  => ($($unwrapped)*
+                $field: {
+                    let (ptr, len, cap, alloc) = $name.$field.into_raw_parts_with_alloc();
+                    if let Some(ptr) = std::ptr::NonNull::new(ptr) {
+                        let layout = allocator_api2::alloc::Layout::from_size_align(cap, std::mem::align_of_val(unsafe { ptr.as_ref() } ));
+                        let mut new_data = allocator_api2::vec::Vec::with_capacity_in(len, alloc);
+                        for _ in 0..len {
+                            new_data.push($mapper(unsafe { ptr.read() }));
+                            unsafe { ptr.add(1); }
+                        }
+                        unsafe { new_data.allocator().deallocate(ptr.cast::<u8>(), layout.expect("failed to construct layout")) };
+                        new_data
+                    } else {
+                        // TODO: warn here
+                        allocator_api2::vec::Vec::new_in(alloc)
+                    }
+                },)
+            $($rest)*
+        }
     };
     (@map_children $name:ident $t:ident, $mapper:ident => ($($unwrapped:tt)*) &$field:ident?, $($rest:tt)*  ) => {
         gen_node_impls!(@map_children $name $t, $mapper => ($($unwrapped)* $field: $name.$field.map(&$mapper),) $($rest)*)
@@ -501,7 +362,7 @@ macro_rules! gen_node_impls {
         gen_node_impls!(@map_children $name $t, $mapper => ($($unwrapped)* $field: $mapper($name.$field),) $($rest)*)
     };
     (@map_children $name:ident $t:ident, $mapper:ident => ($($unwrapped:tt)*) $field:ident, $($rest:tt)*  ) => {
-        gen_node_impls!(@map_children $name $t, $mapper => ($($unwrapped)*) $($rest)*)
+        gen_node_impls!(@map_children $name $t, $mapper => ($($unwrapped)* $field: $name.$field,) $($rest)*)
     };
     (@map_children $name:ident $t:ident, $mapper:ident => ($($unwrapped:tt)*) $($field:tt)+) => {
         gen_node_impls!(@map_children $name $t, $mapper => ($($unwrapped)*) $($field)*,)
@@ -516,13 +377,13 @@ macro_rules! gen_node_impls {
 
     /* #region gen_node_impls - Generate Child Iterators */
     (@gen_iters ($($iters:expr);*) &$field:ident*, $($rest:tt)* ) => {
-        gen_node_impls!(@gen_iters ($($iters);*; $field.iter().copied()) $($rest)*)
+        gen_node_impls!(@gen_iters ($($iters);*; $field.iter()) $($rest)*)
     };
     (@gen_iters ($($iters:expr);*) &$field:ident?, $($rest:tt)*  ) => {
-        gen_node_impls!(@gen_iters ($($iters);* ; $field.into_iter().copied()) $($rest)*)
+        gen_node_impls!(@gen_iters ($($iters);* ; $field.iter()) $($rest)*)
     };
     (@gen_iters ($($iters:expr);*) &$field:ident, $($rest:tt)*  ) => {
-        gen_node_impls!(@gen_iters ($($iters);* ; std::iter::once(*$field)) $($rest)*)
+        gen_node_impls!(@gen_iters ($($iters);* ; std::iter::once($field)) $($rest)*)
     };
     (@gen_iters ($($iters:expr);*) $field:ident, $($rest:tt)*  ) => {
         // ignore non-ref fields
@@ -570,15 +431,8 @@ macro_rules! gen_node_impls {
     };
     /* #endregion */
 
-
-    (@impl_children { $($field:ident),* $(,)? }) => {
-        fn children(&self) -> impl Iterator<Item = NodeId<AstNode>> {
-            std::iter::empty()
-        }
-    };
-
     (@impl_children { $($field:tt)* }) => {
-        fn children(&self) -> impl Iterator<Item = NodeId<AstNode>> {
+        fn children(&self) -> impl Iterator<Item = &ChildT> {
             gen_node_impls!(@field_unwrap self => () $($field)*);
             gen_node_impls!(@gen_iters (()) $($field)*)
         }
@@ -599,41 +453,73 @@ macro_rules! gen_node_impls {
     };
 
 
-    (@impl_map_children $t:ident { $($field:ident),* $(,)? }) => {
-        impl $crate::ast::HigherOrderNode for $t {
-            type Child = NodeId<AstNode>;
-            type MappedChildren<_U> = ();
+    (@impl_traits $t:ident { $($field:ident),* $(,)? }) => {
+        impl<ChildT> $crate::ast::HigherOrderNode<ChildT> for $t where for<'a> ChildT: 'a {
+            type Mapped<_T> = Self;
 
-            fn map_children<F: Fn(Self::Child) -> U, U>(&self, _op: F) -> () {}
+            fn children(&self) -> impl Iterator<Item = &ChildT> {
+                std::iter::empty()
+            }
+            fn map<F: Fn(ChildT) -> U, U>(self, _op: F) -> Self { self }
         }
-    };
 
-    (@impl_map_children $t:ident { $($field:tt)* }) => {
-        paste::paste! {
-            gen_node_impls!(@child_struct [<$t Children>] T => () $($field)*);
+        impl $crate::NodeLocalEquality for $t {
+            gen_node_impls!(@impl_local_eq { $($field)* });
+        }
 
-            impl $crate::ast::HigherOrderNode for $t {
-                type Child = NodeId<AstNode>;
-                type MappedChildren<U> = [<$t Children>]<U>;
+        impl std::cmp::PartialEq<Self> for $t {
+            fn eq(&self, other: &Self) -> bool { $crate::NodeLocalEquality::local_eq(self, other) }
+        }
 
-                fn map_children<F: Fn(Self::Child) -> U, U>(&self, __op: F) -> Self::MappedChildren<U> {
-                    gen_node_impls!(@map_children self [<$t Children>], __op => () $($field)*)
-                }
+        impl Eq for $t { }
+
+        impl<ChildT, A: Allocator> Into<$crate::ast::AstNodeData<ChildT, A>> for $t  {
+            fn into(self) -> $crate::ast::AstNodeData<ChildT, A> {
+                $crate::ast::AstNodeData::$t(self)
             }
         }
     };
 
-    (@impl_map_children $t:ident<A> { $($field:tt)* }) => {
-        paste::paste! {
-            gen_node_impls!(@child_struct [<$t Children>] T => () $($field)*);
+    (@impl_traits $t:ident { $($field:tt)* }) => {
+        impl<ChildT> $crate::ast::HigherOrderNode<ChildT> for $t<ChildT> where for<'a> ChildT: 'a {
+            type Mapped<U> = $t<U>;
 
-            impl<A: Allocator> $crate::ast::HigherOrderNode for $t<A> {
-                type Child = NodeId<AstNode>;
-                type MappedChildren<U> = [<$t Children>]<U>;
+            gen_node_impls!(@impl_children { $($field)* });
+            fn map<F: Fn(ChildT) -> U, U>(self, __op: F) -> $t<U> {
+                gen_node_impls!(@map_children self $t, __op => () $($field)*)
+            }
+        }
 
-                fn map_children<F: Fn(Self::Child) -> U, U>(&self, __op: F) -> Self::MappedChildren<U> {
-                    gen_node_impls!(@map_children self [<$t Children>], __op => () $($field)*)
-                }
+
+        impl<ChildT> $crate::NodeLocalEquality for $t<ChildT> {
+            gen_node_impls!(@impl_local_eq { $($field)* });
+        }
+
+        impl<ChildT, A: allocator_api2::alloc::Allocator> Into<$crate::ast::AstNodeData<ChildT, A>> for $t<ChildT>  {
+            fn into(self) -> $crate::ast::AstNodeData<ChildT, A> {
+                $crate::ast::AstNodeData::$t(self)
+            }
+        }
+    };
+
+    (@impl_traits $t:ident<A> { $($field:tt)* }) => {
+        impl<ChildT, A: allocator_api2::alloc::Allocator> $crate::ast::HigherOrderNode<ChildT> for $t<ChildT, A> where for<'a> ChildT: 'a {
+            type Mapped<U> = $t<U, A>;
+
+            gen_node_impls!(@impl_children { $($field)* });
+            fn map<F: Fn(ChildT) -> U, U>(self, __op: F) -> $t<U, A> {
+                gen_node_impls!(@map_children self $t, __op => () $($field)*)
+            }
+        }
+
+
+        impl<ChildT, A: allocator_api2::alloc::Allocator> $crate::NodeLocalEquality for $t<ChildT, A> {
+            gen_node_impls!(@impl_local_eq { $($field)* });
+        }
+
+        impl<ChildT, A: allocator_api2::alloc::Allocator> Into<$crate::ast::AstNodeData<ChildT, A>> for $t<ChildT, A>  {
+            fn into(self) -> $crate::ast::AstNodeData<ChildT, A> {
+                $crate::ast::AstNodeData::$t(self)
             }
         }
     };
@@ -641,26 +527,11 @@ macro_rules! gen_node_impls {
 
 
     ($t:ident<A> { $($field:tt)*  }) => {
-        impl<A: Allocator> $crate::TreeChildren<AstNode> for $t<A> {
-            gen_node_impls!(@impl_children { $($field)* });
-        }
-
-        impl<A: Allocator> $crate::NodeLocalEquality for $t<A> {
-            gen_node_impls!(@impl_local_eq { $($field)* });
-        }
-        gen_node_impls!(@impl_map_children $t<A> { $($field)* });
+        gen_node_impls!(@impl_traits $t<A> { $($field)* });
     };
 
     ($t:ident { $($field:tt)*  }) => {
-        impl $crate::TreeChildren<AstNode> for $t {
-            gen_node_impls!(@impl_children { $($field)* });
-        }
-
-        impl $crate::NodeLocalEquality for $t {
-            gen_node_impls!(@impl_local_eq { $($field)* });
-        }
-
-        gen_node_impls!(@impl_map_children $t { $($field)* });
+        gen_node_impls!(@impl_traits $t { $($field)* });
     };
 
 

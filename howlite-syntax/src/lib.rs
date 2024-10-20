@@ -76,10 +76,6 @@ pub use howlite_l::lexerdef;
 pub use howlite_y::parse;
 pub use howlite_y::token_epp;
 
-pub trait TreeChildren<T> {
-    fn children(&self) -> impl Iterator<Item = NodeId<T>>;
-}
-
 pub trait NodeLocalEquality {
     /// Check if two tree nodes are equal, ignoring any attributes of their children.
     /// Note this still takes into account number of children.

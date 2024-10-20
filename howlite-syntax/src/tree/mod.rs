@@ -1,10 +1,8 @@
-mod assoc;
 mod read;
 mod write;
 
 use std::{hash::Hash, marker::PhantomData};
 
-pub use assoc::{AssociatedTree, AssociatedTreeBuildContext, PartialAssociatedTree};
 pub use read::*;
 pub use write::*;
 
@@ -14,47 +12,41 @@ pub struct NodeId<T> {
     index: usize,
 }
 
-impl<T> Clone for NodeId<T> {
-    fn clone(&self) -> Self {
-        Self {
-            _t: PhantomData,
-            index: self.index.clone(),
+pub trait TreeNodeId: Clone + Copy + std::fmt::Debug {
+    /// The internal type used to identify elements in the tree.
+    /// If the backing store for the tree is a Vec, this might be an index.
+    /// If the backing store is a map, this could be some UUID or hash-like identifier.
+    type Internal;
+
+    /// Create a new instance of the identifier, only the tree implementation should call this method
+    unsafe fn mint(internal: Self::Internal) -> Self;
+
+    /// Get the internal identifier type
+    fn inner(self) -> Self::Internal;
+}
+
+macro_rules! make_tree_id {
+    ($($maybe_pub:ident$(($pub_modifier:ident))?)? struct $t:ident) => {
+        #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        $($maybe_pub$(($pub_modifier))?)? struct $t(usize);
+
+        impl $crate::tree::TreeNodeId for $t {
+            type Internal = usize;
+
+            unsafe fn mint(internal: usize) -> Self {
+                Self(internal)
+            }
+
+            fn inner(self) -> usize {
+                self.0
+            }
         }
-    }
-}
-impl<T> Copy for NodeId<T> {}
-
-impl<T> Hash for NodeId<T> {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.index.hash(state);
-    }
+    };
 }
 
-impl<T> std::fmt::Debug for NodeId<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "NodeId<{}>({:#08x})",
-            std::any::type_name::<T>(),
-            self.index,
-        )
-    }
-}
+make_tree_id!(pub struct DefaultLinearTreeId);
 
-impl<T> Eq for NodeId<T> {}
-impl<T> PartialEq for NodeId<T> {
-    fn eq(&self, other: &Self) -> bool {
-        self.index == other.index
-    }
-}
+/// Marker trait for tree ids that wrap an index into a vec
+pub trait LinearTreeNodeId: TreeNodeId<Internal = usize> {}
 
-impl<T> PartialOrd for NodeId<T> {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-impl<T> Ord for NodeId<T> {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.index.cmp(&other.index)
-    }
-}
+impl<T> LinearTreeNodeId for T where T: TreeNodeId<Internal = usize> {}

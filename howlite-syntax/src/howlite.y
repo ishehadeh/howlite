@@ -5,7 +5,7 @@ Program -> Result<AstRef>:
     Trivia DeclList { node!(tree, $span, Program { definitions: $2? }) }
   ;
 
-DeclList -> Result<Vec<NodeId<AstNode>>>:
+DeclList -> Result<Vec<DefaultLinearTreeId>>:
     Decl { Ok(vec![$1?]) }
   | DeclList Decl { 
       let mut arr = $1?;
@@ -21,7 +21,7 @@ DeclList -> Result<Vec<NodeId<AstNode>>>:
 //  - "use"
 //  - "extern"
 
-Decl -> Result<NodeId<AstNode>>:
+Decl -> Result<DefaultLinearTreeId>:
     DeclTy { $1 }
   | DefFunc { $1 }
   | DefExternFunc { $1 }
@@ -30,7 +30,7 @@ Decl -> Result<NodeId<AstNode>>:
   | DefGlobal { $1 }
   ;
 
-DefImport -> Result<NodeId<AstNode>>:
+DefImport -> Result<DefaultLinearTreeId>:
     'use' TriviaRequired 'STRING' Trivia ';' Trivia {
       trivia!(right trivia_tree, $6,
         node!(tree, $span, DefImport {
@@ -39,13 +39,13 @@ DefImport -> Result<NodeId<AstNode>>:
     }
   ;
 
-DefGlobal -> Result<NodeId<AstNode>>:
+DefGlobal -> Result<DefaultLinearTreeId>:
     ExprLet ';' Trivia {
       $1 // TODO: inner trivia
     }
   ;
 
-DeclTy -> Result<NodeId<AstNode>>:
+DeclTy -> Result<DefaultLinearTreeId>:
     'type' TriviaRequired 'IDENT' Trivia '[' Trivia TyParamDeclList ']' Trivia '=' Trivia TyExpr ';' Trivia {
       // TODO: inner trivia
       trivia!(right trivia_tree, $14,
@@ -88,7 +88,7 @@ DeclTy -> Result<NodeId<AstNode>>:
     }
   ;
 
-TyParamDeclList -> Result<Vec<NodeId<AstNode>>>:
+TyParamDeclList -> Result<Vec<DefaultLinearTreeId>>:
     TyParamDecl { Ok(vec![$1?]) }
   | TyParamDeclList ',' Trivia TyParamDecl {
       let mut arr = $1?;
@@ -97,7 +97,7 @@ TyParamDeclList -> Result<Vec<NodeId<AstNode>>>:
     }
   ;
 
-TyParamDecl -> Result<NodeId<AstNode>>:
+TyParamDecl -> Result<DefaultLinearTreeId>:
     IDENT Trivia ':' Trivia TyExpr {
       node!(tree, $span,
         TyParam {
@@ -109,7 +109,7 @@ TyParamDecl -> Result<NodeId<AstNode>>:
     }
   ;
 
-DefFunc -> Result<NodeId<AstNode>>:
+DefFunc -> Result<DefaultLinearTreeId>:
     // TODO: (both productions) inner trivia
     'func' TriviaRequired IDENT Trivia '(' Trivia DefFuncParamList ')' Trivia ':' Trivia TyExpr ExprBlock {
       node!(tree, $span, DefFunc {
@@ -131,7 +131,7 @@ DefFunc -> Result<NodeId<AstNode>>:
     }
   ;
 
-DefExternFunc -> Result<NodeId<AstNode>>:
+DefExternFunc -> Result<DefaultLinearTreeId>:
     // TODO: outer & inner trivia
     'extern' TriviaRequired 'func' TriviaRequired IDENT Trivia '(' Trivia DefFuncParamList ')' Trivia ':' Trivia TyExpr ';' Trivia {
       trivia!(left trivia_tree, $16,
@@ -153,7 +153,7 @@ DefExternFunc -> Result<NodeId<AstNode>>:
     }
   ;
 
-DefExternVar -> Result<NodeId<AstNode>>:
+DefExternVar -> Result<DefaultLinearTreeId>:
     'extern' TriviaRequired 'let' TriviaRequired IDENT Trivia ':' Trivia TyExpr ';' Trivia {
       // TODO: inner trivia
       trivia!(left trivia_tree, $11,
@@ -698,7 +698,7 @@ TyRef -> Result<AstRef>:
     }
   ;
 
-TyParamList -> Result<Vec<NodeId<AstNode>>>:
+TyParamList -> Result<Vec<DefaultLinearTreeId>>:
     TyExpr { Ok(vec![$1?]) }
   | TyParamList ',' Trivia TyExpr {
       let mut arr = $1?;
@@ -794,7 +794,7 @@ MultiLineComment -> Result<TriviaPeice>:
 
 %%
 
-use crate::{Trivia, TriviaData, TriviaPeice, NewlineKind, tree::NodeId, CommentKind, ast::*};
+use crate::{Trivia, TriviaData, TriviaPeice, NewlineKind, tree::DefaultLinearTreeId, CommentKind, ast::*};
 use allocator_api2::{vec::Vec, vec};
 
 pub type Result<T, E = Box<dyn std::error::Error>> = std::result::Result<T, E>;
@@ -808,7 +808,7 @@ fn must_parse_int_radix<const RADIX: u32>(s: &str) -> i128 {
   i128::from_str_radix(&parsable, RADIX).unwrap()
 }
 
-pub type AstRef = NodeId<AstNode>;
+pub type AstRef = DefaultLinearTreeId;
 
 macro_rules! node {
   ($t:ident, $span:expr, $node:expr) => {
