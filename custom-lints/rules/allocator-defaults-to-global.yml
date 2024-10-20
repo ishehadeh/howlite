@@ -1,0 +1,16 @@
+id: allocator-defaults-to-global
+language: rust
+rule:
+  inside:
+    all:
+      - inside:
+          kind: struct_item
+      - not:
+          kind: optional_type_parameter
+  kind: constrained_type_parameter
+  pattern: $TYPARAM
+  has:
+    field: bounds
+    regex: Allocator
+
+fix: '$TYPARAM = Global'

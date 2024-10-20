@@ -1,0 +1,6 @@
+ruleDirs:
+- ./custom-lints/rules
+testConfigs:
+- testDir: ./custom-lints/rule-tests
+utilDirs:
+- ./custom-lints/utils

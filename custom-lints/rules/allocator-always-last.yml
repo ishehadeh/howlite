@@ -1,0 +1,14 @@
+id: allocator-always-last.yml
+language: rust
+rule:
+  kind: type_parameters
+  pattern: $TYPARAM
+
+transform:
+  REORDER:
+    replace:
+      source: $TYPARAM
+      replace: '(?<ALLOC>[a-zA-Z0-9_]+\s*:\s*Allocator(\s*=[^,]*)?),(?<REST>.*)>$'
+      by: $REST, $ALLOC>
+
+fix: '$REORDER'
