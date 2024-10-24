@@ -222,6 +222,57 @@ impl<I: SetElement> DynSet<I> {
         }
     }
 
+    pub fn new_from_individual_generic<
+        U: Into<I> + SetElement + num_traits::bounds::UpperBounded,
+    >(
+        slice: &[U],
+    ) -> DynSet<I> {
+        if slice.is_empty() {
+            return Self::empty();
+        }
+
+        let (min, max) = slice.iter().fold((&slice[0], &slice[0]), |(min, max), el| {
+            if el < min {
+                (el, max)
+            } else if el > max {
+                (min, el)
+            } else {
+                (min, max)
+            }
+        });
+
+        let u_small_set_max_range = U::try_from(SMALL_SET_MAX_RANGE);
+        // condition here handles the case where SMALL_SET_MAX_RANGE > U::max_values()
+        if u_small_set_max_range
+            .map(|max_range| max.clone() - min < max_range)
+            .unwrap_or_else(|_| {
+                U::max_value()
+                    .to_usize()
+                    .map(|u_max| u_max < SMALL_SET_MAX_RANGE)
+                    .unwrap_or(false)
+            })
+        {
+            let mut usize_slice = Vec::with_capacity(slice.len());
+
+            for x in slice.iter() {
+                usize_slice.push(
+                    (x.clone() - min)
+                        .to_usize()
+                        .expect("failed to convert element to usize"),
+                )
+            }
+            return DynSet {
+                data: DynSetData::Small(SmallSet {
+                    elements: Box::new(BitField::from_slice(&usize_slice)),
+                    offset: min.clone().into(),
+                }),
+                range: Range::new(min.clone().into(), max.clone().into()),
+            };
+        }
+
+        todo!("non-small set from individual")
+    }
+
     pub fn new_from_individual(slice: &[I]) -> DynSet<I> {
         let (min, max) = slice.iter().fold((&slice[0], &slice[0]), |(min, max), el| {
             if el < min {

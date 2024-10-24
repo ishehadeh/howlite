@@ -8,10 +8,12 @@ pub use ast::{AstNode, AstNodeData};
 use howlite_y::AstRef;
 pub use lrpar::Span;
 use std::{env, error::Error};
-use tree::NodeId;
 use tree::{Tree, TreeBuilder};
-// #[cfg(feature = "proptest")]
-// pub mod gen;
+mod string_codec;
+pub use string_codec::*;
+
+#[cfg(feature = "proptest")]
+pub mod gen;
 use lrpar::LexParseError;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

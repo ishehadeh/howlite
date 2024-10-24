@@ -3,6 +3,7 @@ language: rust
 rule:
   kind: type_parameters
   pattern: $TYPARAM
+  regex: '([a-zA-Z0-9_]+\s*:\s*Allocator(\s*=[^,]*)?),(.+)>$'
 
 transform:
   REORDER:

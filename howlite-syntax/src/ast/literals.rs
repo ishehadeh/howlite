@@ -3,10 +3,9 @@ use allocator_api2::{
     vec::Vec,
 };
 use lrpar::Span;
+use smol_str::SmolStr;
 
 use crate::{gen_node_impls, tree::DefaultLinearTreeId};
-
-use super::AstNode;
 
 #[derive(Debug, Clone)]
 pub struct LiteralInteger {
@@ -16,19 +15,19 @@ gen_node_impls!(LiteralInteger { value });
 
 #[derive(Debug, Clone)]
 pub struct LiteralChar {
-    pub value: Span,
+    pub value: char,
 }
 gen_node_impls!(LiteralChar { value });
 
 #[derive(Debug, Clone)]
 pub struct LiteralString {
-    pub value: Span,
+    pub value: SmolStr,
 }
 gen_node_impls!(LiteralString { value });
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LiteralStructMember<ChildT = DefaultLinearTreeId> {
-    pub field: Span,
+    pub field: SmolStr,
     pub value: ChildT,
 }
 gen_node_impls!(LiteralStructMember { field, &value });

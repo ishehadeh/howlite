@@ -3,6 +3,7 @@ use allocator_api2::{
     vec::Vec,
 };
 use lrpar::Span;
+use smol_str::SmolStr;
 
 use crate::{
     gen_node_impls,
@@ -35,7 +36,7 @@ gen_node_impls!(TyExprUnion { &lhs, &rhs });
 #[derive(Debug, Clone, PartialEq)]
 pub struct TyStructMember<ChildT = DefaultLinearTreeId> {
     pub mutable: bool,
-    pub name: Span,
+    pub name: SmolStr,
     pub ty: ChildT,
 }
 gen_node_impls!(TyStructMember { name, mutable, &ty });
@@ -68,7 +69,7 @@ gen_node_impls!(TyNumberRange { &lo, &hi });
 
 #[derive(Debug, Clone)]
 pub struct TyParam<ChildT = DefaultLinearTreeId> {
-    pub name: Span,
+    pub name: SmolStr,
     pub super_ty: ChildT,
 
     pub default_ty: Option<ChildT>,

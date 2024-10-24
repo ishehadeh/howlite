@@ -5,6 +5,7 @@ use allocator_api2::{
     vec::Vec,
 };
 use lrpar::Span;
+use smol_str::SmolStr;
 
 use std::fmt::Debug;
 
@@ -67,16 +68,25 @@ pub enum AstNodeData<ChildT = DefaultLinearTreeId, A: Allocator = Global> {
 }
 
 #[derive(Debug, Clone)]
-pub struct AstNode<ChildT = DefaultLinearTreeId, A: Allocator = Global> {
+pub struct AstNode<Data = AstNodeData<DefaultLinearTreeId>> {
     pub span: Span,
-    pub data: AstNodeData<ChildT, A>,
+    pub data: Data,
 }
 
-impl<ChildT, A: Allocator> AstNode<ChildT, A> {
+impl<ChildT, A: Allocator> AstNode<AstNodeData<ChildT, A>> {
     pub fn new<S: Into<Span>, T: Into<AstNodeData<ChildT, A>>>(span: S, data: T) -> Self {
         AstNode {
             span: span.into(),
             data: data.into(),
+        }
+    }
+}
+
+impl<T> AstNode<T> {
+    pub fn new_narrow<S: Into<Span>>(span: S, data: T) -> Self {
+        AstNode {
+            span: span.into(),
+            data,
         }
     }
 }
@@ -90,7 +100,7 @@ gen_node_impls!(Repaired { &tree?, });
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct FieldAccess<ChildT = DefaultLinearTreeId> {
-    pub field: Span,
+    pub field: SmolStr,
     pub lhs: ChildT,
 }
 gen_node_impls!(FieldAccess { field, &lhs, });
@@ -112,7 +122,7 @@ gen_node_impls!(ExprCall<A> { &callee, &ty_params*, &params*, });
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprLet<ChildT = DefaultLinearTreeId> {
-    pub name: Span,
+    pub name: SmolStr,
     pub ty: ChildT,
     pub mutable: bool,
     pub value: ChildT,
@@ -158,7 +168,7 @@ gen_node_impls!(Block<A> { returns, &statements*, });
 
 #[derive(Debug, Clone)]
 pub struct Ident {
-    pub symbol: Span,
+    pub symbol: SmolStr,
 }
 gen_node_impls!(Ident { symbol });
 
@@ -268,7 +278,7 @@ impl<ChildT> NodeLocalEquality for AstNodeData<ChildT> {
     }
 }
 
-impl<ChildT> NodeLocalEquality for AstNode<ChildT> {
+impl<Data: NodeLocalEquality> NodeLocalEquality for AstNode<Data> {
     fn local_eq(&self, other: &Self) -> bool {
         other.span == self.span && self.data.local_eq(&other.data)
     }
@@ -282,6 +292,39 @@ where
 
     fn children<'a>(&'a self) -> impl Iterator<Item = &'a ChildT>;
     fn map<F: Fn(ChildT) -> T, T>(self, op: F) -> Self::Mapped<T>;
+}
+
+#[derive(Clone, Debug)]
+pub struct BoxAstNode(Box<AstNode<AstNodeData<BoxAstNode>>>);
+impl BoxAstNode {
+    pub fn new(span: Span, data: impl Into<AstNodeData<BoxAstNode>>) -> BoxAstNode {
+        BoxAstNode(Box::new(AstNode::new(span, data)))
+    }
+
+    pub fn fold<F: Fn(AstNode<AstNodeData<V>>) -> V, V>(self, op: &F) -> V {
+        op(self.map(|c| c.fold(op)))
+    }
+}
+
+impl std::ops::Deref for BoxAstNode {
+    type Target = AstNode<AstNodeData<BoxAstNode>>;
+
+    fn deref(&self) -> &Self::Target {
+        self.0.deref()
+    }
+}
+
+impl HigherOrderNode<BoxAstNode> for BoxAstNode {
+    type Mapped<T> = AstNode<AstNodeData<T>>;
+
+    fn children<'a>(&'a self) -> impl Iterator<Item = &'a BoxAstNode> {
+        self.0.data.children()
+    }
+
+    fn map<F: Fn(BoxAstNode) -> T, T>(self, op: F) -> Self::Mapped<T> {
+        let AstNode { span, data } = *self.0;
+        AstNode::new(span, data.map(op))
+    }
 }
 
 impl<ChildT, A: Allocator> HigherOrderNode<ChildT> for AstNodeData<ChildT, A>

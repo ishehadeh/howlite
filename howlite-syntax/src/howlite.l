@@ -56,8 +56,8 @@ use 'use'
 =                             "="
 !  "!"
 ~  "~"
-"((\\["nrt])|(\\x[0-9a-zA-Z]{2})|(\\u[0-9a-zA-Z]{4})|(\\*U[0-9a-zA-Z]{8})|[\pL\pM\pN\pS\pP\p{Zs}])*?"  "STRING"
-'((\\['nrt])|(\\x[0-9a-zA-Z]{2})|(\\u[0-9a-zA-Z]{4})|(\\*U[0-9a-zA-Z]{8})|[\pL\pM\pN\pS\pP\p{Zs}])'    "CHAR"
+"((\\["nrt])|(\\x[0-9a-fA-F]{2})|(\\u[0-9a-fA-F]{4})|(\\U[0-9a-fA-F]{6})|[\pL\pM\pN\pS\pP\p{Zs}])*?"  "STRING"
+'((\\['nrt])|(\\x[0-9a-fA-F]{2})|(\\u[0-9a-fA-F]{4})|(\\U[0-9a-fA-F]{6})|[\pL\pM\pN\pS\pP\p{Zs}])*?'    "CHAR"
 
 \r\n          "CRLF"
 \n            "LF"

@@ -1,9 +1,48 @@
 use std::{
     hash::BuildHasher,
-    sync::atomic::{AtomicU64, Ordering},
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        RwLock,
+    },
 };
 
-use hashbrown::{hash_map::DefaultHashBuilder, HashTable};
+use hashbrown::{DefaultHashBuilder, HashTable};
+use smol_str::SmolStr;
+
+pub struct SyncSymbolTable<H: BuildHasher = DefaultHashBuilder> {
+    inner: RwLock<OwnedSymbolTable<H>>,
+}
+
+impl Default for SyncSymbolTable {
+    fn default() -> Self {
+        Self {
+            inner: RwLock::new(Default::default()),
+        }
+    }
+}
+
+impl SyncSymbolTable {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn stringify(&self, sym: Symbol) -> Result<SmolStr, SymbolTableError> {
+        // TODO: recover from poison
+        self.inner
+            .read()
+            .expect("SyncSymbolTable::stringify(): symbol table lock was poisoned!")
+            .stringify(sym)
+            .map(|s| SmolStr::new(s))
+    }
+
+    pub fn intern(&self, s: &str) -> Symbol {
+        // TODO: recover from poison
+        self.inner
+            .write()
+            .expect("SyncSymbolTable::intern(): symbol table lock was poisoned!")
+            .intern(s)
+    }
+}
 
 pub struct OwnedSymbolTable<H: BuildHasher = DefaultHashBuilder> {
     alloc: bumpalo::Bump,
@@ -39,7 +78,7 @@ impl<H: BuildHasher> OwnedSymbolTable<H> {
         self.table.stringify(sym)
     }
 
-    pub fn intern(&mut self, s: &str) -> Result<Symbol, SymbolTableError> {
+    pub fn intern(&mut self, s: &str) -> Symbol {
         let mem = self.alloc.alloc_str(s);
         let owned: &'static mut str = unsafe { std::mem::transmute(mem) };
         self.table.intern(owned)
@@ -58,7 +97,7 @@ impl std::fmt::Debug for Symbol {
 
 pub struct SymbolTable<'a, H: BuildHasher = DefaultHashBuilder> {
     hasher_builder: H,
-    sequence: AtomicU64,
+    sequence: u64,
     symbols: HashTable<(u64, u64, &'a str)>,
 }
 
@@ -82,7 +121,7 @@ impl<'a, H: BuildHasher> SymbolTable<'a, H> {
     pub fn new_with_hasher_builder(hasher_builder: H) -> Self {
         Self {
             hasher_builder,
-            sequence: AtomicU64::new(0),
+            sequence: 0,
             symbols: Default::default(),
         }
     }
@@ -97,21 +136,21 @@ impl<'a, H: BuildHasher> SymbolTable<'a, H> {
             .ok_or(SymbolTableError::InvalidSymbol { symbol: sym })
     }
 
-    pub fn intern(&mut self, s: &'a str) -> Result<Symbol, SymbolTableError> {
-        // this is probably the most naive symbol table you could implement, but it works well enough...
+    pub fn intern(&mut self, s: &'a str) -> Symbol {
         let s_hash = self.hasher_builder.hash_one(s);
         let existing = self
             .symbols
             .find(s_hash, |(t_hash, _, t)| *t_hash == s_hash && *t == s);
         if let Some((_, s_seq, _)) = existing {
-            Ok(Symbol(s_hash, *s_seq))
+            Symbol(s_hash, *s_seq)
         } else {
-            let s_seq = self.sequence.fetch_add(1, Ordering::Relaxed);
+            let s_seq = self.sequence;
+            self.sequence += 1;
             self.symbols
                 .insert_unique(s_hash, (s_hash, s_seq, s), |(_, _, t)| {
                     self.hasher_builder.hash_one(t)
                 });
-            Ok(Symbol(s_hash, s_seq))
+            Symbol(s_hash, s_seq)
         }
     }
 }
@@ -173,7 +212,7 @@ mod test {
         let mut symtab = SymbolTable::new();
         for _ in 0..1000 {
             let s = strgen.random_str().to_string().leak();
-            symtab.intern(s).expect("failed to intern string");
+            symtab.intern(s);
         }
     }
 
@@ -190,7 +229,7 @@ mod test {
         for _ in 0..1000 {
             let s = strgen.random_str();
             symbol_strings.push(s.to_string());
-            symbols.push(symtab.intern(s).expect("failed to intern string"));
+            symbols.push(symtab.intern(s));
         }
 
         for (i, &sym) in symbols.iter().enumerate() {
@@ -217,11 +256,7 @@ mod test {
         for _ in 0..1000 {
             let s = strgen.random_str();
             symbol_strings.push(s.to_string());
-            symbols.push(
-                symtab
-                    .intern(s.to_string().leak())
-                    .expect("failed to intern string"),
-            );
+            symbols.push(symtab.intern(s.to_string().leak()));
         }
 
         for (i, &sym) in symbols.iter().enumerate() {

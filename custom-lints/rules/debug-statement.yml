@@ -1,0 +1,6 @@
+id: debug-statements
+language: rust
+rule:
+  pattern: "dbg!($$$ARGS);"
+
+fix: ''

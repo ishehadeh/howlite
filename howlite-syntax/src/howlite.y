@@ -34,7 +34,7 @@ DefImport -> Result<DefaultLinearTreeId>:
     'use' TriviaRequired 'STRING' Trivia ';' Trivia {
       trivia!(right trivia_tree, $6,
         node!(tree, $span, DefImport {
-          file: $3?.span(),
+          file: $lexer.span_str($3?.span()).into(),
         }))
     }
   ;
@@ -50,7 +50,7 @@ DeclTy -> Result<DefaultLinearTreeId>:
       // TODO: inner trivia
       trivia!(right trivia_tree, $14,
         node!(tree, $span, DefType {
-            name: $3?.span(),
+            name: $lexer.span_str($3?.span()).into(),
             alias: false,
             ty: trivia!(left trivia_tree, $11, $12?),
             ty_params: $7?,
@@ -60,7 +60,7 @@ DeclTy -> Result<DefaultLinearTreeId>:
       // TODO: inner trivia
       trivia!(right trivia_tree, $15,
         node!(tree, $span, DefType {
-            name: $5?.span(),
+            name: $lexer.span_str($5?.span()).into(),
             alias: true,
             ty: trivia!(left trivia_tree, $13, $14?),
             ty_params: $9?,
@@ -70,7 +70,7 @@ DeclTy -> Result<DefaultLinearTreeId>:
       // TODO: inner trivia
       trivia!(right trivia_tree, $10,
         node!(tree, $span, DefType {
-            name: $3?.span(),
+            name: $lexer.span_str($3?.span()).into(),
             alias: false,
             ty: trivia!(left trivia_tree, $6, $7?),
             ty_params: vec![],
@@ -80,7 +80,7 @@ DeclTy -> Result<DefaultLinearTreeId>:
       // TODO: inner trivia
       trivia!(right trivia_tree, $11,
         node!(tree, $span, DefType {
-            name: $5?.span(),
+            name: $lexer.span_str($5?.span()).into(),
             alias: true,
             ty: trivia!(left trivia_tree, $8, $9?),
             ty_params: vec![],
@@ -101,7 +101,7 @@ TyParamDecl -> Result<DefaultLinearTreeId>:
     IDENT Trivia ':' Trivia TyExpr {
       node!(tree, $span,
         TyParam {
-          name: $1?.span(),
+          name: $lexer.span_str($1?.span()).into(),
           super_ty: trivia!(left trivia_tree, $4, $5?),
           default_ty: None
         }
@@ -113,7 +113,7 @@ DefFunc -> Result<DefaultLinearTreeId>:
     // TODO: (both productions) inner trivia
     'func' TriviaRequired IDENT Trivia '(' Trivia DefFuncParamList ')' Trivia ':' Trivia TyExpr ExprBlock {
       node!(tree, $span, DefFunc {
-        name: $3?.span(),
+        name: $lexer.span_str($3?.span()).into(),
         params: $7?,
         ty_params: vec![],
         return_ty: trivia!(left trivia_tree, $11, $12?),
@@ -122,7 +122,7 @@ DefFunc -> Result<DefaultLinearTreeId>:
     }
   | 'func' TriviaRequired IDENT Trivia '[' Trivia TyParamDeclList ']' '(' Trivia DefFuncParamList ')' Trivia ':' Trivia TyExpr ExprBlock {
       node!(tree, $span, DefFunc {
-        name: $3?.span(),
+        name: $lexer.span_str($3?.span()).into(),
         params: $11?,
         ty_params: $7?, // TODO: lhs trivia
         return_ty: trivia!(left trivia_tree, $15, $16?),
@@ -136,7 +136,7 @@ DefExternFunc -> Result<DefaultLinearTreeId>:
     'extern' TriviaRequired 'func' TriviaRequired IDENT Trivia '(' Trivia DefFuncParamList ')' Trivia ':' Trivia TyExpr ';' Trivia {
       trivia!(left trivia_tree, $16,
         node!(tree, $span, DefExternFunc {
-          name: $5?.span(),
+          name: $lexer.span_str($5?.span()).into(),
           params: $9?,
           ty_params: vec![],
           return_ty: trivia!(left trivia_tree, $13, $14?),
@@ -145,7 +145,7 @@ DefExternFunc -> Result<DefaultLinearTreeId>:
   | 'extern' TriviaRequired 'func' TriviaRequired IDENT Trivia '[' Trivia TyParamDeclList ']' '(' Trivia DefFuncParamList ')' Trivia ':' Trivia TyExpr ';' Trivia {
       trivia!(left trivia_tree, $20,
         node!(tree, $span, DefExternFunc {
-          name: $5?.span(),
+          name: $lexer.span_str($5?.span()).into(),
           params: $13?,
           ty_params: $9?,
           return_ty: trivia!(left trivia_tree, $17, $18?),
@@ -158,7 +158,7 @@ DefExternVar -> Result<DefaultLinearTreeId>:
       // TODO: inner trivia
       trivia!(left trivia_tree, $11,
         node!(tree, $span, DefExternVar {
-          name: $5?.span(),
+          name: $lexer.span_str($5?.span()).into(),
           ty: trivia!(left trivia_tree, $8, $9?),
           mutable: false,
         }))
@@ -167,7 +167,7 @@ DefExternVar -> Result<DefaultLinearTreeId>:
       // TODO: inner trivia
       trivia!(left trivia_tree, $13,
         node!(tree, $span, DefExternVar {
-          name: $7?.span(),
+          name: $lexer.span_str($7?.span()).into(),
           ty: trivia!(left trivia_tree, $10, $11?),
           mutable: true,
         }))
@@ -190,14 +190,14 @@ DefFuncParam -> Result<AstRef>:
       node!(tree, $span, DefParam {
         mutable: true,
         ty: trivia!(left trivia_tree, $5, $6?),
-        name: $1?.span()
+        name: $lexer.span_str($1?.span()).into()
       })
     }
   | IDENT Trivia ':' Trivia TyExpr {
       node!(tree, $span, DefParam {
         mutable: false,
         ty: trivia!(left trivia_tree, $4, $5?),
-        name: $1?.span()
+        name: $lexer.span_str($1?.span()).into()
       })
     }
   ;
@@ -264,7 +264,7 @@ ExprLet -> Result<AstRef>:
     // TODO: (both productions) inner trivia
     'let' TriviaRequired 'IDENT' Trivia ':' Trivia TyExpr '=' Trivia ExprSimple { 
       node!(tree, $span, ExprLet {
-        name: $3?.span(),
+        name:  $lexer.span_str($3?.span()).into(),
         ty: trivia!(left trivia_tree, $6, $7?),
         value: trivia!(left trivia_tree, $9, $10?),
         mutable: false,
@@ -272,7 +272,7 @@ ExprLet -> Result<AstRef>:
     }
   | 'let' TriviaRequired 'mut' TriviaRequired 'IDENT' TriviaRequired ':' Trivia TyExpr '=' Trivia ExprSimple { 
       node!(tree, $span, ExprLet {
-        name: $5?.span(),
+        name: $lexer.span_str($5?.span()).into(),
         ty: trivia!(left trivia_tree, $8, $9?),
         value: trivia!(left trivia_tree, $11, $12?),
         mutable: true,
@@ -475,7 +475,7 @@ ExprFieldAccess -> Result<AstRef>:
       trivia!(right trivia_tree, $4,
         node!(tree, $span, FieldAccess {
           lhs: $1?,
-          field: $3?.span(),
+          field: $lexer.span_str($3?.span()).into(),
         }))
     }
   ;
@@ -508,7 +508,7 @@ Term -> Result<AstRef>:
   ;
 
 Ident -> Result<AstRef>:
-    "IDENT" Trivia { trivia!(right trivia_tree, $2, node!(tree, $span, Ident { symbol: $1?.span() })) }
+    "IDENT" Trivia { trivia!(right trivia_tree, $2, node!(tree, $span, Ident { symbol: SmolStr::from($lexer.span_str($1?.span())) })) }
   ;
 
 LiteralInt -> Result<AstRef>:
@@ -520,14 +520,14 @@ LiteralInt -> Result<AstRef>:
 LiteralChar -> Result<AstRef>:
     'CHAR' Trivia {
       // TODO: should have a separate production to handle any invalid char 'CHAR' only matches valid sequences
-      trivia!(right trivia_tree, $2, node!(tree, $span, LiteralChar { value: $1?.span() }))
+      trivia!(right trivia_tree, $2, node!(tree, $span, LiteralChar { value: unescape_char_literal($lexer.span_str($1?.span()))? }))
     }
   ;
 
 LiteralString -> Result<AstRef>:
     'STRING' Trivia {
       // TODO: should have a separate production to handle any invalid char 'STRNG' only matches valid sequences
-      trivia!(right trivia_tree, $2, node!(tree, $span, LiteralString { value: $1?.span() }))
+      trivia!(right trivia_tree, $2, node!(tree, $span, LiteralString { value: unescape_string_literal($lexer.span_str($1?.span()))? }))
     }
   ;
 
@@ -562,7 +562,7 @@ LiteralStructMemberList -> Result<Vec<AstRef>>:
 LiteralStructMember -> Result<AstRef>:
     IDENT Trivia ':' Trivia Expr {
       node!(tree, $span, LiteralStructMember {
-        field: $1?.span(),
+        field: $lexer.span_str($1?.span()).into(),
         value: trivia!(left trivia_tree, $4, $5?)
       })
     }
@@ -644,14 +644,14 @@ TyStructMember -> Result<AstRef>:
       node!(tree, $span, TyStructMember {
         mutable: true,
         ty: trivia!(left trivia_tree, $5, $6?),
-        name: $1?.span()
+        name: $lexer.span_str($1?.span()).into()
       })
     }
   | IDENT Trivia ':' Trivia TyExpr {
       node!(tree, $span, TyStructMember {
         mutable: false,
         ty: trivia!(left trivia_tree, $4, $5?),
-        name: $1?.span()
+        name: $lexer.span_str($1?.span()).into()
       })
     }
   ;
@@ -794,8 +794,9 @@ MultiLineComment -> Result<TriviaPeice>:
 
 %%
 
-use crate::{Trivia, TriviaData, TriviaPeice, NewlineKind, tree::DefaultLinearTreeId, CommentKind, ast::*};
+use crate::{Trivia, TriviaData, TriviaPeice, NewlineKind, tree::DefaultLinearTreeId, CommentKind, ast::*, string_codec::StringDecoder};
 use allocator_api2::{vec::Vec, vec};
+use smol_str::SmolStr;
 
 pub type Result<T, E = Box<dyn std::error::Error>> = std::result::Result<T, E>;
 
@@ -806,6 +807,20 @@ fn must_parse_int_radix<const RADIX: u32>(s: &str) -> i128 {
   parsable.extend(s.chars().skip(radix_prefix_size).filter(|&c| c != '_'));
 
   i128::from_str_radix(&parsable, RADIX).unwrap()
+}
+
+#[inline(always)]
+fn unescape_char_literal(token: &str) -> Result<char> {
+  // remove quotes from token
+  let dec = StringDecoder::new_for_char(&token[1..token.len() - 1]);
+  Ok(dec.compile().map_err(|e| Box::new(e))?.chars().nth(0).unwrap())
+}
+
+#[inline(always)]
+fn unescape_string_literal(token: &str) -> Result<SmolStr> {
+  // remove quotes from token
+  let dec = StringDecoder::new_for_string(&token[1..token.len() - 1]);
+  Ok(dec.compile().map_err(|e| Box::new(e))?)
 }
 
 pub type AstRef = DefaultLinearTreeId;

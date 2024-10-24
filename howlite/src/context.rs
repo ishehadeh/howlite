@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use howlite_syntax::{tree::NodeId, AstNode};
+use howlite_syntax::tree::{DefaultLinearTreeId, NodeId};
 use howlite_typecheck::Ty;
 use preseli::integer::Scalar;
 
@@ -47,7 +47,7 @@ pub struct TypeInfo {
 
     // incremented if the synthesized type changes.
     pub generation: usize,
-    pub inherited_errors: smallvec::SmallVec<[NodeId<AstNode>; 4]>,
+    pub inherited_errors: smallvec::SmallVec<[DefaultLinearTreeId; 4]>,
     pub implications: Vec<Implication>,
 }
 

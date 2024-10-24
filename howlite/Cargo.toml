@@ -4,19 +4,23 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-howlite-syntax = { path = "../howlite-syntax" }
+howlite-syntax = { path = "../howlite-syntax", features = ["proptest"] }
 howlite-typecheck = { path = "../howlite-typecheck" }
 preseli = { path = "../preseli" }
 sunstone = { path = "../sunstone" }
 thiserror = "*"
 hashbrown = "*"
-bumpalo = { version = "*", features = ["boxed"] }
-smallvec = "*"
+bumpalo = { version = "*", features = ["boxed", "allocator-api2"] }
+smallvec = { version = "*" }
 slotmap = "*"
+allocator-api2 = "*"
+dashmap = "*"
+smol_str = "=0.3.2"
 
 [dev-dependencies]
 # used for stress-testing symbol table
 rand = { version = "=0.8.5" }
+proptest = { version = "=1.5.0" }
 
 [[bin]]
 name = "hlt-typecheck"

@@ -1,9 +1,4 @@
-use crate::{
-    gen_node_impls,
-    tree::{DefaultLinearTreeId, NodeId},
-};
-
-use super::AstNode;
+use crate::{gen_node_impls, tree::DefaultLinearTreeId};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum InfixOp {

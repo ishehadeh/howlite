@@ -1,0 +1,13 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 253a2ce8646c80f1440f09b7ae76d651f73f25d627c83e3650d5e5a5ea7fce89 # shrinks to s = ""
+cc ab600d2c15fcbe6f5b650459deb8f3a2234c05563fe6ca402e9765f2cccaf6e9 # shrinks to s = "\\xAA"
+cc cc8cc42cb7437f114a0898a5576327699f3f92fe24f48006808e6692ccb9c24c # shrinks to s = "\\x01"
+cc 8289e26d2eb4ad9c2d8f2e533484c830a7cfd5e03afa6199d0d59b119dfeaf76 # shrinks to s = "\\UB1A00a"
+cc 655a4eb386e2bc7e775d2c648d309ff73a48c08d2f48fa4cf641a3f86fc31b69 # shrinks to (expected, lit) = ('\'', "\\'")
+cc e37cc51017e53f52f254729dc03aeca760c16cf1e2549077dfce173fd130989a # shrinks to (expected, lit) = ('\u{143d6}', "\u{143d6}")
+cc edec168d0c7801469541ba29dbae5db8af6ec54a136ef8b5975e0b8c3798d47d # shrinks to (expected, lit) = ("`f𐣵🢘𐖼U\"%ቍ\\\"🕴Ⱥ'^᥀𑛃", "\\x60\\U000066\\U0108f5\\U01F898\\U0105bc\\U000055\\U000022\\U000025\\U00124d\\U00005c\\U000022\\U01f574\\U00023a\\U000027\\U00005e\\U001940\\U0116c3")

@@ -1,7 +1,5 @@
 use crate::{gen_node_impls, tree::DefaultLinearTreeId};
 
-use super::AstNode;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PrefixOp {
     LogicalNot,
