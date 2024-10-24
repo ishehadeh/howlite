@@ -1043,8 +1043,28 @@ impl<I: SetElement> SetOpIncludeExclude<I> for DynSet<I> {
         }
     }
 
-    fn exclude_mut(&mut self, _element: &I) {
-        todo!()
+    fn exclude_mut(&mut self, element: &I) {
+        match &mut self.data {
+            DynSetData::Empty => (),
+            DynSetData::Small(small) => {
+                let offset_element = element.clone() - &small.offset;
+                if let Some(offset_element_usize) = offset_element.to_usize() {
+                    if offset_element_usize < SMALL_SET_MAX_RANGE {
+                        small.elements.exclude_mut(&offset_element_usize);
+                        if let Some(bounds) = small.elements.range() {
+                            self.range = Range::new(
+                                I::from_usize(*bounds.lo()).unwrap() + &small.offset,
+                                I::from_usize(*bounds.hi()).unwrap() + &small.offset,
+                            );
+                        } else {
+                            self.data = DynSetData::Empty
+                        }
+                    }
+                }
+            }
+            DynSetData::Contiguous => todo!("DynSet::exclude_mut(): when contiguous"),
+            DynSetData::Stripe(_stripe_set) => todo!("DynSet::exclude_mut(): when stripe"),
+        }
     }
 }
 

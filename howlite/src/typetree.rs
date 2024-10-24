@@ -11,8 +11,8 @@ use allocator_api2::alloc::Allocator;
 use dashmap::DashMap;
 use howlite_syntax::{
     ast::{
-        Block, BoxAstNode, ExprInfix, ExprLet, HigherOrderNode, InfixOp, LiteralInteger,
-        LiteralString,
+        Block, BoxAstNode, ExprInfix, ExprLet, HigherOrderNode, InfixOp, LiteralChar,
+        LiteralInteger, LiteralString,
     },
     tree::DefaultLinearTreeId,
     AstNode, AstNodeData, Span,
@@ -194,6 +194,11 @@ impl<L> LangCtx<L> {
 }
 /* #endregion */
 
+impl<L> Default for LangCtx<L> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 #[derive(Debug, Default)]
 pub struct Scope2 {
     /// List of local variable definitions.
@@ -204,17 +209,8 @@ pub struct Scope2 {
 
 #[derive(Debug, Clone)]
 pub struct VarDef {
-    assumed_ty: Rc<Ty<Symbol>>,
-    last_assignment: Rc<Ty<Symbol>>,
-}
-#[derive(Debug, Clone)]
-pub struct Scope {
-    parent: ScopeRef,
-
-    /// List of local variable definitions.
-    /// There can be duplicate symbols if a symbol is redefined
-    /// the list MUST be in the order variables are defined
-    locals: Vec<(Symbol, VarDef)>,
+    pub assumed_ty: Rc<Ty<Symbol>>,
+    pub last_assignment: Rc<Ty<Symbol>>,
 }
 
 impl Scope2 {
@@ -260,6 +256,7 @@ impl<A: Allocator> SynthesizeTy<Span> for AstNode<AstNodeData<Rc<Ty<Symbol>>, A>
         match &self.data {
             AstNodeData::LiteralInteger(n) => n.synthesize_ty(ctx),
             AstNodeData::LiteralString(n) => AstNode::new_narrow(self.span, n).synthesize_ty(ctx),
+            AstNodeData::LiteralChar(n) => AstNode::new_narrow(self.span, n).synthesize_ty(ctx),
             AstNodeData::ExprInfix(n) => AstNode::new_narrow(self.span, n).synthesize_ty(ctx),
             // AstNodeData::Block(n) => n.synthesize_ty(ctx),
             _ => todo!(),
@@ -289,6 +286,17 @@ impl SynthesizeTyPure for AstNode<&LiteralString> {
     }
 }
 
+impl SynthesizeTyPure for AstNode<&LiteralChar> {
+    fn synthesize_ty_pure(&self) -> Rc<Ty<Symbol>> {
+        let c = self.data.value;
+        let values = IntegerSet::new_from_individual(&[c as i128]);
+        Rc::new(Ty::Int(TyInt {
+            values,
+            storage: StorageClass::unsigned(32),
+        }))
+    }
+}
+
 impl SynthesizeTy<Span> for AstNode<&ExprInfix<Rc<Ty<Symbol>>>> {
     fn synthesize_ty(&self, ctx: &LangCtx<Span>) -> Rc<Ty<Symbol>> {
         match self.data.op {
@@ -313,24 +321,15 @@ mod test {
 
     use super::LangCtx;
     use howlite_syntax::{
-        ast::{BoxAstNode, HigherOrderNode, InfixOp, LiteralString},
-        gen::{expr_infix, infix_op, literal_integer},
-        AstNode, Span,
+        ast::{BoxAstNode, InfixOp, LiteralChar, LiteralString},
+        gen::{expr_infix, literal_integer},
+        Span,
     };
-    use howlite_typecheck::{
-        types::{StorageClass, TyInt},
-        Ty,
-    };
+    use howlite_typecheck::types::StorageClass;
+    use preseli::IntegerSet;
     use proptest::prelude::*;
     use smol_str::ToSmolStr;
-    use sunstone::ops::SetOpIncludes;
-    pub(crate) fn fold_tree_recursive<V, Tree, F>(t: Tree, op: F) -> V
-    where
-        F: Fn(Tree::Mapped<V>) -> V,
-        for<'a> Tree: 'a + HigherOrderNode<Box<Tree>>,
-    {
-        op(t.map::<_, V>(|ch| fold_tree_recursive(*ch, &op)))
-    }
+    use sunstone::ops::{SetOpIncludeExclude, SetOpIncludes};
 
     prop_compose! {
         fn any_lit_int()(val in literal_integer(0..u64::MAX as i128)) -> BoxAstNode {
@@ -359,6 +358,17 @@ mod test {
             for byte in s.bytes() {
                 assert!(elem_ty.values.includes(byte as i128), "string char type not include {:#02x}", byte);
             }
+        }
+
+        #[test]
+        fn synthesize_literal_char(c in any::<char>()) {
+            let lang = LangCtx::<Span>::new();
+            let program = BoxAstNode::new(Span::new(0,0), LiteralChar { value: c });
+            let ty = program.fold(&|s| s.synthesize_ty(&lang));
+            let int = ty.as_int().expect("char didn't synthesize to int");
+            assert!(int.values.includes(c as i128));
+            assert_eq!(int.storage, StorageClass::unsigned(32));
+            assert_eq!({let mut empty = int.values.clone(); empty.exclude_mut(&(c as i128)) ; empty}, IntegerSet::empty());
         }
     }
 }

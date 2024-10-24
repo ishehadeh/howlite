@@ -16,7 +16,7 @@ use std::{
 use num::CheckedAdd;
 use num_prime::{
     self,
-    buffer::{NaiveBuffer, PrimeBufferExt},
+    buffer::PrimeBufferExt,
     detail::{PrimalityBase, PrimalityRefBase},
 };
 use num_traits::{FromPrimitive, RefNum, ToPrimitive};

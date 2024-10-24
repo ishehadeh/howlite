@@ -1,6 +1,6 @@
 // mod context;
 pub mod symtab;
-mod typetree;
+pub mod typetree;
 
 pub fn add(left: u64, right: u64) -> u64 {
     left + right
