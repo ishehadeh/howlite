@@ -290,7 +290,7 @@ where
 {
     type Mapped<T>;
 
-    fn children<'a>(&'a self) -> impl Iterator<Item = &'a ChildT>;
+    fn children(&self) -> impl Iterator<Item = &'_ ChildT>;
     fn map<F: Fn(ChildT) -> T, T>(self, op: F) -> Self::Mapped<T>;
 }
 
@@ -380,13 +380,13 @@ macro_rules! gen_node_impls {
         gen_node_impls!{
             @map_children $name $t, $mapper  => ($($unwrapped)*
                 $field: {
-                    let (ptr, len, cap, alloc) = $name.$field.into_raw_parts_with_alloc();
-                    if let Some(ptr) = std::ptr::NonNull::new(ptr) {
+                    let ( ptr, len, cap, alloc) = $name.$field.into_raw_parts_with_alloc();
+                    if let Some(mut ptr) = std::ptr::NonNull::new(ptr) {
                         let layout = allocator_api2::alloc::Layout::from_size_align(cap, std::mem::align_of_val(unsafe { ptr.as_ref() } ));
                         let mut new_data = allocator_api2::vec::Vec::with_capacity_in(len, alloc);
                         for _ in 0..len {
                             new_data.push($mapper(unsafe { ptr.read() }));
-                            unsafe { ptr.add(1); }
+                            ptr = unsafe { ptr.add(1) }
                         }
                         unsafe { new_data.allocator().deallocate(ptr.cast::<u8>(), layout.expect("failed to construct layout")) };
                         new_data

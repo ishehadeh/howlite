@@ -2,25 +2,36 @@ use allocator_api2::{
     alloc::{Allocator, Global},
     vec::Vec,
 };
-use lrpar::Span;
+#[cfg(feature = "proptest")]
+use proptest::prelude::*;
+use proptest_derive::Arbitrary;
 use smol_str::SmolStr;
 
 use crate::{gen_node_impls, tree::DefaultLinearTreeId};
-
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "proptest", derive(Arbitrary))]
 pub struct LiteralInteger {
+    #[cfg_attr(feature = "proptest", proptest(strategy = "(0..u64::MAX as i128)"))]
     pub value: i128,
 }
 gen_node_impls!(LiteralInteger { value });
-
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "proptest", derive(Arbitrary))]
 pub struct LiteralChar {
     pub value: char,
 }
 gen_node_impls!(LiteralChar { value });
 
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "proptest", derive(Arbitrary))]
 pub struct LiteralString {
+    #[cfg_attr(
+        feature = "proptest",
+        proptest(
+            params = "proptest::string::StringParam",
+            strategy = "any_with::<String>(params).prop_map(SmolStr::from)"
+        )
+    )]
     pub value: SmolStr,
 }
 gen_node_impls!(LiteralString { value });

@@ -11,19 +11,22 @@ use allocator_api2::alloc::Allocator;
 use dashmap::DashMap;
 use howlite_syntax::{
     ast::{
-        Block, BoxAstNode, ExprInfix, ExprLet, HigherOrderNode, InfixOp, LiteralChar,
-        LiteralInteger, LiteralString,
+        Block, BoxAstNode, ExprInfix, ExprLet, HigherOrderNode, InfixOp, LiteralArray, LiteralChar,
+        LiteralInteger, LiteralString, LiteralStruct, LiteralStructMember, TyStruct,
+        TyStructMember,
     },
     tree::DefaultLinearTreeId,
     AstNode, AstNodeData, Span,
 };
 use howlite_typecheck::{
     errors::{IncompatibleError, OperationError},
-    types::{StorageClass, TyInt},
+    types::TyUnion,
+    types::{self, StorageClass, TyInt},
     Ty, TyArray,
 };
 use preseli::IntegerSet;
 use slotmap::{new_key_type, Key, SlotMap};
+use smallvec::SmallVec;
 use thiserror::Error;
 
 use crate::symtab::{OwnedSymbolTable, Symbol, SymbolTable, SyncSymbolTable};
@@ -50,7 +53,7 @@ pub enum CompilationErrorKind {
 }
 
 pub struct LangCtx<SourceLocationT> {
-    symbols: SyncSymbolTable,
+    pub symbols: SyncSymbolTable,
     scopes: DashMap<ScopeId, Scope2>,
     errors: DashMap<ErrorId, CompilationError<SourceLocationT>>,
     scope_parent: RwLock<Vec<(ScopeId, ScopeId)>>,
@@ -258,6 +261,26 @@ impl<A: Allocator> SynthesizeTy<Span> for AstNode<AstNodeData<Rc<Ty<Symbol>>, A>
             AstNodeData::LiteralString(n) => AstNode::new_narrow(self.span, n).synthesize_ty(ctx),
             AstNodeData::LiteralChar(n) => AstNode::new_narrow(self.span, n).synthesize_ty(ctx),
             AstNodeData::ExprInfix(n) => AstNode::new_narrow(self.span, n).synthesize_ty(ctx),
+            AstNodeData::LiteralStruct(_) => panic!("literal struct needs more info"),
+            // AstNodeData::Block(n) => n.synthesize_ty(ctx),
+            _ => todo!(),
+        }
+    }
+}
+
+impl SynthesizeTy<Span> for BoxAstNode {
+    fn synthesize_ty(&self, ctx: &LangCtx<Span>) -> Rc<Ty<Symbol>> {
+        match &self.data {
+            AstNodeData::LiteralInteger(n) => n.synthesize_ty(ctx),
+            AstNodeData::LiteralString(n) => AstNode::new_narrow(self.span, n).synthesize_ty(ctx),
+            AstNodeData::LiteralChar(n) => AstNode::new_narrow(self.span, n).synthesize_ty(ctx),
+            AstNodeData::ExprInfix(n) => {
+                // this is a really, really bad place to clone
+                // if test performance is ever an issue LOOK HERE!
+                AstNode::new_narrow(self.span, &n.clone().map(|c| c.synthesize_ty(ctx)))
+                    .synthesize_ty(ctx)
+            }
+            AstNodeData::LiteralStruct(n) => AstNode::new_narrow(self.span, n).synthesize_ty(ctx),
             // AstNodeData::Block(n) => n.synthesize_ty(ctx),
             _ => todo!(),
         }
@@ -297,6 +320,41 @@ impl SynthesizeTyPure for AstNode<&LiteralChar> {
     }
 }
 
+impl SynthesizeTyPure for AstNode<&LiteralArray<Rc<Ty<Symbol>>>> {
+    fn synthesize_ty_pure(&self) -> Rc<Ty<Symbol>> {
+        let union = TyUnion {
+            tys: SmallVec::from(self.data.values.as_ref()),
+        };
+
+        Rc::new(Ty::Union(union))
+    }
+}
+
+impl SynthesizeTy<Span> for AstNode<&LiteralStruct<BoxAstNode>> {
+    fn synthesize_ty(&self, ctx: &LangCtx<Span>) -> Rc<Ty<Symbol>> {
+        let ty = types::TyStruct {
+            fields: self
+                .data
+                .members
+                .iter()
+                .map(|child| {
+                    if let AstNodeData::LiteralStructMember(m) = &child.data {
+                        (&m.field, m.value.synthesize_ty(ctx))
+                    } else {
+                        panic!("child was not a struct member, this should be unreachable!")
+                    }
+                })
+                .map(|(field, value_ty)| types::StructField {
+                    name: ctx.symbols.intern(field.as_str()),
+                    ty: value_ty.clone(),
+                })
+                .collect(),
+        };
+
+        Rc::new(Ty::Struct(ty))
+    }
+}
+
 impl SynthesizeTy<Span> for AstNode<&ExprInfix<Rc<Ty<Symbol>>>> {
     fn synthesize_ty(&self, ctx: &LangCtx<Span>) -> Rc<Ty<Symbol>> {
         match self.data.op {
@@ -321,8 +379,10 @@ mod test {
 
     use super::LangCtx;
     use howlite_syntax::{
-        ast::{BoxAstNode, InfixOp, LiteralChar, LiteralString},
-        gen::{expr_infix, literal_integer},
+        ast::{
+            BoxAstNode, LiteralChar, LiteralInteger, LiteralString, LiteralStruct,
+            LiteralStructMember,
+        },
         Span,
     };
     use howlite_typecheck::types::StorageClass;
@@ -331,20 +391,39 @@ mod test {
     use smol_str::ToSmolStr;
     use sunstone::ops::{SetOpIncludeExclude, SetOpIncludes};
 
-    prop_compose! {
-        fn any_lit_int()(val in literal_integer(0..u64::MAX as i128)) -> BoxAstNode {
-            val
-        }
+    fn any_atomic_literal() -> impl Strategy<Value = BoxAstNode> {
+        prop_oneof![
+            any::<LiteralChar>().prop_map(|v| BoxAstNode::new(Span::new(0, 0), v)),
+            any::<LiteralString>().prop_map(|v| BoxAstNode::new(Span::new(0, 0), v)),
+            any::<LiteralInteger>().prop_map(|v| BoxAstNode::new(Span::new(0, 0), v))
+        ]
+    }
+
+    fn any_literal_struct_member() -> impl Strategy<Value = BoxAstNode> {
+        (any::<String>(), any_atomic_literal()).prop_map(|(field, value)| {
+            BoxAstNode::new(
+                Span::new(0, 0),
+                LiteralStructMember {
+                    field: field.into(),
+                    value,
+                },
+            )
+        })
+    }
+
+    fn any_literal_struct() -> impl Strategy<Value = BoxAstNode> {
+        proptest::collection::vec(any_literal_struct_member(), 0..15).prop_map(|members| {
+            BoxAstNode::new(
+                Span::new(0, 0),
+                LiteralStruct {
+                    members: members.into_iter().collect(),
+                },
+            )
+        })
     }
 
     proptest! {
-        #[test]
-        fn synthesize_literal_int(program in expr_infix(any_lit_int(), any_lit_int(), Just(InfixOp::Add))) {
-            let lang = LangCtx::<Span>::new();
 
-            let ty = program.fold(&|s| s.synthesize_ty(&lang));
-            assert!(ty.as_int().is_some(), "expected int, got {:?}", ty);
-        }
 
         #[test]
         fn synthesize_literal_string(s in any::<String>()) {
@@ -369,6 +448,14 @@ mod test {
             assert!(int.values.includes(c as i128));
             assert_eq!(int.storage, StorageClass::unsigned(32));
             assert_eq!({let mut empty = int.values.clone(); empty.exclude_mut(&(c as i128)) ; empty}, IntegerSet::empty());
+        }
+
+
+        #[test]
+        fn synthesize_literal_struct(program in any_literal_struct()) {
+            let lang = LangCtx::<Span>::new();
+            let ty = program.synthesize_ty(&lang);
+            assert!(ty.as_struct().is_some(), "expected struct type, got: {:?}", ty);
         }
     }
 }

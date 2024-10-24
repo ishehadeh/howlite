@@ -22,7 +22,7 @@ mod construct_macros;
 pub mod errors;
 pub mod types;
 mod util;
-use types::{StructField, TyInt, TyStruct};
+use types::{StructField, TyInt, TyStruct, TyUnion};
 mod typetable;
 use sunstone::ops::{SetOpIncludes, Subset};
 use util::try_collect::TryCollect;
@@ -47,10 +47,6 @@ pub struct TySlice<SymbolT: Symbol> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TyReference<SymbolT: Symbol> {
     pub referenced_ty: Rc<Ty<SymbolT>>,
-}
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TyUnion<SymbolT: Symbol> {
-    pub tys: SmallVec<[Rc<Ty<SymbolT>>; 8]>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -392,9 +388,6 @@ impl<SymbolT: Symbol> Ty<SymbolT> {
     }
 }
 
-pub trait IntRepr {
-    fn sizeof(i: &TyInt) -> usize;
-}
 pub trait Symbol: Eq + std::fmt::Debug + Clone + Hash {}
 
 impl<T> Symbol for T where T: Eq + std::fmt::Debug + Clone + Hash {}

@@ -2,13 +2,14 @@ use std::collections::BTreeMap;
 
 use lrpar::Span;
 use proptest::{
-    prelude::{Just, Strategy},
-    prop_oneof,
+    prelude::{any_with, Arbitrary, BoxedStrategy, Just, Strategy},
+    prop_oneof, strategy,
+    string::StringParam,
 };
 use smol_str::SmolStr;
 pub mod string;
 
-use crate::ast::{BoxAstNode, ExprInfix, InfixOp, LiteralInteger};
+use crate::ast::{BoxAstNode, ExprInfix, InfixOp, LiteralChar, LiteralInteger, LiteralString};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Radix {
