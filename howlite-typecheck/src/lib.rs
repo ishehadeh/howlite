@@ -22,9 +22,8 @@ mod construct_macros;
 pub mod errors;
 pub mod types;
 mod util;
-use types::{StructField, TyInt, TyStruct, TyUnion};
-mod typetable;
 use sunstone::ops::{SetOpIncludes, Subset};
+use types::{StructField, TyInt, TyStruct, TyUnion};
 use util::try_collect::TryCollect;
 
 pub use access_path::{AccessPath, AccessPathElem};

@@ -1,7 +1,6 @@
-use std::{collections::HashMap, ops::Mul};
+use std::collections::HashMap;
 
-use preseli::{variables::VariableId, IntegerSet};
-use sunstone::ops::ArithmeticSet;
+use preseli::variables::VariableId;
 
 use crate::{types::TyInt, Symbol};
 
