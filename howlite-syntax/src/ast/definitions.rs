@@ -3,7 +3,6 @@ use allocator_api2::{
     alloc::{Allocator, Global},
     vec::Vec,
 };
-use lrpar::Span;
 use smol_str::SmolStr;
 
 #[derive(Debug, Clone)]

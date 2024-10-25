@@ -322,7 +322,7 @@ impl std::ops::Deref for BoxAstNode {
 impl HigherOrderNode<BoxAstNode> for BoxAstNode {
     type Mapped<T> = AstNode<AstNodeData<T>>;
 
-    fn children<'a>(&'a self) -> impl Iterator<Item = &'a BoxAstNode> {
+    fn children(&self) -> impl Iterator<Item = &BoxAstNode> {
         self.0.data.children()
     }
 
