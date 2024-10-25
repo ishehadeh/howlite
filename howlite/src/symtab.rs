@@ -1,10 +1,4 @@
-use std::{
-    hash::BuildHasher,
-    sync::{
-        atomic::{AtomicU64, Ordering},
-        RwLock,
-    },
-};
+use std::{hash::BuildHasher, sync::RwLock};
 
 use hashbrown::{DefaultHashBuilder, HashTable};
 use smol_str::SmolStr;
@@ -32,7 +26,7 @@ impl SyncSymbolTable {
             .read()
             .expect("SyncSymbolTable::stringify(): symbol table lock was poisoned!")
             .stringify(sym)
-            .map(|s| SmolStr::new(s))
+            .map(SmolStr::new)
     }
 
     pub fn intern(&self, s: &str) -> Symbol {
