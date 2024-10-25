@@ -304,6 +304,11 @@ impl BoxAstNode {
     pub fn fold<F: Fn(AstNode<AstNodeData<V>>) -> V, V>(self, op: &F) -> V {
         op(self.map(|c| c.fold(op)))
     }
+
+    pub fn into_inner(self) -> AstNode<AstNodeData<BoxAstNode>> {
+        let BoxAstNode(inner) = self;
+        *inner
+    }
 }
 
 impl std::ops::Deref for BoxAstNode {
@@ -381,12 +386,13 @@ macro_rules! gen_node_impls {
             @map_children $name $t, $mapper  => ($($unwrapped)*
                 $field: {
                     let ( ptr, len, cap, alloc) = $name.$field.into_raw_parts_with_alloc();
-                    if let Some(mut ptr) = std::ptr::NonNull::new(ptr) {
+                    if let Some(ptr) = std::ptr::NonNull::new(ptr) {
+                        let mut curr_elem_ptr = ptr;
                         let layout = allocator_api2::alloc::Layout::from_size_align(cap, std::mem::align_of_val(unsafe { ptr.as_ref() } ));
                         let mut new_data = allocator_api2::vec::Vec::with_capacity_in(len, alloc);
                         for _ in 0..len {
-                            new_data.push($mapper(unsafe { ptr.read() }));
-                            ptr = unsafe { ptr.add(1) }
+                            new_data.push($mapper(unsafe { curr_elem_ptr.read() }));
+                            curr_elem_ptr = unsafe { curr_elem_ptr.add(1) }
                         }
                         unsafe { new_data.allocator().deallocate(ptr.cast::<u8>(), layout.expect("failed to construct layout")) };
                         new_data
