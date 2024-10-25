@@ -1,5 +1,4 @@
 use std::{
-    cell::RefCell,
     rc::Rc,
     sync::{
         atomic::{AtomicU64, Ordering},
@@ -7,32 +6,25 @@ use std::{
     },
 };
 
-use allocator_api2::alloc::Allocator;
 use dashmap::DashMap;
 use howlite_syntax::{
     ast::{
-        Block, BoxAstNode, ExprInfix, ExprLet, HigherOrderNode, InfixOp, LiteralArray, LiteralChar,
-        LiteralInteger, LiteralString, LiteralStruct, LiteralStructMember, TyStruct,
-        TyStructMember,
+        BoxAstNode, ExprInfix, HigherOrderNode, InfixOp, LiteralArray, LiteralChar, LiteralInteger,
+        LiteralString, LiteralStruct,
     },
-    tree::DefaultLinearTreeId,
     AstNode, AstNodeData, Span,
 };
 use howlite_typecheck::{
-    errors::{IncompatibleError, OperationError},
+    errors::OperationError,
     types::TyUnion,
     types::{self, StorageClass, TyInt},
     Ty, TyArray,
 };
 use preseli::IntegerSet;
-use slotmap::{new_key_type, Key, SlotMap};
 use smallvec::SmallVec;
 use thiserror::Error;
 
-use crate::symtab::{OwnedSymbolTable, Symbol, SymbolTable, SyncSymbolTable};
-
-new_key_type! { struct ErrorRef; }
-new_key_type! { struct ScopeRef; }
+use crate::symtab::{Symbol, SyncSymbolTable};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ScopeId(u64);
@@ -42,8 +34,8 @@ pub struct ErrorId(u64);
 
 #[derive(Clone, Debug)]
 pub struct CompilationError<SourceLocationT> {
-    location: SourceLocationT,
-    kind: CompilationErrorKind,
+    pub location: SourceLocationT,
+    pub kind: CompilationErrorKind,
 }
 
 #[derive(Error, Debug, Clone)]
@@ -239,11 +231,19 @@ impl Scope2 {
 /// For example:
 ///     synthesize_ty(`1 + 1`) -> `{2}`
 ///     synthesize_ty(`let x: Uint32; x + 1`) -> `Uint32`
+#[allow(
+    dead_code,
+    reason = "Not sure if this will be exported yet, its more of a prototype"
+)]
 trait SynthesizeTy<L> {
     fn synthesize_ty(self, ctx: &LangCtx<L>) -> Rc<Ty<Symbol>>;
 }
 
 /// Trait implemented on AST nodes that don't need any outer context to perform type synthesis.
+#[allow(
+    dead_code,
+    reason = "Not sure if this will be exported yet, its more of a prototype"
+)]
 trait SynthesizeTyPure {
     fn synthesize_ty_pure(self) -> Rc<Ty<Symbol>>;
 }
