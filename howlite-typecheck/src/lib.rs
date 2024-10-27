@@ -11,11 +11,14 @@
 //! - References (Slice, Reference)
 //!
 //!
-use std::{hash::Hash, rc::Rc};
+use std::rc::Rc;
 
 use errors::{IncompatibleError, OperationError, StructIncompatibility};
 use preseli::integer::Scalar;
 pub use preseli::IntegerSet;
+mod instantiate;
+pub use instantiate::{BindError, TyBinder};
+mod symbol;
 
 mod access_path;
 mod construct_macros;
@@ -29,7 +32,12 @@ use util::try_collect::TryCollect;
 pub use access_path::{AccessPath, AccessPathElem};
 pub use errors::AccessError;
 use smallvec::SmallVec;
+
+/* #region Re-exports */
 pub mod constraints;
+pub use symbol::Symbol;
+
+/* #endregion */
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TyArray<SymbolT: Symbol> {
@@ -111,12 +119,17 @@ impl<SymbolT: Symbol> Ty<SymbolT> {
         })
     }
 
+    pub const fn is_hole(&self) -> bool {
+        matches!(self, Self::Hole)
+    }
+
     _impl_as!(as_struct(&Ty::Struct) => &TyStruct<SymbolT>);
     _impl_as!(as_int(&Ty::Int) => &TyInt);
     _impl_as!(as_array(&Ty::Array) => &TyArray<SymbolT>);
     _impl_as!(as_slice(&Ty::Slice) => &TySlice<SymbolT>);
     _impl_as!(as_union(&Ty::Union) => &TyUnion<SymbolT>);
     _impl_as!(as_reference(&Ty::Reference) => &TyReference<SymbolT>);
+    _impl_as!(as_late_bound(&Ty::LateBound) => &SymbolT);
 
     /// Get the size of this type in bytes
     ///
@@ -398,10 +411,6 @@ impl<SymbolT: Symbol> Ty<SymbolT> {
         }
     }
 }
-
-pub trait Symbol: Eq + std::fmt::Debug + Clone + Hash {}
-
-impl<T> Symbol for T where T: Eq + std::fmt::Debug + Clone + Hash {}
 
 #[cfg(test)]
 mod test {

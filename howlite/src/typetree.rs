@@ -17,10 +17,9 @@ use howlite_syntax::{
     AstNode, AstNodeData, Span,
 };
 use howlite_typecheck::{
-    errors::OperationError,
-    types::TyUnion,
-    types::{self, StorageClass, TyInt},
-    Ty, TyArray,
+    errors::{IncompatibleError, OperationError},
+    types::{self, StorageClass, TyInt, TyUnion},
+    BindError, Ty, TyArray, TyBinder,
 };
 use preseli::IntegerSet;
 use smallvec::SmallVec;
@@ -45,11 +44,24 @@ pub enum CompilationErrorKind {
     #[error("invalid arithmetic operation: {}", _0)]
     InvalidArithmetic(#[from] OperationError<Symbol>),
 
-    #[error("Type {}: expcted {} type parameters, got {}", ty, expected, got)]
+    #[error("Type {:?}: expcted {} type parameters, got {}", ty, expected, got)]
     IncorrectTyParamCount {
         expected: usize,
         got: usize,
         ty: Symbol,
+    },
+
+    #[error("Type {:?}, parameter {:?}: {source}", ty, param)]
+    InvalidTyParam {
+        param: Symbol,
+        source: IncompatibleError<Symbol>,
+        ty: Symbol,
+    },
+
+    #[error("Unknown type: {source}")]
+    UnknownTyName {
+        #[from]
+        source: BindError<Symbol>,
     },
 }
 
@@ -266,7 +278,7 @@ pub struct TyDef {
 }
 
 impl TyDef {
-    pub fn instantiate<SourceLocationT>(
+    pub fn instantiate<SourceLocationT: Clone>(
         &self,
         err_location: SourceLocationT,
         ctx: &LangCtx<SourceLocationT>,
@@ -274,7 +286,7 @@ impl TyDef {
     ) -> Rc<Ty<Symbol>> {
         if params.len() != self.params.len() {
             ctx.error(CompilationError {
-                location: err_location,
+                location: err_location.clone(),
                 kind: CompilationErrorKind::IncorrectTyParamCount {
                     expected: self.params.len(),
                     got: params.len(),
@@ -283,85 +295,37 @@ impl TyDef {
             });
         };
 
-        let get_ty_param = |param: Symbol| {
-            self.params
-                .iter()
-                .enumerate()
-                .find_map(|(i, &(sym, _))| if sym == param { Some(i) } else { None })
-                .map(|i| {
-                    params
-                        .iter()
-                        .nth(i)
-                        .cloned()
-                        .unwrap_or_else(|| Rc::new(Ty::Hole))
-                })
-        };
-
-        let mut ty_stack: SmallVec<[(usize, Rc<Ty<Symbol>>); 4]> = SmallVec::new_const();
-
-        ty_stack.push((usize::MAX, self.ty));
-        let mut last_ty: _;
-        while let Some((state, ty)) = ty_stack.last().cloned() {
-            match ty {
-                &Ty::Hole => (),
-                Ty::Int(_) => (),
-                Ty::Struct(struc) => {
-                    for (i, field) in struc.fields.iter().enumerate() {
-                        if !matches!(*field.ty, Ty::Hole | Ty::Int(_)) {
-                            ty_stack.last_mut().unwrap().0 = i;
-                            ty_stack.push((usize::MAX, field.ty.clone()));
-                        }
-                    }
-                }
-                &Ty::Array(arr) => {
-                    if state == 1 {
-                        arr.element_ty = last_ty;
-                    } else {
-                        ty_stack.last_mut().unwrap().0 = 1;
-                        ty_stack.push((usize::MAX, arr.element_ty.clone()));
-                        break;
-                    }
-                }
-                Ty::Slice(slice) => {
-                    if state == 1 {
-                        slice.element_ty = last_ty;
-                        ty_stack.last_mut().unwrap().0 = 2;
-                        ty_stack.push((usize::MAX, slice.index_set.clone()));
-                    } else if state == 2 {
-                        slice.index_set = last_ty;
-                    } else if !matches!(*slice.element_ty, Ty::Hole | Ty::Int(_)) {
-                        ty_stack.last_mut().unwrap().0 = 1;
-                        ty_stack.push((usize::MAX, slice.element_ty.clone()));
-                        break;
-                    } else if !matches!(*slice.index_set, Ty::Hole | Ty::Int(_)) {
-                        ty_stack.last_mut().unwrap().0 = 2;
-                        ty_stack.push((usize::MAX, slice.index_set.clone()));
-                        break;
-                    }
-                }
-                Ty::Reference(r) => {
-                    if state == 1 {
-                        r.referenced_ty = last_ty;
-                    } else if !matches!(*r.referenced_ty, Ty::Hole | Ty::Int(_)) {
-                        ty_stack.last_mut().unwrap().0 = 1;
-                        ty_stack.push((usize::MAX, r.referenced_ty.clone()));
-                        break;
-                    }
-                }
-                Ty::Union(union) => {
-                    for (i, sub_ty) in union.tys.iter().enumerate() {
-                        if !matches!(**sub_ty, Ty::Hole | Ty::Int(_)) {
-                            ty_stack.last_mut().unwrap().0 = i;
-                            ty_stack.push((usize::MAX, sub_ty.clone()));
-                        }
-                    }
-                }
-                Ty::LateBound(_) => todo!(),
-            };
-            (_, last_ty) = ty_stack.pop().unwrap();
+        let mut mapped_params: SmallVec<[(Symbol, Rc<Ty<Symbol>>); 4]> =
+            SmallVec::with_capacity(self.params.len());
+        for (i, given_ty) in params.iter().enumerate() {
+            if i >= self.params.len() {
+                break;
+            }
+            if let Err(e) = given_ty.is_assignable_to(&*self.params[i].1) {
+                ctx.error(CompilationError {
+                    location: err_location.clone(),
+                    kind: CompilationErrorKind::InvalidTyParam {
+                        param: self.params[i].0,
+                        source: e,
+                        ty: self.name,
+                    },
+                });
+                mapped_params.push((self.params[i].0, Rc::new(Ty::Hole)))
+            } else {
+                mapped_params.push((self.params[i].0, given_ty.clone()))
+            }
         }
 
-        last_ty
+        let mut bind = TyBinder::new(&mapped_params);
+        let bound = bind.bind(self.ty.clone());
+        for err in bind.errors() {
+            ctx.error(CompilationError {
+                location: err_location.clone(),
+                kind: err.clone().into(),
+            });
+        }
+
+        bound
     }
 }
 
@@ -427,8 +391,6 @@ impl SynthesizeTy<Span> for BoxAstNode {
             AstNodeData::LiteralString(n) => AstNode::new_narrow(span, &n).synthesize_ty(ctx),
             AstNodeData::LiteralChar(n) => AstNode::new_narrow(span, &n).synthesize_ty(ctx),
             AstNodeData::ExprInfix(n) => {
-                // this is a really, really bad place to clone
-                // if test performance is ever an issue LOOK HERE!
                 AstNode::new_narrow(span, &n.map(|c| c.synthesize_ty(ctx))).synthesize_ty(ctx)
             }
             AstNodeData::LiteralStruct(n) => AstNode::new_narrow(span, n).synthesize_ty(ctx),
@@ -553,7 +515,7 @@ impl SynthesizeTy<Span> for AstNode<ExprLet<Rc<Ty<Symbol>>>> {
 
 #[cfg(test)]
 mod test {
-    use crate::typetree::SynthesizeTy;
+    use crate::{symtab::Symbol, typetree::SynthesizeTy};
 
     use super::LangCtx;
     use howlite_syntax::{

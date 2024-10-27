@@ -1,19 +1,25 @@
+mod string_codec;
+
+/* #region Re-exports  */
 pub mod ast;
 pub mod span;
 pub mod tree;
-use allocator_api2::alloc::Allocator;
-use allocator_api2::alloc::Global;
-use allocator_api2::vec::Vec;
+
 pub use ast::{AstNode, AstNodeData};
-use howlite_y::AstRef;
 pub use lrpar::Span;
-use std::{env, error::Error};
-use tree::{Tree, TreeBuilder};
-mod string_codec;
 pub use string_codec::*;
 
 #[cfg(feature = "proptest")]
 pub mod gen;
+/* #endregion */
+
+use allocator_api2::alloc::Allocator;
+use allocator_api2::alloc::Global;
+use allocator_api2::vec::Vec;
+use howlite_y::AstRef;
+use std::{env, error::Error};
+use tree::{Tree, TreeBuilder};
+
 use lrpar::LexParseError;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
