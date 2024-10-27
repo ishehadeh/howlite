@@ -39,8 +39,17 @@ pub struct TyArray<SymbolT: Symbol> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TySlice<SymbolT: Symbol> {
-    pub index_set: IntegerSet,
+    pub index_set: Rc<Ty<SymbolT>>,
     pub element_ty: Rc<Ty<SymbolT>>,
+}
+
+impl<SymbolT: Symbol> TySlice<SymbolT> {
+    pub fn get_allowed_indexes(&self) -> Result<&IntegerSet, AccessError> {
+        self.index_set
+            .as_int()
+            .map(|i| &i.values)
+            .ok_or(AccessError::InvalidIndex)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -57,6 +66,7 @@ pub enum Ty<SymbolT: Symbol> {
     Slice(TySlice<SymbolT>),
     Reference(TyReference<SymbolT>),
     Union(TyUnion<SymbolT>),
+    LateBound(SymbolT),
 }
 
 impl<SymbolT: Symbol> Clone for Ty<SymbolT> {
@@ -69,6 +79,7 @@ impl<SymbolT: Symbol> Clone for Ty<SymbolT> {
             Self::Slice(arg0) => Self::Slice(arg0.clone()),
             Self::Reference(arg0) => Self::Reference(arg0.clone()),
             Self::Union(arg0) => Self::Union(arg0.clone()),
+            Self::LateBound(arg0) => Self::LateBound(arg0.clone()),
         }
     }
 }
@@ -107,16 +118,24 @@ impl<SymbolT: Symbol> Ty<SymbolT> {
     _impl_as!(as_union(&Ty::Union) => &TyUnion<SymbolT>);
     _impl_as!(as_reference(&Ty::Reference) => &TyReference<SymbolT>);
 
+    /// Get the size of this type in bytes
+    ///
+    /// # Panics
+    /// Panics if self is a late bound type.
     pub fn sizeof(&self) -> usize {
-        // TODO: this assumes 32 bit, make some way to chance that...
         match self {
             Ty::Hole => 0,
-            Ty::Int(_) => 4,
+            Ty::Int(i) => i.storage.bits / 8,
+
+            // TODO: (array/struct) will we pad at all?
             Ty::Struct(s) => s.fields.iter().map(|f| f.ty.sizeof()).sum(),
             Ty::Array(arr) => arr.element_ty.sizeof() * arr.length,
-            Ty::Slice(_) => 8,
+            Ty::Slice(_) => 8, // TODO: depends on ptr size...
             Ty::Reference(_) => 4,
             Ty::Union(u) => u.tys.iter().map(|f| f.sizeof()).max().unwrap_or(0),
+            Ty::LateBound(binding) => {
+                panic!("late bound type wasn't resolved: binding={:?}", binding)
+            }
         }
     }
 
@@ -200,7 +219,7 @@ impl<SymbolT: Symbol> Ty<SymbolT> {
                 s.element_ty.clone(),
                 IntegerSet::new_from_tuples(&[(0, s.length.saturating_sub(1) as i128)]),
             )],
-            Ty::Slice(s) => vec![(s.element_ty.clone(), s.index_set.clone())],
+            Ty::Slice(s) => vec![(s.element_ty.clone(), s.get_allowed_indexes()?.clone())],
             Ty::Union(u) => {
                 // we can't mix slices and arrays here (slices have additional indirection)
                 let req_arr = u.tys[0].as_array().is_some();
@@ -224,7 +243,7 @@ impl<SymbolT: Symbol> Ty<SymbolT> {
                             if req_arr {
                                 return Result::Err(AccessError::MixedSliceAndArrayUnion);
                             }
-                            acc.push((s.element_ty.clone(), s.index_set.clone()));
+                            acc.push((s.element_ty.clone(), s.get_allowed_indexes()?.clone()));
                         }
                         _ => return Result::Err(AccessError::MixedSliceAndArrayUnion),
                     }
@@ -306,14 +325,7 @@ impl<SymbolT: Symbol> Ty<SymbolT> {
                     .map_err(|error| IncompatibleError::IncompatibleElement {
                         error: Box::new(error),
                     })?;
-                if subset.index_set.subset_of(&superset.index_set) {
-                    Err(IncompatibleError::IncompatibleIndices {
-                        subset_indicies: subset.index_set.clone(),
-                        superset_indicies: superset.index_set.clone(),
-                    })
-                } else {
-                    Ok(())
-                }
+                subset.index_set.is_assignable_to(&superset.index_set)
             }
 
             (Ty::Struct(superset), Ty::Struct(subset)) => {

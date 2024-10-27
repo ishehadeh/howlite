@@ -295,6 +295,7 @@ dependencies = [
  "preseli",
  "proptest",
  "rand",
+ "rustc-hash",
  "slotmap",
  "smallvec",
  "smol_str",
@@ -854,6 +855,12 @@ checksum = "a0e15515d3ce3313324d842629ea4905c25a13f81953eadb88f85516f59290a4"
 dependencies = [
  "archery",
 ]
+
+[[package]]
+name = "rustc-hash"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "583034fd73374156e66797ed8e5b0d5690409c9226b22d87cb7f19821c05d152"
 
 [[package]]
 name = "rustc_version"

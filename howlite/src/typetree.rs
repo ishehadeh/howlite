@@ -1,4 +1,6 @@
 use std::{
+    borrow::Borrow,
+    collections::{vec_deque, VecDeque},
     rc::Rc,
     sync::{
         atomic::{AtomicU64, Ordering},
@@ -9,8 +11,8 @@ use std::{
 use dashmap::DashMap;
 use howlite_syntax::{
     ast::{
-        BoxAstNode, ExprInfix, HigherOrderNode, InfixOp, LiteralArray, LiteralChar, LiteralInteger,
-        LiteralString, LiteralStruct,
+        BoxAstNode, ExprInfix, ExprLet, HigherOrderNode, InfixOp, LiteralArray, LiteralChar,
+        LiteralInteger, LiteralString, LiteralStruct,
     },
     AstNode, AstNodeData, Span,
 };
@@ -42,11 +44,18 @@ pub struct CompilationError<SourceLocationT> {
 pub enum CompilationErrorKind {
     #[error("invalid arithmetic operation: {}", _0)]
     InvalidArithmetic(#[from] OperationError<Symbol>),
+
+    #[error("Type {}: expcted {} type parameters, got {}", ty, expected, got)]
+    IncorrectTyParamCount {
+        expected: usize,
+        got: usize,
+        ty: Symbol,
+    },
 }
 
 pub struct LangCtx<SourceLocationT> {
     pub symbols: SyncSymbolTable,
-    scopes: DashMap<ScopeId, Scope2>,
+    scopes: DashMap<ScopeId, Scope>,
     errors: DashMap<ErrorId, CompilationError<SourceLocationT>>,
     scope_parent: RwLock<Vec<(ScopeId, ScopeId)>>,
     root_scope_id: ScopeId,
@@ -73,7 +82,7 @@ impl<L> LangCtx<L> {
     pub fn new() -> Self {
         let scopes = DashMap::new();
         let root_scope_id = Self::mint_scope_id();
-        scopes.insert(root_scope_id, Scope2::default());
+        scopes.insert(root_scope_id, Scope::default());
 
         Self {
             symbols: Default::default(),
@@ -130,9 +139,7 @@ impl<L> LangCtx<L> {
         }
 
         debug_assert!(
-            self.scopes
-                .insert(new_scope_id, Scope2::default())
-                .is_some(),
+            self.scopes.insert(new_scope_id, Scope::default()).is_some(),
             "LangCtx::scope_new(): scope exists, this should be impossible"
         );
 
@@ -177,6 +184,44 @@ impl<L> LangCtx<L> {
         }
     }
 
+    /// Recursively search for a type up the scope heirarchy
+    ///
+    /// # Panics
+    /// - Scope does not belong to this LangCtx
+    /// - Any panics associated with `self.scope_parent()`
+    pub fn ty_get(&self, scope_id: ScopeId, ty: Symbol) -> Option<TyDef> {
+        if let Some(scope) = self.scopes.get(&scope_id) {
+            if let Some(def) = scope.get_ty(ty) {
+                Some(def.clone())
+            } else if let Some(parent) = self.scope_parent(scope_id) {
+                self.ty_get(parent, ty)
+            } else {
+                // we're at the root scope
+                None
+            }
+        } else {
+            panic!(
+                "LangCtx::VarGet(): Scope is not associated with this LangCtx (scope={:?})",
+                scope_id
+            )
+        }
+    }
+
+    /// Define a named type in the given scope
+    ///
+    /// # Panics
+    /// - Scope does not belong to this LangCtx
+    pub fn ty_def(&self, scope_id: ScopeId, def: TyDef) {
+        if let Some(mut scope) = self.scopes.get_mut(&scope_id) {
+            scope.tys.push(def);
+        } else {
+            panic!(
+                "LangCtx::ty_def(): Scope is not associated with this LangCtx (scope={:?})",
+                scope_id
+            )
+        }
+    }
+
     /// Define a variable in the given scope
     pub fn error(&self, err: CompilationError<L>) -> ErrorId {
         let id = Self::mint_error_id();
@@ -195,11 +240,16 @@ impl<L> Default for LangCtx<L> {
     }
 }
 #[derive(Debug, Default)]
-pub struct Scope2 {
+pub struct Scope {
     /// List of local variable definitions.
     /// There can be duplicate symbols if a symbol is redefined
     /// the list MUST be in the order variables are defined
     locals: Vec<(Symbol, VarDef)>,
+
+    /// List of local variable definitions.
+    /// There can be duplicate symbols if a symbol is redefined
+    /// the list MUST be in the order variables are defined
+    tys: Vec<TyDef>,
 }
 
 #[derive(Debug, Clone)]
@@ -208,7 +258,114 @@ pub struct VarDef {
     pub last_assignment: Rc<Ty<Symbol>>,
 }
 
-impl Scope2 {
+#[derive(Debug, Clone)]
+pub struct TyDef {
+    pub name: Symbol,
+    pub params: Vec<(Symbol, Rc<Ty<Symbol>>)>,
+    pub ty: Rc<Ty<Symbol>>,
+}
+
+impl TyDef {
+    pub fn instantiate<SourceLocationT>(
+        &self,
+        err_location: SourceLocationT,
+        ctx: &LangCtx<SourceLocationT>,
+        params: &[Rc<Ty<Symbol>>],
+    ) -> Rc<Ty<Symbol>> {
+        if params.len() != self.params.len() {
+            ctx.error(CompilationError {
+                location: err_location,
+                kind: CompilationErrorKind::IncorrectTyParamCount {
+                    expected: self.params.len(),
+                    got: params.len(),
+                    ty: self.name,
+                },
+            });
+        };
+
+        let get_ty_param = |param: Symbol| {
+            self.params
+                .iter()
+                .enumerate()
+                .find_map(|(i, &(sym, _))| if sym == param { Some(i) } else { None })
+                .map(|i| {
+                    params
+                        .iter()
+                        .nth(i)
+                        .cloned()
+                        .unwrap_or_else(|| Rc::new(Ty::Hole))
+                })
+        };
+
+        let mut ty_stack: SmallVec<[(usize, Rc<Ty<Symbol>>); 4]> = SmallVec::new_const();
+
+        ty_stack.push((usize::MAX, self.ty));
+        let mut last_ty: _;
+        while let Some((state, ty)) = ty_stack.last().cloned() {
+            match ty {
+                &Ty::Hole => (),
+                Ty::Int(_) => (),
+                Ty::Struct(struc) => {
+                    for (i, field) in struc.fields.iter().enumerate() {
+                        if !matches!(*field.ty, Ty::Hole | Ty::Int(_)) {
+                            ty_stack.last_mut().unwrap().0 = i;
+                            ty_stack.push((usize::MAX, field.ty.clone()));
+                        }
+                    }
+                }
+                &Ty::Array(arr) => {
+                    if state == 1 {
+                        arr.element_ty = last_ty;
+                    } else {
+                        ty_stack.last_mut().unwrap().0 = 1;
+                        ty_stack.push((usize::MAX, arr.element_ty.clone()));
+                        break;
+                    }
+                }
+                Ty::Slice(slice) => {
+                    if state == 1 {
+                        slice.element_ty = last_ty;
+                        ty_stack.last_mut().unwrap().0 = 2;
+                        ty_stack.push((usize::MAX, slice.index_set.clone()));
+                    } else if state == 2 {
+                        slice.index_set = last_ty;
+                    } else if !matches!(*slice.element_ty, Ty::Hole | Ty::Int(_)) {
+                        ty_stack.last_mut().unwrap().0 = 1;
+                        ty_stack.push((usize::MAX, slice.element_ty.clone()));
+                        break;
+                    } else if !matches!(*slice.index_set, Ty::Hole | Ty::Int(_)) {
+                        ty_stack.last_mut().unwrap().0 = 2;
+                        ty_stack.push((usize::MAX, slice.index_set.clone()));
+                        break;
+                    }
+                }
+                Ty::Reference(r) => {
+                    if state == 1 {
+                        r.referenced_ty = last_ty;
+                    } else if !matches!(*r.referenced_ty, Ty::Hole | Ty::Int(_)) {
+                        ty_stack.last_mut().unwrap().0 = 1;
+                        ty_stack.push((usize::MAX, r.referenced_ty.clone()));
+                        break;
+                    }
+                }
+                Ty::Union(union) => {
+                    for (i, sub_ty) in union.tys.iter().enumerate() {
+                        if !matches!(**sub_ty, Ty::Hole | Ty::Int(_)) {
+                            ty_stack.last_mut().unwrap().0 = i;
+                            ty_stack.push((usize::MAX, sub_ty.clone()));
+                        }
+                    }
+                }
+                Ty::LateBound(_) => todo!(),
+            };
+            (_, last_ty) = ty_stack.pop().unwrap();
+        }
+
+        last_ty
+    }
+}
+
+impl Scope {
     pub fn get_local(&self, name: Symbol) -> Option<&VarDef> {
         self.locals
             .iter()
@@ -223,6 +380,14 @@ impl Scope2 {
             .rev()
             .find(|(l_name, _)| *l_name == name)
             .map(|(_, var)| var)
+    }
+
+    pub fn get_ty(&self, name: Symbol) -> Option<&TyDef> {
+        self.tys.iter().rev().find(|ty| ty.name == name)
+    }
+
+    pub fn get_ty_mut(&mut self, name: Symbol) -> Option<&mut TyDef> {
+        self.tys.iter_mut().rev().find(|ty| ty.name == name)
     }
 }
 
@@ -268,6 +433,9 @@ impl SynthesizeTy<Span> for BoxAstNode {
             }
             AstNodeData::LiteralStruct(n) => AstNode::new_narrow(span, n).synthesize_ty(ctx),
             AstNodeData::LiteralArray(n) => {
+                AstNode::new_narrow(span, n.map(|c| c.synthesize_ty(ctx))).synthesize_ty(ctx)
+            }
+            AstNodeData::ExprLet(n) => {
                 AstNode::new_narrow(span, n.map(|c| c.synthesize_ty(ctx))).synthesize_ty(ctx)
             }
             // AstNodeData::Block(n) => n.synthesize_ty(ctx),
@@ -362,6 +530,24 @@ impl SynthesizeTy<Span> for AstNode<&ExprInfix<Rc<Ty<Symbol>>>> {
             },
             _ => todo!(),
         }
+    }
+}
+
+impl SynthesizeTy<Span> for AstNode<ExprLet<Rc<Ty<Symbol>>>> {
+    fn synthesize_ty(self, ctx: &LangCtx<Span>) -> Rc<Ty<Symbol>> {
+        let var_symbol = ctx.symbols.intern(self.data.name.as_str());
+        let var_ty = self.data.ty;
+        let var_value_ty = self.data.value;
+        ctx.var_def(
+            ctx.root_scope_id,
+            var_symbol,
+            VarDef {
+                assumed_ty: var_ty,
+                last_assignment: var_value_ty.clone(),
+            },
+        );
+
+        var_value_ty
     }
 }
 

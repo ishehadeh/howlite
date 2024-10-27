@@ -39,6 +39,9 @@ pub enum AccessError {
 
     #[error("index out of range")]
     OutOfRange,
+
+    #[error("invalid index type in slice")]
+    InvalidIndex,
 }
 
 #[derive(thiserror::Error, miette::Diagnostic, Debug, Clone)]
