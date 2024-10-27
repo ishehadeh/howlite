@@ -2,15 +2,13 @@ use allocator_api2::{
     alloc::{Allocator, Global},
     vec::Vec,
 };
-use lrpar::Span;
 use smol_str::SmolStr;
 
 use crate::{
     gen_node_impls,
-    tree::{DefaultLinearTreeId, NodeId},
+    tree::DefaultLinearTreeId,
 };
 
-use super::AstNode;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TyArray<ChildT = DefaultLinearTreeId> {

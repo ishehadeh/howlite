@@ -1,6 +1,5 @@
-use ast::{AstNode, AstNodeData};
-use howlite_syntax::{ast, parse, token_epp, tree::TreeBuilder};
-use std::{error::Error, io::Read};
+use howlite_syntax::tree::TreeBuilder;
+use std::io::Read;
 
 fn main() {
     let input = std::env::args().nth(1).expect("USAGE: parse [FILE]");
