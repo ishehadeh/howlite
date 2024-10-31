@@ -7,6 +7,4 @@ edition = "2021"
 num-traits = "*"
 num-integer = "*"
 bumpalo = { version = "*", features = ["collections"] }
-num-prime = "=0.4.4"
-num-modular = "*"
 num = "*"

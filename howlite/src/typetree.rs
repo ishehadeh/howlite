@@ -9,7 +9,7 @@ use std::{
 use dashmap::DashMap;
 use howlite_syntax::{
     ast::{
-        BoxAstNode, ExprInfix, ExprLet, HigherOrderNode, InfixOp, LiteralArray, LiteralChar,
+        self, BoxAstNode, ExprInfix, ExprLet, HigherOrderNode, InfixOp, LiteralArray, LiteralChar,
         LiteralInteger, LiteralString, LiteralStruct,
     },
     AstNode, AstNodeData, Span,
@@ -21,6 +21,7 @@ use howlite_typecheck::{
 };
 use preseli::IntegerSet;
 use smallvec::SmallVec;
+use sunstone::ops::{Bounded, PartialBounded};
 use thiserror::Error;
 
 use crate::symtab::{Symbol, SyncSymbolTable};
@@ -61,12 +62,15 @@ pub enum CompilationErrorKind {
         #[from]
         source: BindError<Symbol>,
     },
+
+    #[error("expected integer bound to be a single Int, found: {got:?}")]
+    InvalidIntegerBound { got: Rc<Ty<Symbol>> },
 }
 
 pub struct LangCtx<SourceLocationT> {
     pub symbols: SyncSymbolTable,
     scopes: DashMap<ScopeId, Scope>,
-    errors: DashMap<ErrorId, CompilationError<SourceLocationT>>,
+    pub errors: DashMap<ErrorId, CompilationError<SourceLocationT>>,
     scope_parent: RwLock<Vec<(ScopeId, ScopeId)>>,
     root_scope_id: ScopeId,
 }
@@ -236,8 +240,9 @@ impl<L> LangCtx<L> {
     pub fn error(&self, err: CompilationError<L>) -> ErrorId {
         let id = Self::mint_error_id();
         debug_assert!(
-            self.errors.insert(id, err).is_some(),
-            "LangCtx::error(): error exists, this should be impossible"
+            self.errors.insert(id, err).is_none(),
+            "LangCtx::error(): error (id={}) exists, this should be impossible",
+            id.0
         );
         id
     }
@@ -399,6 +404,10 @@ impl SynthesizeTy<Span> for BoxAstNode {
             AstNodeData::ExprLet(n) => {
                 AstNode::new_narrow(span, n.map(|c| c.synthesize_ty(ctx))).synthesize_ty(ctx)
             }
+
+            AstNodeData::TyNumberRange(n) => {
+                AstNode::new_narrow(span, n.map(|c| c.synthesize_ty(ctx))).synthesize_ty(ctx)
+            }
             // AstNodeData::Block(n) => n.synthesize_ty(ctx),
             t => todo!("ty not implemented for test checker: {:?}", t),
         }
@@ -410,6 +419,61 @@ impl SynthesizeTyPure for LiteralInteger {
         Rc::new(Ty::Int(TyInt::single(self.value)))
     }
 }
+
+/* #region ast::Ty* -> Ty */
+impl SynthesizeTyPure for AstNode<ast::TyUnit> {
+    fn synthesize_ty_pure(self) -> Rc<Ty<Symbol>> {
+        Rc::new(Ty::unit())
+    }
+}
+
+impl SynthesizeTy<Span> for AstNode<ast::TyNumberRange<Rc<Ty<Symbol>>>> {
+    fn synthesize_ty(self, ctx: &LangCtx<Span>) -> Rc<Ty<Symbol>> {
+        // check that the bound is an integer set with a single set
+        // returns Some(i128) if valid, none otherwise
+        let validate_bound = |bound: &Rc<Ty<Symbol>>| {
+            bound
+                .as_int()
+                .iter()
+                .flat_map(|&v| {
+                    v.values
+                        .partial_bounds()
+                        .filter(|b| b.len() == 0)
+                        .map(|b| (*b.lo()).clone())
+                })
+                .next()
+        };
+
+        let lo = validate_bound(&self.data.lo);
+        let hi = validate_bound(&self.data.hi);
+
+        if lo.is_none() {
+            ctx.error(CompilationError {
+                location: self.span,
+                kind: CompilationErrorKind::InvalidIntegerBound {
+                    got: self.data.lo.clone(),
+                },
+            });
+        }
+
+        if hi.is_none() {
+            ctx.error(CompilationError {
+                location: self.span,
+                kind: CompilationErrorKind::InvalidIntegerBound {
+                    got: self.data.hi.clone(),
+                },
+            });
+        }
+        match (lo, hi) {
+            (Some(lo), Some(hi)) => {
+                Rc::new(Ty::Int(TyInt::from_set(IntegerSet::new_from_range(lo, hi))))
+            }
+            _ => Rc::new(Ty::Hole),
+        }
+    }
+}
+
+/* #endregion */
 
 impl SynthesizeTyPure for AstNode<&LiteralString> {
     fn synthesize_ty_pure(self) -> Rc<Ty<Symbol>> {
@@ -520,7 +584,7 @@ mod test {
     use howlite_syntax::{
         ast::{
             BoxAstNode, LiteralArray, LiteralChar, LiteralInteger, LiteralString, LiteralStruct,
-            LiteralStructMember,
+            LiteralStructMember, TyNumberRange,
         },
         Span,
     };
@@ -596,6 +660,18 @@ mod test {
         })
     }
 
+    fn any_ty_number_range_with_literal() -> impl Strategy<Value = BoxAstNode> {
+        (0..u64::MAX as i128, 0..u64::MAX as i128).prop_map(|(a, b)| {
+            BoxAstNode::new(
+                Span::new(0, 0),
+                TyNumberRange {
+                    lo: BoxAstNode::new(Span::new(0, 0), LiteralInteger { value: a.min(b) }),
+                    hi: BoxAstNode::new(Span::new(0, 0), LiteralInteger { value: a.max(b) }),
+                },
+            )
+        })
+    }
+
     fn any_ident() -> impl Strategy<Value = String> {
         any_with::<String>(StringParam::from("[_a-zA-Z][_a-zA-Z0-9]*"))
     }
@@ -648,6 +724,17 @@ mod test {
             let lang = LangCtx::<Span>::new();
             let ty = program.synthesize_ty(&lang);
             assert!(ty.as_array().is_some(), "expected array type, got: {:?}", ty);
+        }
+
+        #[test]
+        fn ty_number_range(program in any_ty_number_range_with_literal()) {
+            let lang = LangCtx::<Span>::new();
+            let ty = program.synthesize_ty(&lang);
+            if lang.errors.len() > 0 {
+                let errs: Vec<_> = lang.errors.iter().map(|entry| entry.clone()).collect();
+                panic!("ERRORS {:?}", errs);
+            }
+            assert!(ty.as_int().is_some(), "expected int type, got: {:?}", ty);
         }
     }
 }

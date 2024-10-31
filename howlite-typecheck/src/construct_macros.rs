@@ -57,7 +57,7 @@ macro_rules! t_union {
 macro_rules! t_slice {
     ($ty:expr ; $($toks:tt)*) => {
         std::rc::Rc::new($crate::Ty::Slice($crate::TySlice {
-            index_set: preseli::iset!($($toks)*),
+            index_set: $crate::t_int!($($toks)*),
             element_ty: $ty,
         }))
     };

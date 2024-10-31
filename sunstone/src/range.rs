@@ -15,7 +15,7 @@ pub struct Range<T: std::cmp::Ord> {
 
 impl<T: std::cmp::Ord> Range<T> {
     pub fn new(lo: T, hi: T) -> Self {
-        Self::try_new(lo, hi).expect("range lower bound must be greater than upper bound")
+        Self::try_new(lo, hi).expect("range lower bound must be <= upper bound")
     }
 
     pub fn try_new(lo: T, hi: T) -> Option<Self> {

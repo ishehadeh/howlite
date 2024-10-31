@@ -1,7 +1,6 @@
 use std::collections::BTreeMap;
 
 use num::ToPrimitive;
-use num_prime::BitTest;
 
 use crate::{
     ops::{self, ArithmeticSet, Bounded, IntersectMut, SetOpIncludes, SetSubtract, UnionMut},
@@ -52,7 +51,7 @@ impl<const BLOCKS: usize> BitField<BLOCKS> {
             } else {
                 0
             }..Self::block_width())
-                .filter(move |&i| self.field[block_no].bit(i))
+                .filter(move |&i| (self.field[block_no] & (1u64 << i)) != 0)
                 .map(move |bit_ind| bit_ind + block_no * Self::block_width())
         })
     }

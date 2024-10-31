@@ -5,3 +5,4 @@
 # It is recommended to check this file in to source control so that
 # everyone who runs the test benefits from these saved cases.
 cc 017c99c23b22e3413431c92e7b7ab32dfa538d062573ed40472d2d926bced3bc # shrinks to c = ' '
+cc 7b2b858a2ca93695d86f63664294f47cb6a3ae2f090c5e7cdab5b77955033b41 # shrinks to program = BoxAstNode(AstNode { span: Span { start: 0, end: 0 }, data: TyNumberRange(TyNumberRange { lo: BoxAstNode(AstNode { span: Span { start: 0, end: 0 }, data: LiteralInteger(LiteralInteger { value: 5887460752316540805 }) }), hi: BoxAstNode(AstNode { span: Span { start: 0, end: 0 }, data: LiteralInteger(LiteralInteger { value: 0 }) }) }) })

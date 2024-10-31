@@ -1,7 +1,4 @@
-use std::{cell::RefCell, cmp::Ordering, os::unix::raw::off_t};
-
-use num_prime::buffer::NaiveBuffer;
-use num_traits::real;
+use std::cmp::Ordering;
 
 use crate::{
     bitfield::BitField,
@@ -17,10 +14,6 @@ use crate::{
 
 const SMALL_SET_WORD_COUNT: usize = 128;
 const SMALL_SET_MAX_RANGE: usize = SMALL_SET_WORD_COUNT * 64;
-
-thread_local! {
-    static LOCAL_PRIME_BUFFER: RefCell<NaiveBuffer> = RefCell::new(NaiveBuffer::new());
-}
 
 #[derive(Debug, Clone)]
 /// A DynSet uses multiple representations to track its elements as effeciently as possible
