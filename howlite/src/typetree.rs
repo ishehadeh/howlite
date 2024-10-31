@@ -1,6 +1,4 @@
 use std::{
-    borrow::Borrow,
-    collections::{vec_deque, VecDeque},
     rc::Rc,
     sync::{
         atomic::{AtomicU64, Ordering},
@@ -251,6 +249,7 @@ impl<L> Default for LangCtx<L> {
         Self::new()
     }
 }
+
 #[derive(Debug, Default)]
 pub struct Scope {
     /// List of local variable definitions.
@@ -515,7 +514,7 @@ impl SynthesizeTy<Span> for AstNode<ExprLet<Rc<Ty<Symbol>>>> {
 
 #[cfg(test)]
 mod test {
-    use crate::{symtab::Symbol, typetree::SynthesizeTy};
+    use crate::typetree::SynthesizeTy;
 
     use super::LangCtx;
     use howlite_syntax::{
