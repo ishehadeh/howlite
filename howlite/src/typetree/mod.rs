@@ -9,5 +9,7 @@
 //! that would result from the given expression.
 
 mod original;
+mod traits;
 
 pub use original::*;
+pub use traits::{SynthesizeTy, SynthesizeTyPure};
