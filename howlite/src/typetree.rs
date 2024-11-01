@@ -472,7 +472,6 @@ impl SynthesizeTy<Span> for AstNode<ast::TyNumberRange<Rc<Ty<Symbol>>>> {
         }
     }
 }
-
 /* #endregion */
 
 impl SynthesizeTyPure for AstNode<&LiteralString> {
@@ -583,8 +582,8 @@ mod test {
     use super::LangCtx;
     use howlite_syntax::{
         ast::{
-            BoxAstNode, LiteralArray, LiteralChar, LiteralInteger, LiteralString, LiteralStruct,
-            LiteralStructMember, TyNumberRange,
+            BoxAstNode, ExprLet, LiteralArray, LiteralChar, LiteralInteger, LiteralString,
+            LiteralStruct, LiteralStructMember, TyNumberRange,
         },
         Span,
     };
@@ -592,7 +591,7 @@ mod test {
     use preseli::IntegerSet;
     use prop::{sample::SizeRange, string::StringParam};
     use proptest::prelude::*;
-    use smol_str::ToSmolStr;
+    use smol_str::{SmolStr, ToSmolStr};
     use sunstone::ops::{SetOpIncludeExclude, SetOpIncludes};
 
     /// Any literal that cannot contain arbirary data
@@ -660,25 +659,59 @@ mod test {
         })
     }
 
+    fn make_ty_number_range(a: i128, b: i128) -> BoxAstNode {
+        BoxAstNode::new(
+            Span::new(0, 0),
+            TyNumberRange {
+                lo: BoxAstNode::new(Span::new(0, 0), LiteralInteger { value: a.min(b) }),
+                hi: BoxAstNode::new(Span::new(0, 0), LiteralInteger { value: a.max(b) }),
+            },
+        )
+    }
+
+    fn make_expr_let(name: impl Into<SmolStr>, ty: BoxAstNode, value: BoxAstNode) -> BoxAstNode {
+        BoxAstNode::new(
+            Span::new(0, 0),
+            ExprLet {
+                name: name.into(),
+                ty,
+                mutable: true,
+                value,
+            },
+        )
+    }
+
     fn any_ty_number_range_with_literal() -> impl Strategy<Value = BoxAstNode> {
-        (0..u64::MAX as i128, 0..u64::MAX as i128).prop_map(|(a, b)| {
-            BoxAstNode::new(
-                Span::new(0, 0),
-                TyNumberRange {
-                    lo: BoxAstNode::new(Span::new(0, 0), LiteralInteger { value: a.min(b) }),
-                    hi: BoxAstNode::new(Span::new(0, 0), LiteralInteger { value: a.max(b) }),
-                },
-            )
-        })
+        (0..u64::MAX as i128, 0..u64::MAX as i128).prop_map(|(a, b)| make_ty_number_range(a, b))
+    }
+
+    fn simple_scalar_let() -> impl Strategy<Value = BoxAstNode> {
+        (0..u64::MAX as i128, 0..u64::MAX as i128)
+            .prop_flat_map(|(a, b)| (Just(make_ty_number_range(a, b)), a.min(b)..b.max(a)))
+            .prop_map(|(ty, value)| {
+                make_expr_let(
+                    "_a",
+                    ty,
+                    BoxAstNode::new(Span::new(0, 0), LiteralInteger { value }),
+                )
+            })
     }
 
     fn any_ident() -> impl Strategy<Value = String> {
         any_with::<String>(StringParam::from("[_a-zA-Z][_a-zA-Z0-9]*"))
     }
 
+    macro_rules! assert_lang_ok {
+        ($ctx:expr) => {{
+            let _ctx = $ctx;
+            if _ctx.errors.len() > 0 {
+                let _errs: Vec<_> = _ctx.errors.iter().map(|entry| entry.clone()).collect();
+                panic!("ERRORS {:?}", _errs);
+            }
+        }};
+    }
+
     proptest! {
-
-
         #[test]
         fn synthesize_literal_string(s in any::<String>()) {
             let lang = LangCtx::<Span>::new();
@@ -730,10 +763,15 @@ mod test {
         fn ty_number_range(program in any_ty_number_range_with_literal()) {
             let lang = LangCtx::<Span>::new();
             let ty = program.synthesize_ty(&lang);
-            if lang.errors.len() > 0 {
-                let errs: Vec<_> = lang.errors.iter().map(|entry| entry.clone()).collect();
-                panic!("ERRORS {:?}", errs);
-            }
+            assert_lang_ok!(lang);
+            assert!(ty.as_int().is_some(), "expected int type, got: {:?}", ty);
+        }
+
+        #[test]
+        fn let_expr_simple(program in simple_scalar_let()) {
+            let lang = LangCtx::<Span>::new();
+            let ty = program.synthesize_ty(&lang);
+            assert_lang_ok!(lang);
             assert!(ty.as_int().is_some(), "expected int type, got: {:?}", ty);
         }
     }
