@@ -24,7 +24,10 @@ use smallvec::SmallVec;
 use sunstone::ops::{Bounded, PartialBounded};
 use thiserror::Error;
 
-use crate::symtab::{Symbol, SyncSymbolTable};
+use crate::{
+    symtab::{Symbol, SyncSymbolTable},
+    typetree::{SynthesizeTy, SynthesizeTyPure},
+};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ScopeId(u64);
@@ -357,28 +360,6 @@ impl Scope {
     pub fn get_ty_mut(&mut self, name: Symbol) -> Option<&mut TyDef> {
         self.tys.iter_mut().rev().find(|ty| ty.name == name)
     }
-}
-
-/// Trait implemented on AST nodes to perform type synthesis, within the context of a program.
-/// Type synthesis is the process of determining the smallest possible type that encapsulates all possible values of an expression.
-/// For example:
-///     synthesize_ty(`1 + 1`) -> `{2}`
-///     synthesize_ty(`let x: Uint32; x + 1`) -> `Uint32`
-#[allow(
-    dead_code,
-    reason = "Not sure if this will be exported yet, its more of a prototype"
-)]
-trait SynthesizeTy<L> {
-    fn synthesize_ty(self, ctx: &LangCtx<L>) -> Rc<Ty<Symbol>>;
-}
-
-/// Trait implemented on AST nodes that don't need any outer context to perform type synthesis.
-#[allow(
-    dead_code,
-    reason = "Not sure if this will be exported yet, its more of a prototype"
-)]
-trait SynthesizeTyPure {
-    fn synthesize_ty_pure(self) -> Rc<Ty<Symbol>>;
 }
 
 impl<T: SynthesizeTyPure, L> SynthesizeTy<L> for T {
