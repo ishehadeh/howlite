@@ -1,4 +1,7 @@
-// mod context;
+mod errors;
+pub use errors::{CompilationError, CompilationErrorKind};
+
+pub mod langctx;
 pub mod symtab;
 pub mod typetree;
 

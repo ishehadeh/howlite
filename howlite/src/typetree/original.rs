@@ -15,60 +15,22 @@ use howlite_syntax::{
     AstNode, AstNodeData, Span,
 };
 use howlite_typecheck::{
-    errors::{IncompatibleError, OperationError},
     types::{self, StorageClass, TyInt, TyUnion},
-    BindError, Ty, TyArray, TyBinder,
+    Ty, TyArray, TyBinder,
 };
 use preseli::IntegerSet;
 use smallvec::SmallVec;
 use sunstone::ops::{Bounded, PartialBounded};
-use thiserror::Error;
 
 use crate::{
+    errors::ErrorId,
     symtab::{Symbol, SyncSymbolTable},
     typetree::{SynthesizeTy, SynthesizeTyPure},
+    CompilationError, CompilationErrorKind,
 };
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ScopeId(u64);
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ErrorId(u64);
-
-#[derive(Clone, Debug)]
-pub struct CompilationError<SourceLocationT> {
-    pub location: SourceLocationT,
-    pub kind: CompilationErrorKind,
-}
-
-#[derive(Error, Debug, Clone)]
-pub enum CompilationErrorKind {
-    #[error("invalid arithmetic operation: {}", _0)]
-    InvalidArithmetic(#[from] OperationError<Symbol>),
-
-    #[error("Type {:?}: expcted {} type parameters, got {}", ty, expected, got)]
-    IncorrectTyParamCount {
-        expected: usize,
-        got: usize,
-        ty: Symbol,
-    },
-
-    #[error("Type {:?}, parameter {:?}: {source}", ty, param)]
-    InvalidTyParam {
-        param: Symbol,
-        source: IncompatibleError<Symbol>,
-        ty: Symbol,
-    },
-
-    #[error("Unknown type: {source}")]
-    UnknownTyName {
-        #[from]
-        source: BindError<Symbol>,
-    },
-
-    #[error("expected integer bound to be a single Int, found: {got:?}")]
-    InvalidIntegerBound { got: Rc<Ty<Symbol>> },
-}
 
 pub struct LangCtx<SourceLocationT> {
     pub symbols: SyncSymbolTable,
@@ -88,8 +50,7 @@ impl<L> LangCtx<L> {
 
     /// create a new ErrorId, these identifiers are globally unique within the process
     fn mint_error_id() -> ErrorId {
-        static NEXT: AtomicU64 = AtomicU64::new(0);
-        ErrorId(NEXT.fetch_add(1, Ordering::Relaxed))
+        ErrorId::mint_error_id()
     }
 }
 /* #endregion */
@@ -244,8 +205,8 @@ impl<L> LangCtx<L> {
         let id = Self::mint_error_id();
         debug_assert!(
             self.errors.insert(id, err).is_none(),
-            "LangCtx::error(): error (id={}) exists, this should be impossible",
-            id.0
+            "LangCtx::error(): error ({}) exists, this should be impossible",
+            id
         );
         id
     }
