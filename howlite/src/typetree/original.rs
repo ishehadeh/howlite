@@ -439,7 +439,7 @@ impl SynthesizeTy<Span> for AstNode<ast::TyNumberRange<Rc<Ty<Symbol>>>> {
                     v.values
                         .partial_bounds()
                         .filter(|b| b.len() == 0)
-                        .map(|b| (*b.lo()).clone())
+                        .map(|b| **b.lo())
                 })
                 .next()
         };
