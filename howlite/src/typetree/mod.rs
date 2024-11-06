@@ -10,6 +10,7 @@
 
 mod original;
 mod traits;
+mod ty;
 
 pub use original::*;
 pub use traits::{SynthesizeTy, SynthesizeTyPure};
