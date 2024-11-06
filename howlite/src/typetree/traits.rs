@@ -1,4 +1,4 @@
-use crate::{symtab::Symbol, typetree::LangCtx};
+use crate::{langctx::LangCtx, symtab::Symbol};
 use howlite_typecheck::Ty;
 use std::rc::Rc;
 
@@ -14,4 +14,10 @@ pub trait SynthesizeTy<L> {
 /// Trait implemented on AST nodes that don't need any outer context to perform type synthesis.
 pub trait SynthesizeTyPure {
     fn synthesize_ty_pure(self) -> Rc<Ty<Symbol>>;
+}
+
+impl<T: SynthesizeTyPure, L> SynthesizeTy<L> for T {
+    fn synthesize_ty(self, _: &LangCtx<L>) -> Rc<Ty<Symbol>> {
+        self.synthesize_ty_pure()
+    }
 }
