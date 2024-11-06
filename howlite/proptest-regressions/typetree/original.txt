@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc a01d7079bbb0bda626033495208e331061e87ad63e6892958a52caf4f34ac8ae # shrinks to program = BoxAstNode(AstNode { span: Span { start: 0, end: 0 }, data: TyNumberRange(TyNumberRange { lo: BoxAstNode(AstNode { span: Span { start: 0, end: 0 }, data: LiteralInteger(LiteralInteger { value: 0 }) }), hi: BoxAstNode(AstNode { span: Span { start: 0, end: 0 }, data: LiteralInteger(LiteralInteger { value: 0 }) }) }) })
+cc 042d17c758bdccc16774cc9e97edf4c513c522c07af0d0a4f52c9738c6758be5 # shrinks to program = BoxAstNode(AstNode { span: Span { start: 0, end: 0 }, data: ExprLet(ExprLet { name: "_a", ty: BoxAstNode(AstNode { span: Span { start: 0, end: 0 }, data: TyNumberRange(TyNumberRange { lo: BoxAstNode(AstNode { span: Span { start: 0, end: 0 }, data: LiteralInteger(LiteralInteger { value: 121215150668094 }) }), hi: BoxAstNode(AstNode { span: Span { start: 0, end: 0 }, data: LiteralInteger(LiteralInteger { value: 4647085267911774721 }) }) }) }), mutable: true, value: BoxAstNode(AstNode { span: Span { start: 0, end: 0 }, data: LiteralInteger(LiteralInteger { value: 121215150869925 }) }) }) })

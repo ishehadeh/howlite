@@ -23,7 +23,7 @@ use smallvec::SmallVec;
 use sunstone::ops::{Bounded, PartialBounded};
 
 use crate::{
-    errors::ErrorId,
+    errors::ErrorSet,
     symtab::{Symbol, SyncSymbolTable},
     typetree::{SynthesizeTy, SynthesizeTyPure},
     CompilationError, CompilationErrorKind,
@@ -35,7 +35,7 @@ pub struct ScopeId(u64);
 pub struct LangCtx<SourceLocationT> {
     pub symbols: SyncSymbolTable,
     scopes: DashMap<ScopeId, Scope>,
-    pub errors: DashMap<ErrorId, CompilationError<SourceLocationT>>,
+    pub errors: ErrorSet<SourceLocationT>,
     scope_parent: RwLock<Vec<(ScopeId, ScopeId)>>,
     root_scope_id: ScopeId,
 }
@@ -46,11 +46,6 @@ impl<L> LangCtx<L> {
     fn mint_scope_id() -> ScopeId {
         static NEXT: AtomicU64 = AtomicU64::new(0);
         ScopeId(NEXT.fetch_add(1, Ordering::Relaxed))
-    }
-
-    /// create a new ErrorId, these identifiers are globally unique within the process
-    fn mint_error_id() -> ErrorId {
-        ErrorId::mint_error_id()
     }
 }
 /* #endregion */
@@ -200,15 +195,8 @@ impl<L> LangCtx<L> {
         }
     }
 
-    /// Define a variable in the given scope
-    pub fn error(&self, err: CompilationError<L>) -> ErrorId {
-        let id = Self::mint_error_id();
-        debug_assert!(
-            self.errors.insert(id, err).is_none(),
-            "LangCtx::error(): error ({}) exists, this should be impossible",
-            id
-        );
-        id
+    pub fn error(&self, err: CompilationError<L>) {
+        self.errors.insert(err);
     }
 }
 /* #endregion */
@@ -646,8 +634,12 @@ mod test {
     macro_rules! assert_lang_ok {
         ($ctx:expr) => {{
             let _ctx = $ctx;
-            if _ctx.errors.len() > 0 {
-                let _errs: Vec<_> = _ctx.errors.iter().map(|entry| entry.clone()).collect();
+            if !_ctx.errors.is_empty() {
+                let _errs: Vec<_> = _ctx
+                    .errors
+                    .iter()
+                    .map(|entry| entry.error().clone())
+                    .collect();
                 panic!("ERRORS {:?}", _errs);
             }
         }};
