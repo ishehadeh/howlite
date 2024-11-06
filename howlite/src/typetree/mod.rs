@@ -12,5 +12,8 @@ mod original;
 mod traits;
 mod ty;
 
+#[cfg(test)]
+mod test_helpers;
+
 pub use original::*;
 pub use traits::{SynthesizeTy, SynthesizeTyPure};
