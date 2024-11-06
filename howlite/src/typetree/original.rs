@@ -2,10 +2,10 @@ use std::rc::Rc;
 
 use howlite_syntax::{
     ast::{
-        BoxAstNode, ExprInfix, ExprLet, HigherOrderNode, InfixOp, LiteralArray, LiteralChar,
-        LiteralInteger, LiteralString, LiteralStruct,
+        self, ExprInfix, ExprLet, InfixOp, LiteralArray, LiteralChar, LiteralInteger,
+        LiteralString, LiteralStruct,
     },
-    AstNode, AstNodeData, Span,
+    AstNode, Span,
 };
 use howlite_typecheck::{
     types::{self, StorageClass, TyInt, TyUnion},
@@ -21,33 +21,6 @@ use crate::{
 };
 
 use super::{SynthesizeTy, SynthesizeTyPure};
-
-impl SynthesizeTy<Span> for BoxAstNode {
-    fn synthesize_ty(self, ctx: &LangCtx<Span>) -> Rc<Ty<Symbol>> {
-        let AstNode { data, span } = self.into_inner();
-        match data {
-            AstNodeData::LiteralInteger(n) => n.synthesize_ty(ctx),
-            AstNodeData::LiteralString(n) => AstNode::new_narrow(span, &n).synthesize_ty(ctx),
-            AstNodeData::LiteralChar(n) => AstNode::new_narrow(span, &n).synthesize_ty(ctx),
-            AstNodeData::ExprInfix(n) => {
-                AstNode::new_narrow(span, &n.map(|c| c.synthesize_ty(ctx))).synthesize_ty(ctx)
-            }
-            AstNodeData::LiteralStruct(n) => AstNode::new_narrow(span, n).synthesize_ty(ctx),
-            AstNodeData::LiteralArray(n) => {
-                AstNode::new_narrow(span, n.map(|c| c.synthesize_ty(ctx))).synthesize_ty(ctx)
-            }
-            AstNodeData::ExprLet(n) => {
-                AstNode::new_narrow(span, n.map(|c| c.synthesize_ty(ctx))).synthesize_ty(ctx)
-            }
-
-            AstNodeData::TyNumberRange(n) => {
-                AstNode::new_narrow(span, n.map(|c| c.synthesize_ty(ctx))).synthesize_ty(ctx)
-            }
-            // AstNodeData::Block(n) => n.synthesize_ty(ctx),
-            t => todo!("ty not implemented for test checker: {:?}", t),
-        }
-    }
-}
 
 impl SynthesizeTyPure for LiteralInteger {
     fn synthesize_ty_pure(self) -> Rc<Ty<Symbol>> {
@@ -95,23 +68,16 @@ impl SynthesizeTyPure for AstNode<LiteralArray<Rc<Ty<Symbol>>>> {
     }
 }
 
-impl SynthesizeTy<Span> for AstNode<LiteralStruct<BoxAstNode>> {
+impl SynthesizeTy<Span> for AstNode<LiteralStruct<ast::LiteralStructMember<Rc<Ty<Symbol>>>>> {
     fn synthesize_ty(self, ctx: &LangCtx<Span>) -> Rc<Ty<Symbol>> {
         let ty = types::TyStruct {
             fields: self
                 .data
                 .members
                 .into_iter()
-                .map(|child| {
-                    if let AstNodeData::LiteralStructMember(m) = child.into_inner().data {
-                        (m.field, m.value.synthesize_ty(ctx))
-                    } else {
-                        panic!("child was not a struct member, this should be unreachable!")
-                    }
-                })
-                .map(|(field, value_ty)| types::StructField {
-                    name: ctx.symbols.intern(field.as_str()),
-                    ty: value_ty.clone(),
+                .map(|child| types::StructField {
+                    name: ctx.symbols.intern(child.field.as_str()),
+                    ty: child.value.clone(),
                 })
                 .collect(),
         };
