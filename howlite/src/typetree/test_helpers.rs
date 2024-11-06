@@ -1,10 +1,13 @@
+use std::rc::Rc;
+
 use howlite_syntax::{
     ast::{
-        BoxAstNode, ExprLet, LiteralArray, LiteralChar, LiteralInteger, LiteralString,
-        LiteralStruct, LiteralStructMember, TyNumberRange,
+        BoxAstNode, ExprLet, HigherOrderNode, LiteralArray, LiteralChar, LiteralInteger,
+        LiteralString, LiteralStruct, LiteralStructMember, TyNumberRange,
     },
-    Span,
+    AstNode, AstNodeData, Span,
 };
+use howlite_typecheck::Ty;
 use proptest::{
     prelude::{any, any_with, Just, Strategy},
     prop_oneof,
@@ -12,6 +15,50 @@ use proptest::{
     string::StringParam,
 };
 use smol_str::SmolStr;
+
+use crate::{langctx::LangCtx, symtab::Symbol};
+
+use super::SynthesizeTy;
+
+impl SynthesizeTy<Span> for BoxAstNode {
+    fn synthesize_ty(self, ctx: &LangCtx<Span>) -> Rc<Ty<Symbol>> {
+        let AstNode { data, span } = self.into_inner();
+        match data {
+            AstNodeData::LiteralInteger(n) => n.synthesize_ty(ctx),
+            AstNodeData::LiteralString(n) => AstNode::new_narrow(span, &n).synthesize_ty(ctx),
+            AstNodeData::LiteralChar(n) => AstNode::new_narrow(span, &n).synthesize_ty(ctx),
+            AstNodeData::ExprInfix(n) => {
+                AstNode::new_narrow(span, &n.map(|c| c.synthesize_ty(ctx))).synthesize_ty(ctx)
+            }
+            AstNodeData::LiteralStruct(n) => AstNode::new_narrow(
+                span,
+                n.map(|child| {
+                    if let AstNodeData::LiteralStructMember(m) = child.into_inner().data {
+                        LiteralStructMember {
+                            field: m.field,
+                            value: m.value.synthesize_ty(ctx),
+                        }
+                    } else {
+                        panic!("child was not a struct member, this should be unreachable!")
+                    }
+                }),
+            )
+            .synthesize_ty(ctx),
+            AstNodeData::LiteralArray(n) => {
+                AstNode::new_narrow(span, n.map(|c| c.synthesize_ty(ctx))).synthesize_ty(ctx)
+            }
+            AstNodeData::ExprLet(n) => {
+                AstNode::new_narrow(span, n.map(|c| c.synthesize_ty(ctx))).synthesize_ty(ctx)
+            }
+
+            AstNodeData::TyNumberRange(n) => {
+                AstNode::new_narrow(span, n.map(|c| c.synthesize_ty(ctx))).synthesize_ty(ctx)
+            }
+            // AstNodeData::Block(n) => n.synthesize_ty(ctx),
+            t => todo!("ty not implemented for test checker: {:?}", t),
+        }
+    }
+}
 
 #[macro_export]
 macro_rules! assert_lang_ok {
