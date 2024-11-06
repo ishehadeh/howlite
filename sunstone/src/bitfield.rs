@@ -648,12 +648,12 @@ impl<const WIDTH: usize> ArithmeticSet<&Self, usize> for BitField<WIDTH> {
         self.arith_add_scalar_mut(rhs);
     }
 
-    fn mul_scalar(&mut self, rhs: usize) {
+    fn mul_scalar(&mut self, _rhs: usize) {
         todo!()
     }
 
-    fn div_scalar(&mut self, rhs: usize) {
-        todo!()
+    fn div_scalar(&mut self, _rhs: usize) {
+        todo!("div_scalar");
     }
 
     fn mod_scalar(&mut self, rhs: usize) {
@@ -694,7 +694,7 @@ impl Copy for BitField<2> {}
 mod test {
     use crate::{
         bitfield::BitField,
-        ops::{ArithmeticSet, Intersect, Set, SetOpIncludeExclude, SetOpIncludes, Union},
+        ops::{ArithmeticSet, Intersect, SetOpIncludeExclude, SetOpIncludes, Union},
     };
 
     #[test]
