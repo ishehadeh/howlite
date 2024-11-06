@@ -158,13 +158,16 @@ impl SynthesizeTy<Span> for AstNode<ExprLet<Rc<Ty<Symbol>>>> {
 
 #[cfg(test)]
 mod test {
-    use crate::typetree::SynthesizeTy;
+    use crate::{
+        assert_lang_ok,
+        typetree::{test_helpers::make_ty_number_range, SynthesizeTy},
+    };
 
     use super::LangCtx;
     use howlite_syntax::{
         ast::{
             BoxAstNode, ExprLet, LiteralArray, LiteralChar, LiteralInteger, LiteralString,
-            LiteralStruct, LiteralStructMember, TyNumberRange,
+            LiteralStruct, LiteralStructMember,
         },
         Span,
     };
@@ -240,16 +243,6 @@ mod test {
         })
     }
 
-    fn make_ty_number_range(a: i128, b: i128) -> BoxAstNode {
-        BoxAstNode::new(
-            Span::new(0, 0),
-            TyNumberRange {
-                lo: BoxAstNode::new(Span::new(0, 0), LiteralInteger { value: a.min(b) }),
-                hi: BoxAstNode::new(Span::new(0, 0), LiteralInteger { value: a.max(b) }),
-            },
-        )
-    }
-
     fn make_expr_let(name: impl Into<SmolStr>, ty: BoxAstNode, value: BoxAstNode) -> BoxAstNode {
         BoxAstNode::new(
             Span::new(0, 0),
@@ -260,10 +253,6 @@ mod test {
                 value,
             },
         )
-    }
-
-    fn any_ty_number_range_with_literal() -> impl Strategy<Value = BoxAstNode> {
-        (0..u64::MAX as i128, 0..u64::MAX as i128).prop_map(|(a, b)| make_ty_number_range(a, b))
     }
 
     fn simple_scalar_let() -> impl Strategy<Value = BoxAstNode> {
@@ -280,20 +269,6 @@ mod test {
 
     fn any_ident() -> impl Strategy<Value = String> {
         any_with::<String>(StringParam::from("[_a-zA-Z][_a-zA-Z0-9]*"))
-    }
-
-    macro_rules! assert_lang_ok {
-        ($ctx:expr) => {{
-            let _ctx = $ctx;
-            if !_ctx.errors.is_empty() {
-                let _errs: Vec<_> = _ctx
-                    .errors
-                    .iter()
-                    .map(|entry| entry.error().clone())
-                    .collect();
-                panic!("ERRORS {:?}", _errs);
-            }
-        }};
     }
 
     proptest! {
@@ -344,13 +319,6 @@ mod test {
             assert!(ty.as_array().is_some(), "expected array type, got: {:?}", ty);
         }
 
-        #[test]
-        fn ty_number_range(program in any_ty_number_range_with_literal()) {
-            let lang = LangCtx::<Span>::new();
-            let ty = program.synthesize_ty(&lang);
-            assert_lang_ok!(lang);
-            assert!(ty.as_int().is_some(), "expected int type, got: {:?}", ty);
-        }
 
         #[test]
         fn let_expr_simple(program in simple_scalar_let()) {

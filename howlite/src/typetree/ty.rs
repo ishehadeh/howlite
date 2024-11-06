@@ -62,3 +62,29 @@ impl SynthesizeTy<Span> for AstNode<ast::TyNumberRange<Rc<Ty<Symbol>>>> {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    use howlite_syntax::{ast::BoxAstNode, Span};
+    use proptest::{prelude::Strategy, proptest};
+
+    use crate::{
+        assert_lang_ok,
+        langctx::LangCtx,
+        typetree::{test_helpers::make_ty_number_range, SynthesizeTy},
+    };
+
+    proptest!(
+        #[test]
+        fn ty_number_range(program in any_ty_number_range_with_literal()) {
+            let lang = LangCtx::<Span>::new();
+            let ty = program.synthesize_ty(&lang);
+            assert_lang_ok!(lang);
+            assert!(ty.as_int().is_some(), "expected int type, got: {:?}", ty);
+        }
+    );
+
+    fn any_ty_number_range_with_literal() -> impl Strategy<Value = BoxAstNode> {
+        (0..u64::MAX as i128, 0..u64::MAX as i128).prop_map(|(a, b)| make_ty_number_range(a, b))
+    }
+}
