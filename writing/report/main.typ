@@ -400,9 +400,13 @@ From the start of its life as a contiguous range, these dynamic sets can be _upg
 
 = Constraints<sc-contraints>
 
-At the type level, a boolean expression is considered an integer constraint satisifiability problem. The broad implications are discussed in @sc-narrowing.
+At the type level, a boolean expression is considered an integer constraint satisifiability problem.
+The broad implications are discussed in @sc-narrowing.
 
-
+Currently we support binary constraints involving multiplcation and addition.
+To find these constraints within the abstract syntax tree, we use a similar approach to type checking.
+Every node may or may not be represented as a _Constraint Term_.
+A constraint term may be a constant, addition or multiplication between a variable and constant, addition or multiplcation between two variables, a variable constrainted to a set, or a constraint between two variables. 
 
 = Code Generation
 

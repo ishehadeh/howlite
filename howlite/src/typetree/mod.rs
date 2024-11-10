@@ -8,6 +8,7 @@
 //! On the other hand, most expressions are mapped to the type representing the set of possible values
 //! that would result from the given expression.
 
+mod constraint;
 mod original;
 mod traits;
 mod ty;
