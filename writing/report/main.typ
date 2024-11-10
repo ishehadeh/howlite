@@ -58,7 +58,7 @@ The language avoids symbols, instead using keywords, which are generally easier 
 
 
 Go was an answer to problems with the software infrastructure at Google (@pike_GoAtGoogle).
-It's designed to be used in large, long-lived software projects. There’s a focus on clear syntax and semantics: no matter who wrote the code, what it does, and how it does it should be clear to any programmer. It also comes bundled with tools to help keep programs up to date and consistent.
+It's designed to be used in large, long-lived software projects. There's a focus on clear syntax and semantics: no matter who wrote the code, what it does, and how it does it should be clear to any programmer. It also comes bundled with tools to help keep programs up to date and consistent.
 Unused variables and imports are disallowed. Although it supports first class functions, it's largely imperative. Programmers are forced to deal with the inherent complexity of things like string encoding up front, as seen in @ex-go.
 
 
@@ -339,7 +339,11 @@ A collection of unary and binary constraints, combined with the logical-and oper
 
 == Solving Constraints
 
-We solve constraints with a naive constraint propogation algorithm, based on the algorithms described in _Foundations of Artificial Intelligence, Chapter 3_, @bessiereChapter3Constraint2006. A constraint set is a collection of variables, and constraints on those variables. All variables begin with some unary constraint, by default this is that they must be a subset of their current synthesized type. 
+We solve constraints with a naive constraint propogation algorithm, based on the algorithms described in _Foundations of Artificial Intelligence_, Chapter 3, @bessiereChapter3Constraint2006. A constraint set is a collection of variables, and constraints on those variables. All variables begin with some unary constraint, by default this is that they must be a subset of their current synthesized type. From there, we iterate over every unsatisfied constraint, each constraint "propogates", returning that either it has been satisfied, it cannot be satisfied, or a mutation
+to some variable that is required for it to be satisfied (although its not guarenteed that it will be satisfied immatiately after the mutation is made).
+This scheme was originall inspired by Zhou's _Action Rules_ language (@zhouProgrammingFinitedomainConstraint2006).
+The search is depth-first, if a constraint is found to be unsatisfiable, we undo the last mutation and move up the tree.
+The first set of mutations that satisfy all constraints is used to produce the final collection of values.
 
 = Code Generation
 
