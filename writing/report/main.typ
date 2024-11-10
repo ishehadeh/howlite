@@ -1,6 +1,7 @@
 #import "@preview/classic-jmlr:0.4.0": jmlr
 #import "@preview/wrap-it:0.1.0": wrap-content
 #import "@preview/fletcher:0.5.1" as fletcher: diagram, node, edge
+#import "./util.typ": *
 
 
 #let affls = (
@@ -17,14 +18,13 @@
    email: "irhsheadeh@smcm.edu"),
 )
 
-
 #show: jmlr.with(
   title: [A Low Level Language with Precise Integer Types],
   authors: (authors, affls),
-  abstract: include "./abstract.typ",
+  abstract: include "./snippets/abstract.typ",
   keywords: ("programming language",),
   bibliography: bibliography("main.bib"),
-  appendix: include "appendix.typ",
+  appendix: include "snippets/appendix.typ",
 )
 
 
@@ -39,47 +39,82 @@ Howlite aims to address these problems. Howlite is not a language to write a web
 
 // #show raw: set text(size: 1em)
 
-= Syntax
+= Motivation
 
-#let fig = [
-  #show <eg-syn-bounded-add>: set text(size: 10pt)
 
-  #figure(
-    caption: [Addition without Overflow],
-    rect(
-          pad(x: 4pt, y: 4pt)[
-          ```
-          func boundedAdd(a: u32, b: u32): u32 {
-            if U32_MAX - a > b {
-              U32_MAX
-            } else {
-              a + b
-            }
-          }
-          ```
-        ]
-      )
-    )<eg-syn-bounded-add>
-]
+Programming languages are one of the many, many, interfaces to help us utilize computers.
+_Microsoft Word_ helps us compose and format documents, and programming languages help us create algorithms.
+Just like word processors, or painting applications, there are countless ways to tweak a programming language's interface to make it more suited to a particular use case or audience.
 
-#wrap-content(fig, align: left)[
-  Howlite's syntax prioritizes familiarity, ease of parsing, and clarity. The syntax should be familiar, someone unfamiliar with the language should be able to immediately grasp the programmer's intent, event if they do not understand every line. In a similar vein, the programmer should be guided towards writing code that is easily legible by others. We approach this issue by providing language constructs that clearly express intent. For example, flow control constructs, like if statements may have a value. This allows the programmer to clearly show a variable's value is the result of some condition. In order to make tooling easier to write, we prioritize createing an unambigous grammar, with no constructs that require unbounded look-ahead.
-]
+This section gives a quick overview of _Hedy_ and _Go_. We summarize those languages are for, and the choices they made to cater to that audience.
+
+
+
+== Hedy
+
+Hedy /* citation needed */ is a programming language for teaching programming.
+
+
+#include "examples/hedy.typ"
+
+The language avoids symbols, instead using keywords, which are generally easier for students to remember. English words aren't particularly better (may worse, in fact) than symbols, for those unfamiliar with the language. So, Hedy is fully translated to a large set of languages - 47 at the time of writing. The programs in @ex-hedy are the same, but the right is in Arabic. Hedy also allows programmers to see and hear the results of their work: it has easily accessible functionality for playing music and drawing graphics. Those features are typically implemented as libraries, for most programming languages, since they have a relatively narrow application. But, it takes a lot of general knowledge to have the computer _do_ anything interesting; when first learning, it's helpful to be able to make the computer *do* something, not just report results in the terminal.
+
+== Go
+
+#include "examples/go.typ"
+
+Go was an answer to problems with the software infrastructure at Google. /* TODO: cite */
+It’s designed to be used in large, long-lived software projects. There’s a focus on clear syntax and semantics: no matter who wrote the code, what it does, and how it does it should be clear to any programmer. It also comes bundled with tools to help keep programs up to date and consistent.
+Unused variables and imports are disallowed. Although it supports first class functions, it's largely imperative. Programmers are forced to deal with the inherent complexity of things like string encoding up front, as seen in @ex-go.
+
+== Where Howlite Sits
+
+/* TODO: revise */
+Computers are complicated, I find making them more accessible an interesting challenge. Programming languages in particular piqued my interest because I like programming. Programming is just solving logic puzzles, anything that let’s me look at these problems in a different way is fascinating.
+
+The goals of this project are, in no particular order:
+
+1. Learn about the components of a compiler.
+2. Expirement with precise types for scalar values.
+3. Applications of sub-type polymorphism and structural typing in resource constrained environments.
+
+There isn’t any particularly interesting theory behind any of those goals. I just threw a bunch of ideas at the wall, and those ware what stuck. I don’t expect Howlite to be a fantastic programming language, but I hope that it's unique enough that its particular blend of features might help inform the design of languages I create in the future.
+
+= Syntax Design
+
+#wrapped-figure(
+  right: [#include "./examples/syntax-overview.typ"],
+  left: [
+    Howlite's syntax prioritizes familiarity, ease of parsing, and clarity. The syntax should be immediately familiar to anyone who knows another C-like language. The grammar is context free, so it can easily be expressed using a parser generator. The language's syntax should give programmer's the tools to express their intent.
+  ],
+  under: [
+      For example, flow control constructs, like if statements may have a value. This allows the programmer to clearly show a variable's value is the result of some condition. In order to make tooling easier to write, we prioritize createing an unambigous grammar, with no constructs that require unbounded look-ahead.
+  ])
 
 == Familiarity
 
 Howlite code should be recognizable to C programmers. For this reason, we use curly braces ("{" and "}") to denote blocks of code. We use familiar imperative /* TODO: define imperative */ keywords: "if", "else", and "while", and mathmatical expressions follow typical infix notation. Howlite differs from C in that it requires a sigil character or keyword before beginning a new construct. Types do not lead in variable assignments or functions. Instead we use the "let" or "func" keywords, respectively. This simplifies parsing, since we know what type of statement or expression will follow, similarly, type ascriptions are always prefixed with `:`. These keywords and symbols were decided by surveying popular languages during design. For example, "let", and `:` come from TypeScript, while "func" is a keyword in Go.
 
+== Ease of Parsing
+
+A small, easily parsed grammar is valuable because it makes implementing tooling easier. Anything from simple syntax highlighting in _Emacs_ to an auto-formatter or linter dramatically easier to implement when parsing the language isn't a significant hurdle.
+
+Howlite's syntax is expressable in an LR grammar. Consequently, the grammar is unambiguous, furthermore, the grammar aims to reduce look ahead as much as possible.
+
 == Clarity
 
-*TODO*
+Here, we use clarity to mean the ease of understanding a program's behavior.
+If a program is clear, then the author's original intent should be easily understood by someone familiar with the language. The author of a program is responsible for making their intent clear; the syntax should guide their choices, and give them the tools to express their intent.
+
+We optimize clarity by keeping tokens consistent, for example colon (`:`) is almost always a way to give _something_ a type, whether that thing is an expression, variable, or a field of a data structure. However, we don't sacrifice familiarity for consistency. Languages like C, C++, Java, Go, and more use curly braces for both structure declarations and statement blocks, so we follow suite.
+
+Giving programmers tools to express their intent extends beyond syntax, but the features a language's syntax emphasizes plays an important role in guiding the programmer.
+We chose to make constructing types easy.
+
+= Type Checking
 
 
-
-= Type Checking 
-
-
-Howlite's implements a simple bi-directional type checker [@dunfield_bidirectional_2020]. Every node in the AST is given a type. An AST node's type is typically derived from it's children's types, through a process called _synthesis_, we call these types _synthesized types_. Many constructs in the language must be ascribed types by the programmer: variables declared with "`let`", function parameters, and return values. Types which are declared explicitly are called _assumed_ types.
+Howlite's implements a simple bi-directional type checker [@dunfieldBidirectionalTyping2020]. Every node in the AST is given a type. An AST node's type is typically derived from it's children's types, through a process called _synthesis_, we call these types _synthesized types_. Many constructs in the language must be ascribed types by the programmer: variables declared with "`let`", function parameters, and return values. Types which are declared explicitly are called _assumed_ types.
 
 
 #let fig1 = [#figure(
@@ -95,7 +130,7 @@ Howlite's implements a simple bi-directional type checker [@dunfield_bidirection
   Here, `Uint32` is the assumed type of `x`. Where ever `x` is referenced, we can consider it of type `Uint32`. The literal `1` has no assumed type. Instead, we synthesize a type for `1` by following a set of rules. For literals, this rule is simple: _for a literal scalar $N$ the synthesized type is ${ N }$_. As expressions grow, synthesizing types becomes more complicated.
 ]
 
-=== Typechecking an AST
+=== Type Checking an AST
 
 To better illustrate this process, we'll walk through synthesizing a tree.
 
@@ -135,14 +170,14 @@ To illustrate how these assumed types interact with synthesized types, we'll man
 
   edge(<div>, (.6, 1), "-|>")
   node((.6, 1), `3`, fill: colors.l2)
-  
+
 }, node-outset: 3pt, spacing: 1.5em), caption: "AST")<ast>]
 
 #wrap-content(pad(right: 8pt, bottom: 8pt, full-tree))[
   The funtion body, `(x + y + z) / 3`, has the syntax tree seen in @ast.
-The type checker works bottom-up, left-to-right. So, we begin with the leaves of the tree: #noderef(`x`, colors.l4), and #noderef(`y`, colors.l4). Identifier AST node's synthesized type is the assumed type of the symbol they include. So #noderef(`x`, colors.l4) is synthesized to type `0..10` (the assumed type of `x`), and #noderef(`y`, colors.l4) is synthesized to type `0..10` (the assumed type of `y`). 
+The type checker works bottom-up, left-to-right. So, we begin with the leaves of the tree: #noderef(`x`, colors.l4), and #noderef(`y`, colors.l4). Identifier AST node's synthesized type is the assumed type of the symbol they include. So #noderef(`x`, colors.l4) is synthesized to type `0..10` (the assumed type of `x`), and #noderef(`y`, colors.l4) is synthesized to type `0..10` (the assumed type of `y`).
 
-This information is added to the tree, and we reference it synthesize #noderef(`+`, colors.l3). An operator node's synthesized type is constructed by applying the given operation to the synthesized types of each operand. Types may be constructed using arithmetic operations, this process will be defined more formally in @scalars. For now, take for granted that `0..10 + 0..10 : 0..20`. 
+This information is added to the tree, and we reference it synthesize #noderef(`+`, colors.l3). An operator node's synthesized type is constructed by applying the given operation to the synthesized types of each operand. Types may be constructed using arithmetic operations, this process will be defined more formally in @section-scalars. For now, take for granted that `0..10 + 0..10 : 0..20`.
 ]
 
 #stack(dir: ltr, spacing: 1em,
@@ -151,7 +186,7 @@ This information is added to the tree, and we reference it synthesize #noderef(`
     edge("-|>")
     node((-.8, 1), `x : 0..10`, fill: colors.l4)
     edge(<add2>, (.8, 1), "-|>")
-    node((.8, 1), `y : 0..10`, fill: colors.l4)  
+    node((.8, 1), `y : 0..10`, fill: colors.l4)
   }, node-outset: 3pt, spacing: 1.5em),
   $-->$,
   diagram({
@@ -170,7 +205,7 @@ Now, we move up the tree, to synthesize the right hand side of #noderef(`+`, col
     edge("-|>")
     node((-.8, 1), `+ : 0..20`, fill: colors.l3)
     edge(<add1>, (.8, 1), "-|>")
-    node((.8, 1), `z`, fill: colors.l3)  
+    node((.8, 1), `z`, fill: colors.l3)
   }, node-outset: 3pt, spacing: 1.5em),
   $-->_1$,
   diagram({
@@ -178,7 +213,7 @@ Now, we move up the tree, to synthesize the right hand side of #noderef(`+`, col
     edge("-|>")
     node((-.8, 1), `+ : 0..20`, fill: colors.l3)
     edge(<add1>, (.8, 1), "-|>")
-    node((.8, 1), `z : 0..10`, fill: colors.l3)  
+    node((.8, 1), `z : 0..10`, fill: colors.l3)
   }, node-outset: 3pt, spacing: 1.5em),
   $-->_2$,
   diagram({
@@ -186,7 +221,7 @@ Now, we move up the tree, to synthesize the right hand side of #noderef(`+`, col
     edge("-|>")
     node((-.6, 1), `+ : 0..20`, fill: colors.l3)
     edge(<add1>, (.8, 1), "-|>")
-    node((.6, 1), `z : 0..10`, fill: colors.l3)  
+    node((.6, 1), `z : 0..10`, fill: colors.l3)
   }, node-outset: 3pt, spacing: 1.5em),
 )
 
@@ -200,7 +235,7 @@ Finally, we again move up the tree, now to #noderef(`/`, colors.l1).
     edge("-|>")
     node((-.8, 1), `+ : 0..30`, fill: colors.l2)
     edge(<add1>, (.8, 1), "-|>")
-    node((.8, 1), `3`, fill: colors.l2)  
+    node((.8, 1), `3`, fill: colors.l2)
   }, node-outset: 3pt, spacing: 1.5em),
   $-->_1$,
   diagram({
@@ -208,7 +243,7 @@ Finally, we again move up the tree, now to #noderef(`/`, colors.l1).
     edge("-|>")
     node((-.8, 1), `+ : 0..30`, fill: colors.l2)
     edge(<add1>, (.8, 1), "-|>")
-    node((.8, 1), `3 : 3`, fill: colors.l2)  
+    node((.8, 1), `3 : 3`, fill: colors.l2)
   }, node-outset: 3pt, spacing: 1.5em),
   $-->_2$,
   diagram({
@@ -216,20 +251,20 @@ Finally, we again move up the tree, now to #noderef(`/`, colors.l1).
     edge("-|>")
     node((-.8, 1), `+ : 0..30`, fill: colors.l2)
     edge(<add1>, (.8, 1), "-|>")
-    node((.8, 1), `3 : 3`, fill: colors.l2)  
+    node((.8, 1), `3 : 3`, fill: colors.l2)
   }, node-outset: 3pt, spacing: 1.5em),
 )
 
-Due to the the functions return value, the assumed type of the body is `0..10`. 
-Function body's type is synthesized based on the possible return values. 
+Due to the the functions return value, the assumed type of the body is `0..10`.
+Function body's type is synthesized based on the possible return values.
 So the synthesized type of this function's body is the the type of #noderef(`/`, colors.l1).
 
-Type checking is the process of comparing assumed and synthesized types. 
-If a synthesized is not a subset of the assumed type, then a type error is attached to that node. 
+Type checking is the process of comparing assumed and synthesized types.
+If a synthesized is not a subset of the assumed type, then a type error is attached to that node.
 
 
 
-== Scalars <scalars>
+== Scalars<section-scalars>
 
 There is a single scalar type in Howlite, this simplifies the type checking by condensing many cases into a single, generic case. There are no distinct enumerable types, true boolean types, or even a unit type in the language. Instead of distinct types, we have the scalar type "Integer" (floating point number are out of scope). A scalar may be any set of Integers.
 
@@ -295,7 +330,62 @@ if x <= 100 {
 Within this if-statements body, the synthesized type of `x` has been narrowed to `0..100`.
 
 
-This is achieved by assigning _implications_ to values. 
+This is achieved by assigning _implications_ to values.
 Here, we have `(x <= 100) : 0 | 1`, the value `1` is assinged the implication `x : 0..100`, and the value `0` is assigned `x : 101..0xffffffff`.
 
-A type carrying implications appears in a conditional (at the time of writing, just `if` statements) then the implications of a value, $a$, are applied within a block if the conditional gaurentees the expression had the value $a$ before entering the block. 
+A type carrying implications appears in a conditional (at the time of writing, just `if` statements) then the implications of a value, $a$, are applied within a block if the conditional gaurentees the expression had the value $a$ before entering the block.
+
+= Disjoint Integer Sets<section-disjoint-integer-sets>
+
+Integer sets are used throughout the type checker. The semantics of our type system (see @section-scalars) require these sets implement arithmetic operations in addition to usual set operations like union, intersect, etc. 
+
+Representations of sparse sets in memory is a well studied topic, with efficient solutions for many use cases. /* TODO: cite: roaring bitmaps, other tree-based repr */
+Most of the work we found focuses on storing collections of integers, but performing operations on them isn't well optimized.
+
+To date, we have not found an efficient method of computing the operations laid out in @section-scalars in the general case. Instead, we've focused on optimizing operations often performed by the programmer, while offering them ways to bypass strict integer checks when required.
+
+Internally, we use 3 set representations, _Stripe Sets_, _Small Sets_ and _Continguous Sets_
+
+
+== Stripe Sets<sc-stripe-sets>
+
+A _Stripe Set_ is a collection of _Step Ranges_. 
+
+A _Step Range_ is an integer set with minimum element $A$ and maximum element $B$, with a some step $S$. 
+The set includes all elements $A + n(S)$, for any $n$, where $A + n(S) < n$.
+Formally, we define $"SR"(A, B, S) := { n(S) + A : n in NN, n <= (B - A)\/S }$, where $A, B in ZZ, A <= B$ and $S in ZZ, S >= 1, (B - A mod S) equiv 0$.
+
+#let SR = "SR"
+
+#let stripe(..rs) = {
+  let elems = rs.pos().map(((a, b, s)) => range(a, b, step: s).map(x => str(x))).flatten().join(", ")
+  ${ #elems }$
+}
+
+
+This representation is the most general - it can express any arbitrary set of integers.
+But, the in-memory representation can be difficult to manage.
+
+Consider a stripe set: $A = SR(5, 13, 2) union SR(20, 26, 3) = #stripe((5, 13, 2), (20, 26, 3))$,
+and a stripe set $B = SR(0, 100, 10) = #stripe((0, 100, 10))$.
+
+How do we add these, in such a way that the result has as few step ranges as possible?
+At present we use one simple argorithm: For each combinationation of step ranges $alpha, beta$, take the one with the fewest elements (say $alpha$, for this example). 
+For every element $a$ in $alpha$, create a new range $SR("lo"(beta) + a, "hi"(beta) + a, "step"(beta))$. Issues quickly arise after a number of operations, so this representation should be avoided.
+
+== Small Sets<sc-sm-set>
+
+_Small Sets_ is a $1$ KiB uncompressed bit field, with an arbitrary offset.
+This is intended to be used for large enumerable values.
+
+A _Small Set_ may be used as the backing store for a keyboard scancodes like in SDL2's SDL_keyboard.h, @SDL2IncludeSDL_keyboardh.
+
+== Contiguous Ranges<sc-contiguous-ranges>
+
+Ideally, most ranges we perform arithmetic on should be continuous.
+Addition is trivial, and multiplication with a constant just creates a new _Step Range_.
+
+= Constraints
+
+= Code Generation
+
