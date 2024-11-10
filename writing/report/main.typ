@@ -115,6 +115,7 @@ We chose to make constructing types easy.
 
 = Type Checking<sc-type-checking>
 
+We optimize clarity by keeping tokens consistent, for example colon (`:`) is almost always a way to give _something_ a type, whether that thing is an expression, variable, or a field of a data structure. However, we don't sacrifice familiarity for consistency. Languages like C, C++, Java, Go, and more use curly braces for both structure declarations and statement blocks, so we follow suite.
 
 Howlite's implements a simple bi-directional type checker [@dunfieldBidirectionalTyping2020]. Every node in the AST is given a type. An AST node's type is typically derived from it's children's types, through a process called _synthesis_, we call these types _synthesized types_. Many constructs in the language must be ascribed types by the programmer: variables declared with "`let`", function parameters, and return values. Types which are declared explicitly are called _assumed_ types.
 
