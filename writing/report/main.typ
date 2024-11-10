@@ -315,7 +315,28 @@ The broad implications are discussed in @sc-narrowing.
 Currently we support binary constraints involving multiplcation and addition.
 To find these constraints within the abstract syntax tree, we use a similar approach to type checking.
 Every node may or may not be represented as a _Constraint Term_.
-A constraint term may be a constant, addition or multiplication between a variable and constant, addition or multiplcation between two variables, a variable constrainted to a set, or a constraint between two variables. 
+A constraint term may be a constant; variable; addition or multiplication between a variable and constant; addition or multiplcation between two variables; a variable constrainted to a set; or a constraint between two variables.
+
+The process for mapping nodes to atomic constraint terms follows: 
+
+- Identifier referencing a mutable variable $->$ _variable_
+- Field access to a mutable struct field $->$ _variable_
+- Expression with a scalar result $->$ _constant_
+- Identifier referencing a immutable variable $->$ _constant_
+- Field access to a immutable struct field $->$ _constant_
+
+From these, we build compound terms:
+
+- _variable_ $+,times$ _constant_ $-> $ _unary operation_
+- _constant_ $+,times$ _constant_ $-> $ _constant_
+- _variable_ $+,times$ _variable_ $-> $ _binary operation_
+- _variable_ $<,>,<=,>=,!=,=$ _variable_ $-> $ _binary constraint_
+- _variable_ $<,>,<=,>=,!=m=$ _constant_ $-> $ _unary constraint_
+- _variable_ $<,>,<=,>=,!=m=$ _unary operation_ $-> $ _binary constraint_
+
+
+A collection of unary and binary constraints, combined with the logical-and operator (`&&`) form a constraint set. We reduce each of the variable's values to satisfy the constraint, or, warn the user that the considition will never be satisfied if this fails. Because we only handle expressions involving two mutable variables, expressions which do not meet this criteria are ignored.
+
 
 = Code Generation
 
