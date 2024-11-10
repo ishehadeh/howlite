@@ -347,3 +347,7 @@ The first set of mutations that satisfy all constraints is used to produce the f
 
 = Code Generation
 
+Similar to type checking, code generation works by folding the abstract syntax tree.
+Each node writes to an buffer of assembly instructions, provided by the parent node.
+They return a collection of _Slots_ which contain the value of their computation.
+A Slot may be a register, a pointer (itself a slot) and an associated offset, or a 16-bit immidiate. No optimizations are performed, and the generated code is generally ineficient, even compared to other compilers when they skip the optimization step.
