@@ -113,7 +113,7 @@ We optimize clarity by keeping tokens consistent, for example colon (`:`) is alm
 Giving programmers tools to express their intent extends beyond syntax, but the features a language's syntax emphasizes plays an important role in guiding the programmer.
 We chose to make constructing types easy.
 
-= Type Checking
+= Type Checking<sc-type-checking>
 
 
 Howlite's implements a simple bi-directional type checker [@dunfieldBidirectionalTyping2020]. Every node in the AST is given a type. An AST node's type is typically derived from it's children's types, through a process called _synthesis_, we call these types _synthesized types_. Many constructs in the language must be ascribed types by the programmer: variables declared with "`let`", function parameters, and return values. Types which are declared explicitly are called _assumed_ types.
@@ -316,7 +316,7 @@ given a storage class `uN`, where $N$ is the width in bits, and variables `a : s
 - TODO other bitwise ops defined in terms of the above operations
 - TODO except xor, maybe?
 
-== Narrowing
+== Narrowing<sc-narrowing>
 
 A variable's type may be narrowed based on the result of a boolean expression.
 
@@ -355,9 +355,9 @@ A _Stripe Set_ is a collection of _Step Ranges_.
 
 A _Step Range_ is an integer set with minimum element $A$ and maximum element $B$, with a some step $S$. 
 The set includes all elements $A + n(S)$, for any $n$, where $A + n(S) < n$.
-Formally, we define $"SR"(A, B, S) := { n(S) + A : n in NN, n <= (B - A)\/S }$, where $A, B in ZZ, A <= B$ and $S in ZZ, S >= 1, (B - A mod S) equiv 0$.
+Formally, we define $"STEP"(A, B, S) := { n(S) + A : n in NN, n <= (B - A)\/S }$, where $A, B in ZZ, A <= B$ and $S in ZZ, S >= 1, (B - A mod S) equiv 0$.
 
-#let SR = "SR"
+#let STEP = "STEP"
 
 #let stripe(..rs) = {
   let elems = rs.pos().map(((a, b, s)) => range(a, b, step: s).map(x => str(x))).flatten().join(", ")
@@ -368,12 +368,12 @@ Formally, we define $"SR"(A, B, S) := { n(S) + A : n in NN, n <= (B - A)\/S }$, 
 This representation is the most general - it can express any arbitrary set of integers.
 But, the in-memory representation can be difficult to manage.
 
-Consider a stripe set: $A = SR(5, 13, 2) union SR(20, 26, 3) = #stripe((5, 13, 2), (20, 26, 3))$,
-and a stripe set $B = SR(0, 100, 10) = #stripe((0, 100, 10))$.
+Consider a stripe set: $A = STEP(5, 13, 2) union STEP(20, 26, 3) = #stripe((5, 13, 2), (20, 26, 3))$,
+and a stripe set $B = STEP(0, 100, 10) = #stripe((0, 100, 10))$.
 
 How do we add these, in such a way that the result has as few step ranges as possible?
 At present we use one simple argorithm: For each combinationation of step ranges $alpha, beta$, take the one with the fewest elements (say $alpha$, for this example). 
-For every element $a$ in $alpha$, create a new range $SR("lo"(beta) + a, "hi"(beta) + a, "step"(beta))$. Issues quickly arise after a number of operations, so this representation should be avoided.
+For every element $a$ in $alpha$, create a new range $STEP("min"(beta) + a, "max"(beta) + a, "step"(beta))$. Issues quickly arise after a number of operations, so this representation should be avoided.
 
 == Small Sets<sc-sm-set>
 
@@ -385,9 +385,23 @@ A _Small Set_ may be used as the backing store for a keyboard scancodes like in 
 == Contiguous Ranges<sc-contiguous-ranges>
 
 Ideally, most ranges we perform arithmetic on should be continuous.
-Addition is trivial, and multiplication with a constant just creates a new _Step Range_.
+Addition is trivial, and multiplication with a constant just creates a new Step Range.
 
-= Constraints
+== Dynamic Represntation
+
+The possible values of any scalar is kept as one of the above types, with a descriminator, this structure is called `DynSet`.
+The type checker can construct a new `DynSet` in 2 ways:
+
+1. Using a single value, $a$, (e.g. synthesizing a literal). This creates a contiguous range from $a$ to $a$.
+2. Using a type range expression, `a..b`, this creates a contiguous range from `a` to `b`.
+
+From the start of its life as a contiguous range, these dynamic sets can be _upgraded_ to a more suitable representation. For example, after taking the union of two dynamic sets with no overlap, they'll be represented as a stripe set.
+
+= Constraints<sc-contraints>
+
+At the type level, a boolean expression is considered an integer constraint satisifiability problem. The broad implications are discussed in @sc-narrowing.
+
+
 
 = Code Generation
 
