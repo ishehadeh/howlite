@@ -1,16 +1,15 @@
-#import "../templates/example.typ": code-sample
+#import "../templates/example.typ": code-sample, code-example
 
-#let en = `print Hello!
+#let en = ```
+print Hello!
 ask What is your name?
-`
+```
 
-#let ar = `
+#let ar = align(right, text(dir: rtl, ```
 قول Hello!
 اسأل What is your name?
-`
+```))
 
-#figure(caption: "Hedy", kind: "code", supplement: "Example")[
-  #grid(columns: 2, rows: 1, column-gutter: 5em,
-    code-sample(en),
-    code-sample(ar))
-]<ex-hedy>
+#grid(columns: 1, rows: 2, gutter: 2em,
+    code-example(en, caption: "Hedy (English)"),
+    code-example(ar, caption: "Hedy (Arabic)"))

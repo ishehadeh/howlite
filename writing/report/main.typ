@@ -28,7 +28,51 @@
 )
 
 
-= Introduction
+// Audience expectations: some familiarity with programming languages, possibly some familiarity with set theory
+
+= Programming Language Concepts and Motivation
+
+_Programming Language_ is a broad term, generally, it's a text-based format for expression computation.
+Although most programs are written by software engineers, and most programming languages are designed with software engineers in mind, this by no means makes the a homogenous group.
+After a program is written it's read by a machine (the compiler or interpret) and people - possible just the original author, or others they collaborate with.
+To satisfy both audiences it must be clear two ways: formally, so the machine can produce consistent and accurate results, and legible, the original author's intent should be clear.
+
+How we make a programming language clear depends entirely on what it's meant to accomplish, to demonstrate, consider _Hedy_, @hedy, and _Go_, @go-github.
+
+#align(center, grid(
+    include "examples/hedy.typ",
+    include "examples/go.typ",
+    columns: 2,
+    gutter: 3em,
+  )
+)
+
+== Hedy
+
+Hedy @hedy is a programming language for teaching programming.
+
+
+The language avoids symbols, instead using keywords, which are generally easier for students to remember. With so much of the language being textual, Hedy is fully translated to a large set of languages - 47 at the time of writing. Both Hedy programs above do the same, but they're keywords are in different languages. Hedy also allows programmers to see and hear the results of their work: it has easily accessible functionality for playing music and drawing graphics. Those features are typically implemented as libraries, for most programming languages, since they have a relatively narrow application. But, it takes a lot of general knowledge to have the computer _do_ anything interesting; when first learning, it's helpful to be able to make the computer *do* something, not just report results in the terminal.
+
+== Go
+
+
+Go was an answer to problems with the software infrastructure at Google (@pike_GoAtGoogle).
+It's designed to be used in large, long-lived software projects. There’s a focus on clear syntax and semantics: no matter who wrote the code, what it does, and how it does it should be clear to any programmer. It also comes bundled with tools to help keep programs up to date and consistent.
+Unused variables and imports are disallowed. Although it supports first class functions, it's largely imperative. Programmers are forced to deal with the inherent complexity of things like string encoding up front, as seen in @ex-go.
+
+
+== Howlite's Purpose
+
+#wrapped-figure(
+  left: include "examples/howlite-general.typ",
+  right: [
+
+Howlite is an expiremental language for writing programs that necessitate little abstraction over they machines they control. The project's goal is to answer the question, _How can we create an expressive type system without limiting a programmer's control of the hardware?_
+
+])
+
+= The Programming Language
 
 Memory safety in systems programming languages /* TODO: define this term */ has garnered a lot of attention in the last several years. /* TODO: do I need to cite this claim? */
 A compiler that enforces strict rules on object's lifetime and mutability is helpful in large projects, especially when security is a top concern. Checking these properties at compile time allows the compiler to omit parts of its runtime, like a garbage collector, while providing similar gaurentees.
@@ -37,48 +81,6 @@ These innovations in language design fail to directly address a class of problem
 
 Howlite aims to address these problems. Howlite is not a language to write a web server, it is not for writing applications, it isn't even a language for writing programming languages. It is a language for writing a single module for a very specific data structure, wrapped in a python library. It is a language for writing a boot loaded, or the entrypoint to a kernel. The compiler does not impose strict requirements on how the programmer manages memory, or accesses data. Instead, the type systems gives a rich set of tools, allowing one to set their own constraints.
 
-// #show raw: set text(size: 1em)
-
-= Motivation
-
-
-Programming languages are one of the many, many, interfaces to help us utilize computers.
-_Microsoft Word_ helps us compose and format documents, and programming languages help us create algorithms.
-Just like word processors, or painting applications, there are countless ways to tweak a programming language's interface to make it more suited to a particular use case or audience.
-
-This section gives a quick overview of _Hedy_ and _Go_. We summarize those languages are for, and the choices they made to cater to that audience.
-
-
-
-== Hedy
-
-Hedy /* citation needed */ is a programming language for teaching programming.
-
-
-#include "examples/hedy.typ"
-
-The language avoids symbols, instead using keywords, which are generally easier for students to remember. English words aren't particularly better (may worse, in fact) than symbols, for those unfamiliar with the language. So, Hedy is fully translated to a large set of languages - 47 at the time of writing. The programs in @ex-hedy are the same, but the right is in Arabic. Hedy also allows programmers to see and hear the results of their work: it has easily accessible functionality for playing music and drawing graphics. Those features are typically implemented as libraries, for most programming languages, since they have a relatively narrow application. But, it takes a lot of general knowledge to have the computer _do_ anything interesting; when first learning, it's helpful to be able to make the computer *do* something, not just report results in the terminal.
-
-== Go
-
-#include "examples/go.typ"
-
-Go was an answer to problems with the software infrastructure at Google. /* TODO: cite */
-It’s designed to be used in large, long-lived software projects. There’s a focus on clear syntax and semantics: no matter who wrote the code, what it does, and how it does it should be clear to any programmer. It also comes bundled with tools to help keep programs up to date and consistent.
-Unused variables and imports are disallowed. Although it supports first class functions, it's largely imperative. Programmers are forced to deal with the inherent complexity of things like string encoding up front, as seen in @ex-go.
-
-== Where Howlite Sits
-
-/* TODO: revise */
-Computers are complicated, I find making them more accessible an interesting challenge. Programming languages in particular piqued my interest because I like programming. Programming is just solving logic puzzles, anything that let’s me look at these problems in a different way is fascinating.
-
-The goals of this project are, in no particular order:
-
-1. Learn about the components of a compiler.
-2. Expirement with precise types for scalar values.
-3. Applications of sub-type polymorphism and structural typing in resource constrained environments.
-
-There isn’t any particularly interesting theory behind any of those goals. I just threw a bunch of ideas at the wall, and those ware what stuck. I don’t expect Howlite to be a fantastic programming language, but I hope that it's unique enough that its particular blend of features might help inform the design of languages I create in the future.
 
 = Syntax Design
 
