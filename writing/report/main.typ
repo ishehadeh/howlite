@@ -146,121 +146,30 @@ The function parameters: `x`, `y`, and `z` have each been given the assumed type
 
 To illustrate how these assumed types interact with synthesized types, we'll manually type check the function.
 
-#let colors = (
-  l1: red.lighten(50%),
-  l2: green.lighten(75%),
-  l3: blue.lighten(75%),
-  l4: yellow.lighten(75%)
-)
+#import "examples/typechecking/colors.typ": noderef-1, noderef-2, noderef-3, noderef-4
 
-// reference a diagram node inline
-#let noderef(label, color) = if label.text.len() == 1 { box(height: 16pt, baseline: 4pt, outset: -0.5pt, width: 16pt, align(center + horizon, circle(fill: color, label))) } else { box(height: 16pt, fill:color, baseline: 3.5pt, outset: -0.5pt, inset: 5pt, align(center + horizon, label)) }
-
-#let full-tree = [#figure(diagram({
-  node((0, 0), `/`, fill: colors.l1, name: <div>)
-  edge("-|>")
-  node((-.6, 1), `+`, fill: colors.l2, name: <add1>)
-  edge("-|>")
-  node((-1.2, 2), `+`, fill: colors.l3, name: <add2>)
-  edge("-|>")
-  node((-1.8, 3), `x`, fill: colors.l4)
-  edge(<add2>, (-.6, 3), "-|>")
-  node((-.6, 3), `y`, fill: colors.l4)
-
-  edge(<add1>, (0, 2), "-|>")
-  node((0, 2), `z`, fill: colors.l3)
-
-
-  edge(<div>, (.6, 1), "-|>")
-  node((.6, 1), `3`, fill: colors.l2)
-
-}, node-outset: 3pt, spacing: 1.5em), caption: "AST")<ast>]
-
-#wrap-content(pad(right: 8pt, bottom: 8pt, full-tree))[
+#wrap-content(
+  pad(right: 8pt, bottom: 8pt, include "./examples/typechecking/full-tree.typ")
+)[
   The funtion body, `(x + y + z) / 3`, has the syntax tree seen in @ast.
-The type checker works bottom-up, left-to-right. So, we begin with the leaves of the tree: #noderef(`x`, colors.l4), and #noderef(`y`, colors.l4). Identifier AST node's synthesized type is the assumed type of the symbol they include. So #noderef(`x`, colors.l4) is synthesized to type `0..10` (the assumed type of `x`), and #noderef(`y`, colors.l4) is synthesized to type `0..10` (the assumed type of `y`).
+The type checker works bottom-up, left-to-right. So, we begin with the leaves of the tree: #noderef-4(`x`), and #noderef-4(`y`). Identifier AST node's synthesized type is the assumed type of the symbol they include. So #noderef-4(`x`) is synthesized to type `0..10` (the assumed type of `x`), and #noderef-4(`y`) is synthesized to type `0..10` (the assumed type of `y`).
 
-This information is added to the tree, and we reference it synthesize #noderef(`+`, colors.l3). An operator node's synthesized type is constructed by applying the given operation to the synthesized types of each operand. Types may be constructed using arithmetic operations, this process will be defined more formally in @section-scalars. For now, take for granted that `0..10 + 0..10 : 0..20`.
+This information is added to the tree, and we reference it synthesize #noderef-3(`+`). An operator node's synthesized type is constructed by applying the given operation to the synthesized types of each operand. Types may be constructed using arithmetic operations, this process will be defined more formally in @section-scalars. For now, take for granted that `0..10 + 0..10 : 0..20`.
 ]
 
-#stack(dir: ltr, spacing: 1em,
-  diagram({
-    node((0, 0), `+`, fill: colors.l3, name: <add2>)
-    edge("-|>")
-    node((-.8, 1), `x : 0..10`, fill: colors.l4)
-    edge(<add2>, (.8, 1), "-|>")
-    node((.8, 1), `y : 0..10`, fill: colors.l4)
-  }, node-outset: 3pt, spacing: 1.5em),
-  $-->$,
-  diagram({
-    node((0, 0), `+ : 0..20 `, fill: colors.l3, name: <add2>)
-    edge("-|>")
-    node((-.66, 1), `x : 0..10`, fill: colors.l4)
-    edge(<add2>, (.66, 1), "-|>")
-    node((.66, 1), `y : 0..10`, fill: colors.l4)
-  }, node-outset: 3pt, spacing: 1.5em)
-)
-Now, we move up the tree, to synthesize the right hand side of #noderef(`+`, colors.l2), then finally #noderef(`+`, colors.l2) itself.
+#include "examples/typechecking/reduce-1.typ"
+Now, we move up the tree, to synthesize the right hand side of #noderef-2(`+`), then finally #noderef-2(`+`) itself.
 
-#stack(dir: ltr, spacing: .5em,
-  diagram({
-    node((0, 0), `+`, fill: colors.l2, name: <add1>)
-    edge("-|>")
-    node((-.8, 1), `+ : 0..20`, fill: colors.l3)
-    edge(<add1>, (.8, 1), "-|>")
-    node((.8, 1), `z`, fill: colors.l3)
-  }, node-outset: 3pt, spacing: 1.5em),
-  $-->_1$,
-  diagram({
-    node((0, 0), `+`, fill: colors.l2, name: <add1>)
-    edge("-|>")
-    node((-.8, 1), `+ : 0..20`, fill: colors.l3)
-    edge(<add1>, (.8, 1), "-|>")
-    node((.8, 1), `z : 0..10`, fill: colors.l3)
-  }, node-outset: 3pt, spacing: 1.5em),
-  $-->_2$,
-  diagram({
-    node((0, 0), `+ : 0..30`, fill: colors.l2, name: <add1>)
-    edge("-|>")
-    node((-.6, 1), `+ : 0..20`, fill: colors.l3)
-    edge(<add1>, (.8, 1), "-|>")
-    node((.6, 1), `z : 0..10`, fill: colors.l3)
-  }, node-outset: 3pt, spacing: 1.5em),
-)
 
-In (1) we synthesize the node's type from the assumed type of `z`. In (2) we used this information, and the type of #noderef(`+`, colors.l3) to synthesize a type for #noderef(`+`, colors.l2).
+#include "examples/typechecking/reduce-2.typ"
+In (1) we synthesize the node's type from the assumed type of `z`. In (2) we used this information, and the type of #noderef-3(`+`) to synthesize a type for #noderef-3(`+`).
 
-Finally, we again move up the tree, now to #noderef(`/`, colors.l1).
+Finally, we again move up the tree, now to #noderef-1(`/`).
 
-#stack(dir: ltr, spacing: .5em,
-  diagram({
-    node((0, 0), `/`, fill: colors.l1, name: <add1>)
-    edge("-|>")
-    node((-.8, 1), `+ : 0..30`, fill: colors.l2)
-    edge(<add1>, (.8, 1), "-|>")
-    node((.8, 1), `3`, fill: colors.l2)
-  }, node-outset: 3pt, spacing: 1.5em),
-  $-->_1$,
-  diagram({
-    node((0, 0), `/`, fill: colors.l1, name: <add1>)
-    edge("-|>")
-    node((-.8, 1), `+ : 0..30`, fill: colors.l2)
-    edge(<add1>, (.8, 1), "-|>")
-    node((.8, 1), `3 : 3`, fill: colors.l2)
-  }, node-outset: 3pt, spacing: 1.5em),
-  $-->_2$,
-  diagram({
-    node((0, 0), `/ : 0..10`, fill: colors.l1, name: <add1>)
-    edge("-|>")
-    node((-.8, 1), `+ : 0..30`, fill: colors.l2)
-    edge(<add1>, (.8, 1), "-|>")
-    node((.8, 1), `3 : 3`, fill: colors.l2)
-  }, node-outset: 3pt, spacing: 1.5em),
-)
-
+#include "examples/typechecking/reduce-3.typ"
 Due to the the functions return value, the assumed type of the body is `0..10`.
 Function body's type is synthesized based on the possible return values.
-So the synthesized type of this function's body is the the type of #noderef(`/`, colors.l1).
+So the synthesized type of this function's body is the the type of #noderef-1(`/`).
 
 Type checking is the process of comparing assumed and synthesized types.
 If a synthesized is not a subset of the assumed type, then a type error is attached to that node.
