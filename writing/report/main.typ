@@ -164,7 +164,7 @@ Howlite code should be recognizable to C programmers. For this reason, we use cu
 
 A small, easily parsed grammar is valuable because it makes implementing tooling easier. Anything from simple syntax highlighting in _Emacs_ to an auto-formatter or linter dramatically easier to implement when parsing the language isn't a significant hurdle.
 
-Howlite's syntax is expressable in an LR grammar. Consequently, the grammar is unambiguous. Furthermore, the grammar aims to reduce look ahead as much as possible.
+Howlite's syntax is expressable in an LR grammar. Consequently, the grammar is unambiguous. While writing the grammar, we aimed to reduce look ahead as much as possible. For example, function's type parameters are written `index_of[:u32](...)`, which disambiguates the use of `[...]` from array access.
 
 == Clarity
 
@@ -174,7 +174,8 @@ If a program is clear, then the author's original intent should be easily unders
 We optimize clarity by keeping tokens consistent, for example colon (`:`) is almost always a way to give _something_ a type, whether that thing is an expression, variable, or a field of a data structure. However, we don't sacrifice familiarity for consistency. Languages like C, C++, Java, Go, and more use curly braces for both structure declarations and statement blocks, so we follow suit.
 
 Giving programmers tools to express their intent extends beyond syntax, but the features a language's syntax emphasizes plays an important role in guiding the programmer.
-We chose to make constructing types easy.
+Being a low-level language, we want to emphasize precisely what the machine is doing.
+Howlite programs are written in an imperative style, we expect the programmer to use mutable state, but discourage it when unessary by making it opt-in, via the `mut` keyword. We also omit short hand syntax or functions for functional operations, like transforming the content of an array. While these operations are convient, they paper over important, they can paper over important details like memory allocation. 
 
 
 
