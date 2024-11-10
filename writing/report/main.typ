@@ -23,7 +23,7 @@
   authors: (authors, affls),
   abstract: include "./snippets/abstract.typ",
   keywords: ("programming language",),
-  bibliography: bibliography("main.bib"),
+  bibliography: par(first-line-indent: 0em, bibliography("main.bib")),
   appendix: include "snippets/appendix.typ",
 )
 
@@ -33,8 +33,8 @@
 = Programming Language Concepts and Motivation
 
 _Programming Language_ is a broad term, generally, it's a text-based format for expression computation.
-Although most programs are written by software engineers, and most programming languages are designed with software engineers in mind, this by no means makes the a homogenous group.
-After a program is written it's read by a machine (the compiler or interpret) and people - possible just the original author, or others they collaborate with.
+Although most programs are written by software engineers, and most programming languages are designed with software engineers in mind, this by no means makes them a homogenous group.
+After a program is written it's read by a machine (the compiler or interpret) and people - possibly just the original author, or others they collaborate with.
 To satisfy both audiences it must be clear two ways: formally, so the machine can produce consistent and accurate results, and legible, the original author's intent should be clear.
 
 How we make a programming language clear depends entirely on what it's meant to accomplish, to demonstrate, consider _Hedy_, @hedy, and _Go_, @go-github.
@@ -52,7 +52,7 @@ How we make a programming language clear depends entirely on what it's meant to 
 Hedy @hedy is a programming language for teaching programming.
 
 
-The language avoids symbols, instead using keywords, which are generally easier for students to remember. With so much of the language being textual, Hedy is fully translated to a large set of languages - 47 at the time of writing. Both Hedy programs above do the same, but they're keywords are in different languages. Hedy also allows programmers to see and hear the results of their work: it has easily accessible functionality for playing music and drawing graphics. Those features are typically implemented as libraries, for most programming languages, since they have a relatively narrow application. But, it takes a lot of general knowledge to have the computer _do_ anything interesting; when first learning, it's helpful to be able to make the computer *do* something, not just report results in the terminal.
+The language avoids symbols, instead using keywords, which are generally easier for students to remember. With so much of the language being textual, Hedy is fully translated to a large set of languages - 47 at the time of writing. Both Hedy programs above do the same, but they're keywords are in different languages. Hedy also allows programmers to see and hear the results of their work: it has easily accessible functionality for playing music and drawing graphics. Those features are typically implemented as libraries, for most programming languages, since the have a relatively narrow application. But, it takes a lot of general knowledge to have the computer _do_ anything interesting; when first learning, it's helpful to be able to make the computer *do* something, not just report results in the terminal.
 
 == Go
 
@@ -75,9 +75,9 @@ Howlite is an expiremental language for writing programs that necessitate little
 = The Programming Language
 
 Memory safety in systems programming languages /* TODO: define this term */ has garnered a lot of attention in the last several years. /* TODO: do I need to cite this claim? */
-A compiler that enforces strict rules on object's lifetime and mutability is helpful in large projects, especially when security is a top concern. Checking these properties at compile time allows the compiler to omit parts of its runtime, like a garbage collector, while providing similar gaurentees.
+A compiler that enforces strict rules on an object's lifetime and mutability is helpful in large projects, especially when security is a top concern. Checking these properties at compile time allows the compiler to omit parts of its runtime, like a garbage collector, while providing similar gaurentees.
 
-These innovations in language design fail to directly address a class of problems where direct memory manipulation is essential. These problems force the programmer to fully disable the compiler's checks, or encourage awkward solutions which trade clarity for small guarentees. /* TODO: weak claim, I already hyped these guarentees, why do I say "weak" all of a sudden? */
+These innovations in language design fail to directly address a class of problems where direct memory manipulation is essential. These problems force the programmer to fully disable the compiler's checks, or encourage awkward solutions which trade clarity for small gaurentees. /* TODO: weak claim, I already hyped these guarentees, why do I say "weak" all of a sudden? */
 
 Howlite aims to address these problems. Howlite is not a language to write a web server, it is not for writing applications, it isn't even a language for writing programming languages. It is a language for writing a single module for a very specific data structure, wrapped in a python library. It is a language for writing a boot loaded, or the entrypoint to a kernel. The compiler does not impose strict requirements on how the programmer manages memory, or accesses data. Instead, the type systems gives a rich set of tools, allowing one to set their own constraints.
 
@@ -101,14 +101,14 @@ Howlite code should be recognizable to C programmers. For this reason, we use cu
 
 A small, easily parsed grammar is valuable because it makes implementing tooling easier. Anything from simple syntax highlighting in _Emacs_ to an auto-formatter or linter dramatically easier to implement when parsing the language isn't a significant hurdle.
 
-Howlite's syntax is expressable in an LR grammar. Consequently, the grammar is unambiguous, furthermore, the grammar aims to reduce look ahead as much as possible.
+Howlite's syntax is expressable in an LR grammar. Consequently, the grammar is unambiguous. Furthermore, the grammar aims to reduce look ahead as much as possible.
 
 == Clarity
 
 Here, we use clarity to mean the ease of understanding a program's behavior.
 If a program is clear, then the author's original intent should be easily understood by someone familiar with the language. The author of a program is responsible for making their intent clear; the syntax should guide their choices, and give them the tools to express their intent.
 
-We optimize clarity by keeping tokens consistent, for example colon (`:`) is almost always a way to give _something_ a type, whether that thing is an expression, variable, or a field of a data structure. However, we don't sacrifice familiarity for consistency. Languages like C, C++, Java, Go, and more use curly braces for both structure declarations and statement blocks, so we follow suite.
+We optimize clarity by keeping tokens consistent, for example colon (`:`) is almost always a way to give _something_ a type, whether that thing is an expression, variable, or a field of a data structure. However, we don't sacrifice familiarity for consistency. Languages like C, C++, Java, Go, and more use curly braces for both structure declarations and statement blocks, so we follow suit.
 
 Giving programmers tools to express their intent extends beyond syntax, but the features a language's syntax emphasizes plays an important role in guiding the programmer.
 We chose to make constructing types easy.
@@ -172,13 +172,13 @@ Function body's type is synthesized based on the possible return values.
 So the synthesized type of this function's body is the the type of #noderef-1(`/`).
 
 Type checking is the process of comparing assumed and synthesized types.
-If a synthesized is not a subset of the assumed type, then a type error is attached to that node.
+If a synthesized type is not a subset of the assumed type, then a type error is attached to that node.
 
 
 
 == Scalars<section-scalars>
 
-There is a single scalar type in Howlite, this simplifies the type checking by condensing many cases into a single, generic case. There are no distinct enumerable types, true boolean types, or even a unit type in the language. Instead of distinct types, we have the scalar type "Integer" (floating point number are out of scope). A scalar may be any set of Integers.
+There is a single scalar type in Howlite, this simplifies the type checking by condensing many cases into a single, generic case. There are no distinct enumerable types, true boolean types, or even a unit type in the language. Instead of distinct types, we have the scalar type "Integer" (floating point numbers are out of scope). A scalar may be any set of Integers.
 
 === Synthesis of Scalars
 
@@ -263,7 +263,7 @@ Internally, we use 3 set representations, _Stripe Sets_, _Small Sets_ and _Conti
 
 A _Stripe Set_ is a collection of _Step Ranges_. 
 
-A _Step Range_ is an integer set with minimum element $A$ and maximum element $B$, with a some step $S$. 
+A _Step Range_ is an integer set with minimum element $A$ and maximum element $B$, with some step $S$. 
 The set includes all elements $A + n(S)$, for any $n$, where $A + n(S) < n$.
 Formally, we define $"STEP"(A, B, S) := { n(S) + A : n in NN, n <= (B - A)\/S }$, where $A, B in ZZ, A <= B$ and $S in ZZ, S >= 1, (B - A mod S) equiv 0$.
 
@@ -337,6 +337,9 @@ From these, we build compound terms:
 
 A collection of unary and binary constraints, combined with the logical-and operator (`&&`) form a constraint set. We reduce each of the variable's values to satisfy the constraint, or, warn the user that the considition will never be satisfied if this fails. Because we only handle expressions involving two mutable variables, expressions which do not meet this criteria are ignored.
 
+== Solving Constraints
+
+We solve constraints with a naive constraint propogation algorithm, based on the algorithms described in _Foundations of Artificial Intelligence, Chapter 3_, @bessiereChapter3Constraint2006. A constraint set is a collection of variables, and constraints on those variables. All variables begin with some unary constraint, by default this is that they must be a subset of their current synthesized type. 
 
 = Code Generation
 
