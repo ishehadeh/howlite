@@ -15,7 +15,7 @@
 #let authors = (
   (name: "Ian Shehadeh",
    affl: "smcm",
-   email: "irhsheadeh@smcm.edu"),
+   email: "irhshehadeh@smcm.edu"),
 )
 
 #show: jmlr.with(
