@@ -30,6 +30,7 @@
 
 // Audience expectations: some familiarity with programming languages, possibly some familiarity with set theory
 
+
 = Programming Language Concepts and Motivation
 
 _Programming Language_ is a broad term, generally, it's a text-based format for expression computation.
@@ -38,6 +39,8 @@ After a program is written it's read by a machine (the compiler or interpret) an
 To satisfy both audiences it must be clear two ways: formally, so the machine can produce consistent and accurate results, and legible, the original author's intent should be clear.
 
 How we make a programming language clear depends entirely on what it's meant to accomplish, to demonstrate, consider _Hedy_, @hedy, and _Go_, @go-github.
+
+// move examples closer to actual text, and reference them.
 
 #align(center, grid(
     include "examples/hedy.typ",
@@ -82,6 +85,66 @@ These innovations in language design fail to directly address a class of problem
 Howlite aims to address these problems. Howlite is not a language to write a web server, it is not for writing applications, it isn't even a language for writing programming languages. It is a language for writing a single module for a very specific data structure, wrapped in a python library. It is a language for writing a boot loaded, or the entrypoint to a kernel. The compiler does not impose strict requirements on how the programmer manages memory, or accesses data. Instead, the type systems gives a rich set of tools, allowing one to set their own constraints.
 
 
+#wrapped-figure(
+  right: include "examples/boolean.typ",
+  left: [
+== Overview
+
+The most notable feature of Howlite is the type system. The type system is structural, and closely tracks the value of integers. You can declare types which only accept specific integers, or ranges. Types are compared based on their compatability, not by name. 
+],
+  under: [
+    To better understand the language, this section will walk through the process of definining a function to get the index of a character from an ASCII string.
+  ]
+)
+
+
+
+#wrapped-figure(
+  left: include "examples/index_of/typedefs.typ",
+  right: [
+    First we define a character as any number between `0` and `127`, or the base set of ASCII characters.
+    Next is the definition of standard 32-bit integer, this will be used to index the array.
+    Finally, we define the a variant of `i32` that is only positive.
+    We'll use this type to represent the index, which can't be negative.
+],
+)
+
+#include "examples/index_of/signature.typ"
+
+
+This function is generic, the `[LenT: NatI32]` section indicates, that for any subset of the positive, signed, 32-bit integers, there is an instance of `index_of`.
+Whatever that type is, it's refered to as call it `LenT`, within the context of this function.
+
+Moving on to the parameter list, notice the type of `str` is `&[char; LenT]`.
+This `&[...]` is a special type called a _slice_ (also know as a fat pointer).
+It is implemented as a pointer and length pair, and practically it functions like an array.
+These types are common, they're primitives in Rust, Go, and Zig.
+Although it's not a primitive type, the C++ STL's `std::span` is a similar data structure.
+What sets our slice type apart is that the type of the length can be set.
+So, for example say we take a slice of some ASCII string, from index 3 to 10, the result would have the type `&[char; 7]`.
+
+By using a generic parameter, `LenT`, then giving `str` the type `&[char; LenT]`.
+We can be certain this function only works on a string of length less than or equal to 0x7fffffff.
+Since it's impossible to find a character outside of those bounds, we know the return type can't exceed the maximum value of `LenT`, if no character is found then we return `-1`.
+
+
+#wrapped-figure(
+  right: include "examples/index_of/body.typ",
+  left: [
+   Finally, the body of this function likely looks familiar to C programmers, with some minor syntactic changes. Variables are declared with `let`, `mut` indicates that we can change the value after initialization. All expressions (including `if` statements and blocks) have values. The value is equal to the value of the last line in the block, if it omits a semi-colon (`;`), or `unit` otherwise.
+
+    Some care must be taken to make sure we satisfy the return type.
+    How can the compiler be certain `i` is always a subset of `0..Max[LenT]`, since `u32` certainly exceeds `LenT`.
+    The condition `while i < str.len`, narrows `i`'s type from `u32` to `0..LenT-1`.
+    This means within the body of that loop, `i` can be used as if it had the type `0..Max[LenT]-1`.
+  ],
+  under: [
+    Arithmetic will modify this type: after running `i = i + 1`, `i`'s narrow type has change to `1..Max[LenT]`.
+    If we changed the code to check some other condition, for example `chr < str.len`, this wouldn't compile.
+  ]
+)
+
+
 = Syntax Design
 
 #wrapped-figure(
@@ -112,6 +175,8 @@ We optimize clarity by keeping tokens consistent, for example colon (`:`) is alm
 
 Giving programmers tools to express their intent extends beyond syntax, but the features a language's syntax emphasizes plays an important role in guiding the programmer.
 We chose to make constructing types easy.
+
+
 
 = Type Checking<sc-type-checking>
 
