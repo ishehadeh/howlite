@@ -1,3 +1,2 @@
-We present _Howlite_ a language targeting RISC-V, with a similar level of abstraction to C.
-Howlite uses a single scalar type, _integer_, which allows users to specify exactly the set of values allowed.
-Collection types are checked with a simple, structural bi-directional type checker.
+This paper covers the process of designing a programming language. We present _Howlite_ a language targeting RISC-V, intended for computation coupled to the underlying hardware.
+The language is a case study how structural typing and precise integer types can describe data structures at a low level. 
