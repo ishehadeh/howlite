@@ -244,6 +244,9 @@ There is a single scalar type in Howlite, this simplifies the type checking by c
 
 As seen above, a scalar may be synthesized from a single value, for example, the type of $-5$ is ${ -5 }$. We can also construct new scalars using arithmetic operations:
 
+
+#include "examples/scalar-addition.typ"
+
 Given a scalar type $T = {  t_1, t_2, t_3 ... t_n}$, where $forall i : t_i in ZZ$, and a scalar type $U = {  u_1, u_2, u_3 ... u_n}$ where $forall j:u_j in ZZ$. (i.e $T, U$ are subsets of the integers). We can construct the following types:
 
 - $T times U = { t u : forall t in T, forall u in U }$
