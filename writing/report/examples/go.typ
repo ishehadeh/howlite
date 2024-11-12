@@ -1,10 +1,10 @@
 #import "../templates/example.typ": code-sample
 
 #let code = `func indexOf(str string, c rune) int {
-	codepoints := []rune(str);
+	runes := []rune(str);
 
-	for i := 0; i < len(codepoints); i++ {
-		if codepoints[i] == c { return i; }
+	for i := 0; i < len(runes); i++ {
+		if runes[i] == c { return i; }
 	}
 	
 	return -1;
