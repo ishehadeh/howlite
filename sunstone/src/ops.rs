@@ -80,6 +80,8 @@ pub trait Subset<Rhs = Self> {
 pub trait ArithmeticSet<RhsSetT, RhsElemT> {
     fn add_all(&mut self, rhs: RhsSetT);
     fn mul_all(&mut self, rhs: RhsSetT);
+    fn sub_all(&mut self, rhs: RhsSetT);
+    fn div_all(&mut self, rhs: RhsSetT);
     // fn div_all(&mut self, rhs: RhsSetT);
 
     fn add_scalar(&mut self, rhs: RhsElemT);

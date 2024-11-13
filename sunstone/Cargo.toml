@@ -8,3 +8,6 @@ num-traits = "*"
 num-integer = "*"
 bumpalo = { version = "*", features = ["collections"] }
 num = "*"
+
+[dev-dependencies]
+proptest = "*"

@@ -685,6 +685,14 @@ impl<const WIDTH: usize> ArithmeticSet<&Self, usize> for BitField<WIDTH> {
         }
         self.exclude_range(rhs, Self::block_width() * WIDTH - 1);
     }
+
+    fn sub_all(&mut self, rhs: &Self) {
+        todo!()
+    }
+
+    fn div_all(&mut self, rhs: &Self) {
+        todo!()
+    }
 }
 
 impl Copy for BitField<1> {}

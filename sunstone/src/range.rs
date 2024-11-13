@@ -1,9 +1,10 @@
+use core::panic;
 use std::{
     cmp::Ordering,
-    ops::{Add, Mul, Sub},
+    ops::{Add, Div, Mul, Sub},
 };
 
-use num::Integer;
+use num::{Integer, Signed, Zero};
 
 use crate::ops::{self, Bounded};
 
@@ -182,4 +183,122 @@ impl<T: Ord + Mul<T, Output = OutputT>, OutputT: Ord> Mul<Self> for Range<T> {
     fn mul(self, rhs: Self) -> Self::Output {
         Range::new(self.lo * rhs.lo, self.hi * rhs.hi)
     }
+}
+
+impl<T: Ord + Add<T, Output = OutputT>, OutputT: Ord> Sub<Self> for Range<T> {
+    type Output = Range<OutputT>;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        todo!()
+    }
+}
+
+impl<T: Ord + Div<T> + num::Integer + Clone> Div<Self> for Range<T> {
+    type Output = Range<T>;
+
+    fn div(self, rhs: Self) -> Self::Output {
+        let Self {
+            lo: rhs_lo_maybe_zero,
+            hi: rhs_hi_maybe_zero,
+        } = rhs;
+
+        // Exclude zero if possible, since division by zero is undefined
+        let rhs_lo = if rhs_lo_maybe_zero.is_zero() {
+            if rhs_hi_maybe_zero < T::zero() {
+                // hacky way to get negative one without explicitly requiring T to be signed
+                // we know T is signed in this case because rhs_hi < 0,
+                let mut neg_one = T::zero();
+                neg_one.dec();
+                neg_one
+            } else if rhs_hi_maybe_zero > T::zero() {
+                T::one()
+            } else {
+                panic!("cannot divide by the range [0,0]");
+            }
+        } else {
+            rhs_lo_maybe_zero
+        };
+        let rhs_hi = if rhs_hi_maybe_zero.is_zero() {
+            let mut neg_one = T::zero();
+            neg_one.dec();
+            neg_one
+        } else {
+            rhs_hi_maybe_zero
+        };
+
+        let (min, max): (_, _) = match (
+            self.lo >= T::zero(),
+            self.hi >= T::zero(),
+            rhs_lo > T::zero(),
+            rhs_hi > T::zero(),
+        ) {
+            // same sign for all endpoints => positive result
+            (true, true, true, true) => (self.lo / rhs_hi, self.hi / rhs_lo),
+            (false, false, false, false) => (self.hi / rhs_lo, self.lo / rhs_hi),
+
+            // single element of rhs is negative => lower endpoint is negative, upper is positive
+            (true, true, false, true) => (self.hi.clone() / rhs_lo, self.hi / rhs_hi),
+
+            // lower bound of lhs is negative => keep polarity for both sides
+            (false, true, true, true) => (self.lo / rhs_lo.clone(), self.hi / rhs_lo),
+            (false, true, false, true) => (self.lo / rhs_hi.clone(), self.hi / rhs_hi),
+            (false, true, false, false) => (self.hi / rhs_lo.clone(), self.lo / rhs_lo),
+
+            // both bounds of lhs are negative => try to make upper positive, shift lower as little as possible
+            (false, false, true, true) => (self.lo / rhs_lo, self.hi / rhs_hi),
+            (false, false, false, true) => (self.lo / rhs_hi, self.hi / rhs_lo),
+
+            // rhs is entirely negative => result is entirely negative
+            (true, true, false, false) => (self.hi.clone() / rhs_hi, self.lo / rhs_lo),
+
+            // invalid cases
+            (true, false, _, _) | (_, _, true, false) => {
+                panic!("invalid range, lower endpoint is positive, but upper is not")
+            }
+        };
+
+        Range::new(min, max)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::fmt::Debug;
+
+    use crate::{ops::Bounded, range::Range};
+    use num::{Integer, Zero};
+    use proptest::prelude::*;
+
+    fn range_strategy<
+        I: Integer + Debug,
+        StratA: Strategy<Value = I>,
+        StratB: Strategy<Value = I>,
+    >(
+        a: StratA,
+        b: StratB,
+    ) -> impl Strategy<Value = Range<I>> {
+        (a, b).prop_map(|(a, b)| {
+            // using if-statement over a.min(b), ... here to make the borrow checker happy
+            if a < b {
+                Range::new(a, b)
+            } else {
+                Range::new(b, a)
+            }
+        })
+    }
+
+    fn any_range<I: Integer + Debug + Arbitrary>() -> impl Strategy<Value = Range<I>> {
+        range_strategy(any::<I>(), any::<I>())
+    }
+    proptest!(
+
+        #[test]
+        fn range_div(numerator in any_range::<i64>(), denominator in any_range::<i64>()) {
+            prop_assume!(!denominator.lo().is_zero() && !denominator.hi().is_zero());
+
+            let result = numerator / denominator;
+            prop_assert!(result.lo <= result.hi)
+
+        }
+    );
 }

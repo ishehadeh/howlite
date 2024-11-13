@@ -727,6 +727,19 @@ impl<'a, I: SetElement> ArithmeticSet<&'a Self, &'a I> for DynSet<I> {
             }
         }
     }
+
+    fn sub_all(&mut self, rhs: &'a Self) {
+        todo!()
+    }
+
+    fn div_all(&mut self, rhs: &'a Self) {
+        if self.is_empty() {
+            return;
+        }
+        self.range = self.range.clone() / rhs.range.clone();
+        self.data = DynSetData::Contiguous;
+        // TODO: implement div_all
+    }
 }
 
 impl<I: SetElement> DynSet<I> {
