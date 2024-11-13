@@ -6,3 +6,6 @@
 # everyone who runs the test benefits from these saved cases.
 cc ba6f38e41600a0bf4917727f8e653324acdb06094058fd5cd60b6feaf9126818 # shrinks to numerator = Range { lo: -261895980317954821, hi: -1 }, denominator = Range { lo: 0, hi: 0 }
 cc 08337720ec73924fd75384c1ac795475d6b06ec95a1c52c6c881923d4728de7c # shrinks to numerator = Range { lo: 2512302589997239770, hi: 2512302589997239770 }, denominator = Range { lo: -2, hi: -1 }
+cc 95134337cdb4efe3fd3310d1730cf20e3621f7655377011ac95d7974b9c47b03 # shrinks to a = Range { lo: 0, hi: 4021715317835230417 }, b = Range { lo: 0, hi: 5201656719019545391 }
+cc 95ef100f919159e77ff0d7bd46a289cf3353a6ea7c198854e891a41244c0b318 # shrinks to a = Range { lo: 0, hi: 0 }, b = Range { lo: -2, hi: -1 }
+cc 4ef413b9a445785aad3a9b9e5669089f1178c03085290e9f3271826eb0d8209a # shrinks to a = Range { lo: -1, hi: 0 }, b = Range { lo: -3, hi: -1 }

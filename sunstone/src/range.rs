@@ -19,6 +19,10 @@ impl<T: std::cmp::Ord> Range<T> {
         Self::try_new(lo, hi).expect("range lower bound must be <= upper bound")
     }
 
+    fn new_unchecked(lo: T, hi: T) -> Self {
+        Self { lo, hi }
+    }
+
     pub fn try_new(lo: T, hi: T) -> Option<Self> {
         if hi < lo {
             None
@@ -173,28 +177,61 @@ impl<T: Ord + Add<T, Output = OutputT>, OutputT: Ord> Add<Self> for Range<T> {
     type Output = Range<OutputT>;
 
     fn add(self, rhs: Self) -> Self::Output {
-        Range::new(self.lo + rhs.lo, self.hi + rhs.hi)
+        Range::new_unchecked(self.lo + rhs.lo, self.hi + rhs.hi)
     }
 }
 
-impl<T: Ord + Mul<T, Output = OutputT>, OutputT: Ord> Mul<Self> for Range<T> {
+impl<T: Ord + Mul<T, Output = OutputT> + Add<T, Output = T> + num::Zero + Clone, OutputT: Ord>
+    Mul<Self> for Range<T>
+{
     type Output = Range<OutputT>;
 
     fn mul(self, rhs: Self) -> Self::Output {
-        Range::new(self.lo * rhs.lo, self.hi * rhs.hi)
+        let (min, max): (_, _) = match (
+            self.lo >= T::zero(),
+            self.hi >= T::zero(),
+            rhs.lo >= T::zero(),
+            rhs.hi >= T::zero(),
+        ) {
+            (true, true, true, true) => (self.lo * rhs.lo, self.hi * rhs.hi),
+            (false, false, false, false) => (self.hi * rhs.hi, self.lo * rhs.lo),
+
+            (true, true, false, true) => (self.hi.clone() * rhs.lo, self.hi * rhs.hi),
+
+            (false, true, true, true) => (self.lo * rhs.hi.clone(), self.hi * rhs.hi),
+            (false, true, false, true) => (self.lo * rhs.hi.clone(), self.hi * rhs.hi),
+            (false, true, false, false) => (self.hi * rhs.hi.clone(), self.lo * rhs.hi),
+
+            (false, false, true, true) => (self.lo * rhs.hi, self.hi * rhs.lo),
+            (false, false, false, true) => (self.lo * rhs.hi, self.hi * rhs.lo),
+
+            (true, true, false, false) => (self.hi * rhs.lo, self.lo * rhs.hi),
+
+            // invalid cases
+            (true, false, _, _) | (_, _, true, false) => {
+                panic!("invalid range, lower endpoint is positive, but upper is not")
+            }
+        };
+
+        Range::new_unchecked(min, max)
     }
 }
-
-impl<T: Ord + Add<T, Output = OutputT>, OutputT: Ord> Sub<Self> for Range<T> {
+impl<T: Ord + Sub<T, Output = OutputT> + Add<T, Output = T> + num::Zero, OutputT: Ord> Sub<Self>
+    for Range<T>
+{
     type Output = Range<OutputT>;
 
     fn sub(self, rhs: Self) -> Self::Output {
-        todo!()
+        Range::new_unchecked(self.lo - rhs.hi, self.hi - rhs.lo)
     }
 }
 
-impl<T: Ord + Div<T> + num::Integer + Clone> Div<Self> for Range<T> {
-    type Output = Range<T>;
+impl<
+        T: Ord + Div<T, Output = OutputT> + Sub<T, Output = T> + num::Zero + num::One + Clone,
+        OutputT: Ord,
+    > Div<Self> for Range<T>
+{
+    type Output = Range<OutputT>;
 
     fn div(self, rhs: Self) -> Self::Output {
         let Self {
@@ -207,9 +244,7 @@ impl<T: Ord + Div<T> + num::Integer + Clone> Div<Self> for Range<T> {
             if rhs_hi_maybe_zero < T::zero() {
                 // hacky way to get negative one without explicitly requiring T to be signed
                 // we know T is signed in this case because rhs_hi < 0,
-                let mut neg_one = T::zero();
-                neg_one.dec();
-                neg_one
+                T::zero() - T::one()
             } else if rhs_hi_maybe_zero > T::zero() {
                 T::one()
             } else {
@@ -219,9 +254,7 @@ impl<T: Ord + Div<T> + num::Integer + Clone> Div<Self> for Range<T> {
             rhs_lo_maybe_zero
         };
         let rhs_hi = if rhs_hi_maybe_zero.is_zero() {
-            let mut neg_one = T::zero();
-            neg_one.dec();
-            neg_one
+            T::zero() - T::one()
         } else {
             rhs_hi_maybe_zero
         };
@@ -257,7 +290,7 @@ impl<T: Ord + Div<T> + num::Integer + Clone> Div<Self> for Range<T> {
             }
         };
 
-        Range::new(min, max)
+        Range::new_unchecked(min, max)
     }
 }
 
@@ -290,13 +323,42 @@ mod test {
     fn any_range<I: Integer + Debug + Arbitrary>() -> impl Strategy<Value = Range<I>> {
         range_strategy(any::<I>(), any::<I>())
     }
+
+    fn arith_range() -> impl Strategy<Value = Range<i64>> {
+        // give room so we don't overflow
+        range_strategy(
+            i32::MIN as i64..i32::MAX as i64,
+            i32::MIN as i64..i32::MAX as i64,
+        )
+    }
+
     proptest!(
 
         #[test]
-        fn range_div(numerator in any_range::<i64>(), denominator in any_range::<i64>()) {
-            prop_assume!(!denominator.lo().is_zero() && !denominator.hi().is_zero());
+        fn range_div_returns_valid_range(numerator in arith_range(), denominator in arith_range()) {
+            prop_assume!(!numerator.lo().is_zero() && !denominator.hi().is_zero());
 
             let result = numerator / denominator;
+            prop_assert!(result.lo <= result.hi)
+
+        }
+
+        #[test]
+        fn range_mul_returns_valid_range(a in arith_range(), b in arith_range()) {
+            let result = a * b;
+            prop_assert!(result.lo <= result.hi, "a * b = {result:?}");
+        }
+
+        #[test]
+        fn range_add_returns_valid_range(a in arith_range(), b in arith_range()) {
+            let result = a + b;
+            prop_assert!(result.lo <= result.hi)
+
+        }
+
+        #[test]
+        fn range_sub_returns_valid_range(a in arith_range(), b in arith_range()) {
+            let result = a - b;
             prop_assert!(result.lo <= result.hi)
 
         }
