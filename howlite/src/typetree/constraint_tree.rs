@@ -1,7 +1,7 @@
 use howlite_syntax::ast::{ExprInfix, InfixOp, LiteralInteger};
 use preseli::IntegerSet;
 
-use super::{traits::ToContraintTerm, ConstraintOp, ConstraintTerm};
+use super::{traits::ToContraintTerm, BinaryConstraintRelation, ConstraintOp, ConstraintTerm};
 
 impl ToContraintTerm for LiteralInteger {
     fn to_constraint_term(self) -> ConstraintTerm {
@@ -17,10 +17,18 @@ impl ToContraintTerm for ExprInfix<ConstraintTerm> {
             InfixOp::Sub => todo!("to_constraint_term: InfixOp::Sub"),
             InfixOp::Div => todo!("to_constraint_term: InfixOp::Div"),
             InfixOp::Assign => todo!(),
-            InfixOp::CmpNe => todo!(),
-            InfixOp::CmpEq => todo!(),
-            InfixOp::CmpGt => todo!(),
-            InfixOp::CmpLt => todo!(),
+            InfixOp::CmpNe => self
+                .lhs
+                .compare_term(BinaryConstraintRelation::Ne, self.rhs),
+            InfixOp::CmpEq => self
+                .lhs
+                .compare_term(BinaryConstraintRelation::Eq, self.rhs),
+            InfixOp::CmpGt => self
+                .lhs
+                .compare_term(BinaryConstraintRelation::Gt, self.rhs),
+            InfixOp::CmpLt => self
+                .lhs
+                .compare_term(BinaryConstraintRelation::Lt, self.rhs),
             InfixOp::CmpGtEq => todo!(),
             InfixOp::CmpLtEq => todo!(),
             InfixOp::BitOr => todo!("bit-wise constraints"),

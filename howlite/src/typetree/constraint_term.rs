@@ -157,6 +157,16 @@ impl ConstraintTerm {
         }
     }
 
+    pub fn compare_term(self, op: BinaryConstraintRelation, rhs: Self) -> Self {
+        match (self, rhs) {
+            (ConstraintTerm::Literal(lit), mut set) | (mut set, ConstraintTerm::Literal(lit)) => {
+                set.compare_literal(op, lit);
+                set
+            }
+            a => todo!("handle constraint variants: {:#?}", a),
+        }
+    }
+
     pub fn apply_term(self, op: ConstraintOp, rhs: Self) -> Self {
         match (self, rhs) {
             (ConstraintTerm::Literal(lit), mut set) | (mut set, ConstraintTerm::Literal(lit)) => {
