@@ -79,6 +79,7 @@ impl ConstraintTerm {
             superset: relation.to_set(rhs),
         }
     }
+
     pub fn compare_literal(
         &mut self,
         relation: BinaryConstraintRelation,
@@ -155,12 +156,68 @@ impl ConstraintTerm {
             }
         }
     }
+
+    pub fn apply_term(self, op: ConstraintOp, rhs: Self) -> Self {
+        match (self, rhs) {
+            (ConstraintTerm::Literal(lit), mut set) | (mut set, ConstraintTerm::Literal(lit)) => {
+                set.apply_literal(op, lit);
+                set
+            }
+            (ConstraintTerm::Var(var), mut set) | (mut set, ConstraintTerm::Var(var)) => {
+                set.apply_var(op, var);
+                set
+            }
+            (ConstraintTerm::UnaryConstraint { .. }, _)
+            | (_, ConstraintTerm::UnaryConstraint { .. }) => todo!("constraint as operand (unary)"),
+            (ConstraintTerm::BinaryConstraint { .. }, _)
+            | (_, ConstraintTerm::BinaryConstraint { .. }) => {
+                todo!("constraint as operand (binary)")
+            }
+
+            (
+                ConstraintTerm::UnaryOperation {
+                    var: lvar,
+                    op: lop,
+                    value: mut lvalue,
+                },
+                ConstraintTerm::UnaryOperation {
+                    var: rvar,
+                    op: rop,
+                    value: rvalue,
+                },
+            ) => {
+                if op == ConstraintOp::Mul {
+                    todo!("(x + a)(y + b) not supported, make this a nice error")
+                } else {
+                    if lop == rop && rop == ConstraintOp::Add {
+                        lvalue.add_all(&rvalue);
+                        ConstraintTerm::BinaryOperation {
+                            lhs: lvar,
+                            lhs_offset: lvalue,
+                            op: ConstraintOp::Add,
+                            rhs: rvar,
+                        }
+                    } else {
+                        todo!("arbitrary multipliers for variables (big TODO haha)")
+                    }
+                }
+            }
+            (ConstraintTerm::UnaryOperation { .. }, ConstraintTerm::BinaryOperation { .. })
+            | (ConstraintTerm::BinaryOperation { .. }, ConstraintTerm::UnaryOperation { .. }) => {
+                todo!("binary and unary operands can't be applied together, make this a nice error")
+            }
+            (ConstraintTerm::BinaryOperation { .. }, ConstraintTerm::BinaryOperation { .. }) => {
+                todo!("two binary operands can't be applied together, make this a nice error")
+            }
+        }
+    }
+
     pub fn apply_literal(&mut self, op: ConstraintOp, lit: preseli::IntegerSet) {
         match self {
             ConstraintTerm::Var(s) => {
                 *self = ConstraintTerm::UnaryOperation {
                     var: *s,
-                    op: op,
+                    op,
                     value: lit,
                 }
             }
@@ -176,9 +233,10 @@ impl ConstraintTerm {
                 var: _,
                 op: existing_op,
                 value,
-            } if *existing_op == op => {
-                value.mul_all(&lit);
-            }
+            } if *existing_op == op => match op {
+                ConstraintOp::Mul => value.mul_all(&lit),
+                ConstraintOp::Add => value.add_all(&lit),
+            },
             ConstraintTerm::UnaryOperation { op: _, .. } => {
                 todo!()
             }

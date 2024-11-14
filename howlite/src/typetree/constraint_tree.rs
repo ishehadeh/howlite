@@ -1,7 +1,7 @@
-use howlite_syntax::ast::{ExprInfix, LiteralInteger};
+use howlite_syntax::ast::{ExprInfix, InfixOp, LiteralInteger};
 use preseli::IntegerSet;
 
-use super::{traits::ToContraintTerm, ConstraintTerm};
+use super::{traits::ToContraintTerm, ConstraintOp, ConstraintTerm};
 
 impl ToContraintTerm for LiteralInteger {
     fn to_constraint_term(self) -> ConstraintTerm {
@@ -11,8 +11,25 @@ impl ToContraintTerm for LiteralInteger {
 
 impl ToContraintTerm for ExprInfix<ConstraintTerm> {
     fn to_constraint_term(self) -> ConstraintTerm {
-        match (self.lhs, self.op, self.rhs) {
-            _ => todo!(),
+        match self.op {
+            InfixOp::Add => self.lhs.apply_term(ConstraintOp::Add, self.rhs),
+            InfixOp::Mul => self.lhs.apply_term(ConstraintOp::Mul, self.rhs),
+            InfixOp::Sub => todo!("to_constraint_term: InfixOp::Sub"),
+            InfixOp::Div => todo!("to_constraint_term: InfixOp::Div"),
+            InfixOp::Assign => todo!(),
+            InfixOp::CmpNe => todo!(),
+            InfixOp::CmpEq => todo!(),
+            InfixOp::CmpGt => todo!(),
+            InfixOp::CmpLt => todo!(),
+            InfixOp::CmpGtEq => todo!(),
+            InfixOp::CmpLtEq => todo!(),
+            InfixOp::BitOr => todo!("bit-wise constraints"),
+            InfixOp::BitAnd => todo!("bit-wise constraints"),
+            InfixOp::BitXor => todo!("bit-wise constraints"),
+            InfixOp::BitLShift => todo!("bit-wise constraints"),
+            InfixOp::BitRShift => todo!("bit-wise constraints"),
+            InfixOp::LogicalOr => todo!("bit-wise constraints"),
+            InfixOp::LogicalAnd => todo!("bit-wise constraints"),
         }
     }
 }
