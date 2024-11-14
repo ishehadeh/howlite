@@ -36,8 +36,8 @@ impl ToContraintTerm for ExprInfix<ConstraintTerm> {
             InfixOp::BitXor => todo!("bit-wise constraints"),
             InfixOp::BitLShift => todo!("bit-wise constraints"),
             InfixOp::BitRShift => todo!("bit-wise constraints"),
-            InfixOp::LogicalOr => todo!("bit-wise constraints"),
-            InfixOp::LogicalAnd => todo!("bit-wise constraints"),
+            InfixOp::LogicalOr => todo!("constraint groups"),
+            InfixOp::LogicalAnd => todo!("constraint groups"),
         }
     }
 }
