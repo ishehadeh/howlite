@@ -1,10 +1,7 @@
 use std::rc::Rc;
 
 use howlite_syntax::{
-    ast::{
-        self, ExprInfix, ExprLet, InfixOp, LiteralArray, LiteralChar, LiteralInteger,
-        LiteralString, LiteralStruct,
-    },
+    ast::{self, ExprLet, LiteralArray, LiteralChar, LiteralInteger, LiteralString, LiteralStruct},
     AstNode, Span,
 };
 use howlite_typecheck::{
@@ -17,7 +14,6 @@ use smallvec::SmallVec;
 use crate::{
     langctx::{LangCtx, VarDef},
     symtab::Symbol,
-    CompilationError,
 };
 
 use super::{SynthesizeTy, SynthesizeTyPure};
@@ -83,24 +79,6 @@ impl SynthesizeTy<Span> for AstNode<LiteralStruct<ast::LiteralStructMember<Rc<Ty
         };
 
         Rc::new(Ty::Struct(ty))
-    }
-}
-
-impl SynthesizeTy<Span> for AstNode<&ExprInfix<Rc<Ty<Symbol>>>> {
-    fn synthesize_ty(self, ctx: &LangCtx<Span>) -> Rc<Ty<Symbol>> {
-        match self.data.op {
-            InfixOp::Add => match self.data.lhs.arith_add(&self.data.rhs) {
-                Ok(v) => Rc::new(v),
-                Err(e) => {
-                    ctx.error(CompilationError {
-                        location: self.span,
-                        kind: e.into(),
-                    });
-                    Rc::new(Ty::Hole)
-                }
-            },
-            _ => todo!(),
-        }
     }
 }
 
