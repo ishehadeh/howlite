@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use howlite_syntax::{
-    ast::{self, ExprLet, LiteralArray, LiteralChar, LiteralInteger, LiteralString, LiteralStruct},
+    ast::{ExprLet, LiteralArray, LiteralChar, LiteralInteger, LiteralString, LiteralStruct},
     AstNode, Span,
 };
 use howlite_typecheck::{

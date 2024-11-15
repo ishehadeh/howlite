@@ -28,7 +28,7 @@ mod test_helpers;
 use dashmap::DashMap;
 use howlite_syntax::{
     ast::HigherOrderNode,
-    tree::{DefaultLinearTreeId, LinearTreeNodeId, Tree},
+    tree::{DefaultLinearTreeId, Tree},
     AstNode, AstNodeData, Span,
 };
 use howlite_typecheck::Ty;

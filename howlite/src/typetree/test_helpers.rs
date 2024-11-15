@@ -2,8 +2,8 @@ use std::rc::Rc;
 
 use howlite_syntax::{
     ast::{
-        BoxAstNode, ExprInfix, ExprLet, HigherOrderNode, InfixOp, LiteralArray, LiteralChar,
-        LiteralInteger, LiteralString, LiteralStruct, LiteralStructMember, TyNumberRange,
+        BoxAstNode, ExprLet, HigherOrderNode, LiteralArray, LiteralChar, LiteralInteger,
+        LiteralString, LiteralStruct, LiteralStructMember, TyNumberRange,
     },
     tree::{DefaultLinearTreeId, Tree, TreeBuilder},
     AstNode, AstNodeData, Span,
@@ -153,10 +153,6 @@ pub fn make_expr_let(name: impl Into<SmolStr>, ty: BoxAstNode, value: BoxAstNode
     )
 }
 
-pub fn make_expr_infix(lhs: BoxAstNode, op: InfixOp, rhs: BoxAstNode) -> BoxAstNode {
-    BoxAstNode::new(Span::new(0, 0), ExprInfix { lhs, op, rhs })
-}
-
 pub fn simple_scalar_let() -> impl Strategy<Value = BoxAstNode> {
     (0..u64::MAX as i128, 0..u64::MAX as i128)
         .prop_flat_map(|(a, b)| (Just(make_ty_number_range(a, b)), a.min(b)..b.max(a)))
@@ -180,6 +176,7 @@ pub fn must_parse_expr(src: &str) -> (DefaultLinearTreeId, Tree<AstNode>) {
         println!("{}", e.pp(&lexer, &howlite_syntax::token_epp));
     }
     assert!(errs.is_empty());
+    _ = root.unwrap().unwrap();
 
     let tree = tree_builder.finalize();
     let expr_root = match &tree.iter().rev().nth(1).unwrap().data {

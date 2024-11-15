@@ -5,33 +5,12 @@ use howlite_syntax::{
     AstNode, Span,
 };
 use howlite_typecheck::Ty;
-use preseli::IntegerSet;
 use sunstone::ops::ArithmeticSet;
 
 use crate::{langctx::LangCtx, symtab::Symbol, CompilationError};
 
 use super::SynthesizeTy;
-fn do_op<F>(
-    op: F,
-    ctx: &LangCtx<Span>,
-    loc: Span,
-    lhs: Rc<Ty<Symbol>>,
-    rhs: Rc<Ty<Symbol>>,
-) -> Rc<Ty<Symbol>>
-where
-    F: FnOnce(IntegerSet, &IntegerSet) -> IntegerSet,
-{
-    match lhs.arithmetic(&*rhs, |a, b| op(a.clone(), b)) {
-        Ok(v) => Rc::new(v),
-        Err(e) => {
-            ctx.error(CompilationError {
-                location: loc,
-                kind: e.into(),
-            });
-            Rc::new(Ty::Hole)
-        }
-    }
-}
+
 impl SynthesizeTy<Span> for AstNode<&ExprInfix<Rc<Ty<Symbol>>>> {
     fn synthesize_ty(self, ctx: &LangCtx<Span>) -> Rc<Ty<Symbol>> {
         let ExprInfix { lhs, op, rhs } = self.data;
