@@ -96,7 +96,31 @@ impl SynthesizeTy<Span> for AstNode<AstNodeData<Rc<Ty<Symbol>>>> {
                     Rc::new(Ty::unit())
                 }
             }
-            t => todo!("Ast node not implemented for type checker: {:?}", t),
+            AstNodeData::LiteralStructMember(_) => todo!(),
+            AstNodeData::FieldAccess(_) => todo!(),
+            AstNodeData::ArrayAccess(_) => todo!(),
+            AstNodeData::Repaired(_) => todo!(),
+            AstNodeData::DefFunc(_) => todo!(),
+            AstNodeData::DefParam(_) => todo!(),
+            AstNodeData::DefImport(_) => todo!(),
+            AstNodeData::ExprIf(_) => todo!(),
+            AstNodeData::ExprCall(_) => todo!(),
+            AstNodeData::ExprPrefix(_) => todo!(),
+            AstNodeData::ExprTypeConstruction(_) => todo!(),
+            AstNodeData::ExprWhile(_) => todo!(),
+            AstNodeData::DefType(_) => todo!(),
+            AstNodeData::DefExternFunc(_) => todo!(),
+            AstNodeData::DefExternVar(_) => todo!(),
+            AstNodeData::Program(_) => todo!(),
+            AstNodeData::TyRef(_) => todo!(),
+            AstNodeData::TyExprUnion(_) => todo!(),
+            AstNodeData::TyStruct(_) => todo!(),
+            AstNodeData::TyStructMember(_) => todo!(),
+            AstNodeData::TyArray(_) => todo!(),
+            AstNodeData::TyUnit(_) => todo!(),
+            AstNodeData::TyParam(_) => todo!(),
+            AstNodeData::TySlice(_) => todo!(),
+            AstNodeData::TyNamed(_) => todo!(),
         }
     }
 }
