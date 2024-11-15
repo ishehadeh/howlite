@@ -873,7 +873,6 @@ impl<'a, I: SetElement> SetOpIncludes<&'a I> for DynSet<I> {
 
 impl<'a, I: SetElement> Subset<&'a DynSet<I>> for &'a DynSet<I> {
     fn subset_of(self, rhs: Self) -> bool {
-        dbg!(&self, &rhs);
         if !matches!(self.data, DynSetData::Empty) && !self.range.subset_of(&rhs.range) {
             return false;
         }
@@ -882,7 +881,7 @@ impl<'a, I: SetElement> Subset<&'a DynSet<I>> for &'a DynSet<I> {
             (_, DynSetData::Empty) => true,
             (DynSetData::Empty, _) => false,
             // we already checked range subset
-            (DynSetData::Contiguous, _) => true,
+            (_, DynSetData::Contiguous) => true,
             (DynSetData::Small(s1), DynSetData::Small(s2)) => {
                 // since we know they have the similar ranges, if we can access the underlying
                 // bit field we can probably do this way, way, faster
@@ -900,7 +899,7 @@ impl<'a, I: SetElement> Subset<&'a DynSet<I>> for &'a DynSet<I> {
                         .subset_of(&s2.elements),
                 }
             }
-            (DynSetData::Small(small_set), DynSetData::Contiguous) => {
+            (DynSetData::Contiguous, DynSetData::Small(small_set)) => {
                 small_set.elements.includes_range(Range::new(
                     (rhs.range.lo().clone() - &small_set.offset)
                         .to_usize()
@@ -934,8 +933,11 @@ impl<'a, I: SetElement> Subset<&'a DynSet<I>> for &'a DynSet<I> {
                     }
                 })
             }
-            (DynSetData::Stripe(_stripe_set), DynSetData::Contiguous) => todo!(),
             (DynSetData::Stripe(s1), DynSetData::Stripe(s2)) => s1.subset_of(s2),
+            (DynSetData::Contiguous, DynSetData::Stripe(s2)) => {
+                // I have a deadline.
+                StripeSet::new(vec![self.range.clone().into()]).subset_of(s2)
+            }
         }
     }
 
@@ -1155,6 +1157,21 @@ impl<'a, I: SetElement> SetSubtract<&'a Self> for DynSet<I> {
                     None => self.data = DynSetData::Empty,
                 }
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    mod subset {
+        use crate::{multi::DynSet, ops::Subset};
+
+        #[test]
+        fn cont_stripe() {
+            let a = DynSet::new_from_range(-10i64, 25i64);
+            let b = DynSet::new_from_tuples(&[(0, 5), (20, 25)]);
+            assert!(!a.subset_of(&b));
+            assert!(b.subset_of(&a));
         }
     }
 }
