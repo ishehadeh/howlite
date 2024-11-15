@@ -14,7 +14,6 @@ proptest-derive = { version = "*", optional = true }
 unicode-properties = { version = "*", optional = true }
 rand = { version = "*", optional = true }
 smol_str = { version = "=0.3.2" }
-smallvec = "*"
 
 [build-dependencies]
 cfgrammar = "=0.13.7"

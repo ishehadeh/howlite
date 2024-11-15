@@ -5,7 +5,6 @@ use allocator_api2::{
 #[cfg(feature = "proptest")]
 use proptest::prelude::*;
 use proptest_derive::Arbitrary;
-use smallvec::SmallVec;
 use smol_str::SmolStr;
 
 use crate::{gen_node_impls, tree::DefaultLinearTreeId};
