@@ -541,7 +541,7 @@ LiteralStruct -> Result<AstRef>:
     }
   ;
 
-LiteralStructMemberListOpt -> Result<Vec<AstRef>>:
+LiteralStructMemberListOpt -> Result<Vec<AstNode<LiteralStructMember>>>:
     LiteralStructMemberList ',' Trivia { 
       /* TODO: outer trivia */
       $1
@@ -550,20 +550,23 @@ LiteralStructMemberListOpt -> Result<Vec<AstRef>>:
   | %empty { Ok(vec![]) }
   ;
 
-LiteralStructMemberList -> Result<Vec<AstRef>>:
+LiteralStructMemberList -> Result<Vec<AstNode<LiteralStructMember>>>:
     LiteralStructMember { Ok(vec![$1?]) }
   | LiteralStructMemberList ',' Trivia LiteralStructMember {
       let mut arr = $1?;
-      arr.push(trivia!(left trivia_tree, $3, $4?));
+      arr.push($4?);
       Ok(arr)
     }
   ;
 
-LiteralStructMember -> Result<AstRef>:
+LiteralStructMember -> Result<AstNode<LiteralStructMember>>:
     IDENT Trivia ':' Trivia Expr {
-      node!(tree, $span, LiteralStructMember {
-        field: $lexer.span_str($1?.span()).into(),
-        value: trivia!(left trivia_tree, $4, $5?)
+      Ok(AstNode {
+        span: $span,
+        data: LiteralStructMember {
+          field: $lexer.span_str($1?.span()).into(),
+          value: trivia!(left trivia_tree, $4, $5?)
+        }
       })
     }
   ;
@@ -628,6 +631,9 @@ TyStruct -> Result<AstRef>:
             members: $3?
           }))
     }
+  | '{' Trivia '}' Trivia { 
+    trivia!(right trivia_tree, $5,
+      node!(tree, $span, TyStruct { members: Vec::new() })) }
   ;
 
 TyStructMemberList -> Result<Vec<AstRef>>:

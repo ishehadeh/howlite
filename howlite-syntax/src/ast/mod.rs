@@ -355,9 +355,30 @@ where
     }
 }
 
+impl<NodeT: HigherOrderNode<ChildT>, ChildT> HigherOrderNode<ChildT> for AstNode<NodeT>
+where
+    for<'a> ChildT: 'a,
+{
+    type Mapped<T> = AstNode<NodeT::Mapped<T>>;
+
+    fn children<'a>(&'a self) -> impl Iterator<Item = &'a ChildT> {
+        self.data.children()
+    }
+
+    fn map<F: Fn(ChildT) -> T, T>(self, op: F) -> Self::Mapped<T> {
+        AstNode {
+            span: self.span,
+            data: self.data.map(op),
+        }
+    }
+}
+
 #[macro_export]
 macro_rules! gen_node_impls {
     /* #region gen_node_impls - Destructure Self */
+    (@field_unwrap $rhs:expr => ($($unwrapped:tt)*) %$field:ident*, $($rest:tt)*  ) => {
+        gen_node_impls!(@field_unwrap $rhs => ($($unwrapped)* $field,) $($rest)*)
+    };
     (@field_unwrap $rhs:expr => ($($unwrapped:tt)*) &$field:ident*, $($rest:tt)*  ) => {
         gen_node_impls!(@field_unwrap $rhs => ($($unwrapped)* $field,) $($rest)*)
     };
@@ -381,6 +402,29 @@ macro_rules! gen_node_impls {
 
 
     /* #region gen_node_impls - Map Child Struct */
+    (@map_children $name:ident $t:ident, $mapper:ident => ($($unwrapped:tt)*) %$field:ident*, $($rest:tt)*  ) => {
+        gen_node_impls!{
+            @map_children $name $t, $mapper => ($($unwrapped)*
+                $field: {
+                    let ( ptr, len, cap, alloc) = $name.$field.into_raw_parts_with_alloc();
+                    if let Some(ptr) = std::ptr::NonNull::new(ptr) {
+                        let mut curr_elem_ptr = ptr;
+                        let layout = allocator_api2::alloc::Layout::from_size_align(cap, std::mem::align_of_val(unsafe { ptr.as_ref() } ));
+                        let mut new_data = allocator_api2::vec::Vec::with_capacity_in(len, alloc);
+                        for _ in 0..len {
+                            new_data.push(unsafe { curr_elem_ptr.read() }.map(|v| $mapper(v)));
+                            curr_elem_ptr = unsafe { curr_elem_ptr.add(1) }
+                        }
+                        unsafe { new_data.allocator().deallocate(ptr.cast::<u8>(), layout.expect("failed to construct layout")) };
+                        new_data
+                    } else {
+                        // TODO: warn here
+                        allocator_api2::vec::Vec::new_in(alloc)
+                    }
+                },)
+            $($rest)*
+        }
+    };
     (@map_children $name:ident $t:ident, $mapper:ident => ($($unwrapped:tt)*) &$field:ident*, $($rest:tt)*  ) => {
         gen_node_impls!{
             @map_children $name $t, $mapper  => ($($unwrapped)*
@@ -428,6 +472,9 @@ macro_rules! gen_node_impls {
     (@gen_iters ($($iters:expr);*) &$field:ident*, $($rest:tt)* ) => {
         gen_node_impls!(@gen_iters ($($iters);*; $field.iter()) $($rest)*)
     };
+    (@gen_iters ($($iters:expr);*) %$field:ident*, $($rest:tt)* ) => {
+        gen_node_impls!(@gen_iters ($($iters);*; $field.iter().flat_map(|c| c.children())) $($rest)*)
+    };
     (@gen_iters ($($iters:expr);*) &$field:ident?, $($rest:tt)*  ) => {
         gen_node_impls!(@gen_iters ($($iters);* ; $field.iter()) $($rest)*)
     };
@@ -464,6 +511,12 @@ macro_rules! gen_node_impls {
     };
     (@gen_cmp $other:ident ($bools:expr) &$field:ident?, $($rest:tt)* ) => {
         gen_node_impls!(@gen_cmp $other ($bools && $field.is_some() == $other.$field.is_some()) $($rest)*)
+    };
+    (@gen_cmp $other:ident ($bools:expr) %$field:ident*, $($rest:tt)* ) => {
+        gen_node_impls!(@gen_cmp $other
+            ($bools && $field.len() == $other.$field.len()
+                    && $field.iter().zip($other.$field.iter()).all(|(a, b)| a.local_eq(b)))
+            $($rest)*)
     };
     (@gen_cmp $other:ident ($bools:expr) &$field:ident, $($rest:tt)* ) => {
         // ignore children which are required, without a reference resolver these are meaningless

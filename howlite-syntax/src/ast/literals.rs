@@ -5,9 +5,12 @@ use allocator_api2::{
 #[cfg(feature = "proptest")]
 use proptest::prelude::*;
 use proptest_derive::Arbitrary;
+use smallvec::SmallVec;
 use smol_str::SmolStr;
 
 use crate::{gen_node_impls, tree::DefaultLinearTreeId};
+
+use super::AstNode;
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "proptest", derive(Arbitrary))]
 pub struct LiteralInteger {
@@ -45,9 +48,9 @@ gen_node_impls!(LiteralStructMember { field, &value });
 
 #[derive(Debug, Clone)]
 pub struct LiteralStruct<ChildT = DefaultLinearTreeId, A: Allocator = Global> {
-    pub members: Vec<ChildT, A>,
+    pub members: Vec<AstNode<LiteralStructMember<ChildT>>, A>,
 }
-gen_node_impls!(LiteralStruct<A> { &members* });
+gen_node_impls!(LiteralStruct<A> { %members* });
 
 #[derive(Debug, Clone)]
 pub struct LiteralArray<ChildT = DefaultLinearTreeId, A: Allocator = Global> {
