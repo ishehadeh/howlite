@@ -64,7 +64,7 @@ impl SynthesizeTyPure for AstNode<LiteralArray<Rc<Ty<Symbol>>>> {
     }
 }
 
-impl SynthesizeTy<Span> for AstNode<LiteralStruct<ast::LiteralStructMember<Rc<Ty<Symbol>>>>> {
+impl SynthesizeTy<Span> for AstNode<LiteralStruct<Rc<Ty<Symbol>>>> {
     fn synthesize_ty(self, ctx: &LangCtx<Span>) -> Rc<Ty<Symbol>> {
         let ty = types::TyStruct {
             fields: self
@@ -72,8 +72,8 @@ impl SynthesizeTy<Span> for AstNode<LiteralStruct<ast::LiteralStructMember<Rc<Ty
                 .members
                 .into_iter()
                 .map(|child| types::StructField {
-                    name: ctx.symbols.intern(child.field.as_str()),
-                    ty: child.value.clone(),
+                    name: ctx.symbols.intern(child.data.field.as_str()),
+                    ty: child.data.value.clone(),
                 })
                 .collect(),
         };

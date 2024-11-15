@@ -2,9 +2,10 @@ use std::rc::Rc;
 
 use howlite_syntax::{
     ast::{
-        BoxAstNode, ExprLet, HigherOrderNode, LiteralArray, LiteralChar, LiteralInteger,
-        LiteralString, LiteralStruct, LiteralStructMember, TyNumberRange,
+        BoxAstNode, ExprInfix, ExprLet, HigherOrderNode, InfixOp, LiteralArray, LiteralChar,
+        LiteralInteger, LiteralString, LiteralStruct, LiteralStructMember, TyNumberRange,
     },
+    tree::{DefaultLinearTreeId, Tree, TreeBuilder},
     AstNode, AstNodeData, Span,
 };
 use howlite_typecheck::Ty;
@@ -30,20 +31,9 @@ impl SynthesizeTy<Span> for BoxAstNode {
             AstNodeData::ExprInfix(n) => {
                 AstNode::new_narrow(span, &n.map(|c| c.synthesize_ty(ctx))).synthesize_ty(ctx)
             }
-            AstNodeData::LiteralStruct(n) => AstNode::new_narrow(
-                span,
-                n.map(|child| {
-                    if let AstNodeData::LiteralStructMember(m) = child.into_inner().data {
-                        LiteralStructMember {
-                            field: m.field,
-                            value: m.value.synthesize_ty(ctx),
-                        }
-                    } else {
-                        panic!("child was not a struct member, this should be unreachable!")
-                    }
-                }),
-            )
-            .synthesize_ty(ctx),
+            AstNodeData::LiteralStruct(n) => {
+                AstNode::new_narrow(span, n.map(|c| c.synthesize_ty(ctx))).synthesize_ty(ctx)
+            }
             AstNodeData::LiteralArray(n) => {
                 AstNode::new_narrow(span, n.map(|c| c.synthesize_ty(ctx))).synthesize_ty(ctx)
             }
@@ -94,19 +84,20 @@ pub fn any_atomic_literal() -> impl Strategy<Value = BoxAstNode> {
     ]
 }
 
-pub fn literal_struct_member<K, V>(k: K, v: V) -> impl Strategy<Value = BoxAstNode>
+pub fn literal_struct_member<K, V>(
+    k: K,
+    v: V,
+) -> impl Strategy<Value = AstNode<LiteralStructMember<BoxAstNode>>>
 where
     K: Strategy<Value = String>,
     V: Strategy<Value = BoxAstNode>,
 {
-    (k, v).prop_map(|(field, value)| {
-        BoxAstNode::new(
-            Span::new(0, 0),
-            LiteralStructMember {
-                field: field.into(),
-                value,
-            },
-        )
+    (k, v).prop_map(|(field, value)| AstNode {
+        span: Span::new(0, 0),
+        data: LiteralStructMember {
+            field: field.into(),
+            value,
+        },
     })
 }
 
@@ -162,6 +153,10 @@ pub fn make_expr_let(name: impl Into<SmolStr>, ty: BoxAstNode, value: BoxAstNode
     )
 }
 
+pub fn make_expr_infix(lhs: BoxAstNode, op: InfixOp, rhs: BoxAstNode) -> BoxAstNode {
+    BoxAstNode::new(Span::new(0, 0), ExprInfix { lhs, op, rhs })
+}
+
 pub fn simple_scalar_let() -> impl Strategy<Value = BoxAstNode> {
     (0..u64::MAX as i128, 0..u64::MAX as i128)
         .prop_flat_map(|(a, b)| (Just(make_ty_number_range(a, b)), a.min(b)..b.max(a)))
@@ -172,6 +167,29 @@ pub fn simple_scalar_let() -> impl Strategy<Value = BoxAstNode> {
                 BoxAstNode::new(Span::new(0, 0), LiteralInteger { value }),
             )
         })
+}
+
+pub fn must_parse_expr(src: &str) -> (DefaultLinearTreeId, Tree<AstNode>) {
+    let full_src = format!("func main(): {{ }} {{ {}; }}", src);
+    dbg!(&full_src);
+    let lexerdef = howlite_syntax::lexerdef();
+    let lexer = lexerdef.lexer(&full_src);
+    let tree_builder: TreeBuilder<_> = TreeBuilder::default();
+    let (root, errs) = howlite_syntax::parse(&lexer, &tree_builder);
+    for e in &errs {
+        println!("{}", e.pp(&lexer, &howlite_syntax::token_epp));
+    }
+    assert!(errs.is_empty());
+
+    let tree = tree_builder.finalize();
+    let expr_root = match &tree.iter().rev().nth(1).unwrap().data {
+        AstNodeData::DefFunc(f) => match &tree.get(f.body).data {
+            AstNodeData::Block(b) => *b.statements.first().unwrap(),
+            _ => panic!(),
+        },
+        _ => unreachable!(),
+    };
+    (expr_root, tree)
 }
 
 pub fn any_ident() -> impl Strategy<Value = String> {
