@@ -41,7 +41,7 @@ impl SynthesizeTy<Span> for AstNode<&ExprInfix<Rc<Ty<Symbol>>>> {
             InfixOp::Mul => lhs.arithmetic_rec(&*rhs, |a, b| a.mul_all(b)),
             InfixOp::Div => lhs.arithmetic_rec(&*rhs, |a, b| a.div_all(b)),
             InfixOp::Sub => lhs.arithmetic_rec(&*rhs, |a, b| a.sub_all(b)),
-            _ => todo!(),
+            op => todo!("infix op: {op:?}"),
         };
         match op_result {
             Ok(v) => Rc::new(v),
