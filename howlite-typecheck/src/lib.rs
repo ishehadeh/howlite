@@ -14,6 +14,7 @@
 use std::rc::Rc;
 
 use errors::{IncompatibleError, OperationError, StructIncompatibility};
+pub use preseli;
 use preseli::integer::Scalar;
 pub use preseli::IntegerSet;
 mod instantiate;
@@ -36,7 +37,6 @@ use smallvec::SmallVec;
 /* #region Re-exports */
 pub mod constraints;
 pub use symbol::Symbol;
-
 /* #endregion */
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -152,11 +152,17 @@ impl<SymbolT: Symbol> Ty<SymbolT> {
         }
     }
 
-    pub fn arith_add(&self, other: &Self) -> Result<Self, OperationError<SymbolT>> {
+    /// Reduce two integer types via `op`.
+    /// Return `Ty::Hole`` if either type is `Ty::Hole`.
+    /// Return OperationError::ExpectedScalar if either type is not an int.
+    pub fn reduce_int2<F>(&self, other: &Self, op: F) -> Result<Self, OperationError<SymbolT>>
+    where
+        F: FnOnce(&TyInt, &TyInt) -> TyInt,
+    {
         match (self, other) {
             (Ty::Hole, _) => Ok(Ty::Hole),
             (_, Ty::Hole) => Ok(Ty::Hole),
-            (Ty::Int(l), Ty::Int(r)) => Ok(Ty::Int(l.add(r))),
+            (Ty::Int(l), Ty::Int(r)) => Ok(Ty::Int(op(l, r))),
             (l, Ty::Int(_)) => Err(OperationError::ExpectedScalar {
                 found: Box::new(l.clone()),
             }),
@@ -166,19 +172,33 @@ impl<SymbolT: Symbol> Ty<SymbolT> {
         }
     }
 
-    pub fn arith_mul(&self, other: &Self) -> Result<Self, OperationError<SymbolT>> {
-        match (self, other) {
-            (Ty::Hole, _) => Ok(Ty::Hole),
-            (_, Ty::Hole) => Ok(Ty::Hole),
+    pub fn arithmetic<F>(&self, other: &Self, op: F) -> Result<Self, OperationError<SymbolT>>
+    where
+        F: FnOnce(&IntegerSet, &IntegerSet) -> IntegerSet,
+    {
+        // TODO: verify storage types are the same
+        self.reduce_int2(other, |a, b| a.apply_wrapping(b, op))
+    }
 
-            (Ty::Int(l), Ty::Int(r)) => Ok(Ty::Int(l.mul(r))),
-            (l, Ty::Int(_)) => Err(OperationError::ExpectedScalar {
-                found: Box::new(l.clone()),
-            }),
-            (_, r) => Err(OperationError::ExpectedScalar {
-                found: Box::new(r.clone()),
-            }),
-        }
+    pub fn arithmetic_rec<F>(&self, other: &Self, op: F) -> Result<Self, OperationError<SymbolT>>
+    where
+        F: FnOnce(&mut IntegerSet, &IntegerSet),
+    {
+        self.reduce_int2(other, |a, b| {
+            a.apply_wrapping(b, |a, b| {
+                let mut new = a.clone();
+                op(&mut new, b);
+                new
+            })
+        })
+    }
+
+    pub fn arith_add(&self, other: &Self) -> Result<Self, OperationError<SymbolT>> {
+        self.reduce_int2(other, |a, b| a.add(b))
+    }
+
+    pub fn arith_mul(&self, other: &Self) -> Result<Self, OperationError<SymbolT>> {
+        self.reduce_int2(other, |a, b| a.mul(b))
     }
 
     pub fn access_field(&self, access_symbol: SymbolT) -> Result<Rc<Ty<SymbolT>>, AccessError> {

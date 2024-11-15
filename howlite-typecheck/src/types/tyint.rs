@@ -63,14 +63,30 @@ impl TyInt {
     }
 
     pub fn add(&self, rhs: &TyInt) -> TyInt {
-        let mut result = self.clone();
-        result.values.add_all(&rhs.values);
-        result
+        self.apply_wrapping(rhs, |a, b| {
+            let mut r = a.clone();
+            r.add_all(b);
+            r
+        })
     }
 
     pub fn mul(&self, rhs: &TyInt) -> TyInt {
-        let mut result = self.clone();
-        result.values.mul_all(&rhs.values);
+        self.apply_wrapping(rhs, |a, b| {
+            let mut r = a.clone();
+            r.mul_all(b);
+            r
+        })
+    }
+
+    pub fn apply_wrapping<F>(&self, rhs: &TyInt, op: F) -> Self
+    where
+        F: FnOnce(&IntegerSet, &IntegerSet) -> IntegerSet,
+    {
+        let mut result = Self {
+            values: op(&self.values, &rhs.values),
+            storage: self.storage.clone(),
+        };
+        result.storage.normalize(&mut result.values);
         result
     }
 }
