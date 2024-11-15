@@ -29,7 +29,7 @@ macro_rules! t_struct {
 macro_rules! t_int {
     ($($toks:tt)*) => {
         std::rc::Rc::new($crate::Ty::Int({
-            $crate::TyInt::from_set($crate::construct_macros::preseli::iset!($($toks)*))
+            $crate::types::TyInt::from_set($crate::preseli::iset!($($toks)*))
         }))
     };
 }
