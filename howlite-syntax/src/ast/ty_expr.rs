@@ -4,11 +4,7 @@ use allocator_api2::{
 };
 use smol_str::SmolStr;
 
-use crate::{
-    gen_node_impls,
-    tree::DefaultLinearTreeId,
-};
-
+use crate::{gen_node_impls, tree::DefaultLinearTreeId};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TyArray<ChildT = DefaultLinearTreeId> {
@@ -41,10 +37,10 @@ gen_node_impls!(TyStructMember { name, mutable, &ty });
 
 #[derive(Debug, Clone)]
 pub struct TyNamed<ChildT = DefaultLinearTreeId, A: Allocator = Global> {
-    pub name: ChildT,
+    pub name: SmolStr,
     pub parameters: Vec<ChildT, A>,
 }
-gen_node_impls!(TyNamed<A> { &name, &parameters* });
+gen_node_impls!(TyNamed<A> { name, &parameters* });
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TyRef<ChildT = DefaultLinearTreeId> {

@@ -714,18 +714,18 @@ TyParamList -> Result<Vec<DefaultLinearTreeId>>:
   ;
 
 TyNamed -> Result<AstRef>:
-    Ident {
+    IDENT Trivia {
       node!(tree, $span, TyNamed { 
-        name: $1?,
+        name: $lexer.span_str($1?.span()).into(),
         parameters: vec![],
       })
     }
-  | Ident '[' Trivia TyParamList ']' Trivia {
+  | IDENT Trivia '[' Trivia TyParamList ']' Trivia {
       // TODO: inner trivia
-      trivia!(right trivia_tree, $6,
+      trivia!(right trivia_tree, $7,
         node!(tree, $span, TyNamed { 
-          name: $1?,
-          parameters: vec![],
+          name: $lexer.span_str($1?.span()).into(),
+          parameters: $5?,
         }))
     }
   ;
