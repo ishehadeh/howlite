@@ -500,7 +500,7 @@ Term -> Result<AstRef>:
   | ExprCall { $1 }
   | ExprArrayAccess { $1 }
   | ExprFieldAccess { $1 }
-  | '(' Trivia ExprInfix ')' Trivia { 
+  | '(' Trivia Expr ')' Trivia { 
     trivia!(
       left trivia_tree, $2, trivia!(right trivia_tree, $5, $3)
     )
