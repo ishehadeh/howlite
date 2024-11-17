@@ -17,21 +17,26 @@ use crate::{
 pub mod lexicalctx;
 
 use dashmap::DashMap;
+use howlite_syntax::{
+    tree::{DefaultLinearTreeId, Tree},
+    AstNode,
+};
 use lexicalctx::LexicalContext;
 pub use scope::*;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ScopeId(u64);
 
-pub struct LangCtx<SourceLocationT: Clone> {
+pub struct LangCtx<'a> {
     pub symbols: SyncSymbolTable,
     scopes: DashMap<ScopeId, Scope>,
-    pub errors: ErrorSet<SourceLocationT>,
+    pub errors: ErrorSet,
     scope_parent: RwLock<Vec<(ScopeId, ScopeId)>>,
     pub root_scope_id: ScopeId,
+    pub ast: &'a Tree<AstNode>,
 }
 
-impl<L: Clone + Debug> std::fmt::Debug for LangCtx<L> {
+impl<'a> std::fmt::Debug for LangCtx<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("LangCtx")
             .field("scopes", &self.scopes)
@@ -43,7 +48,7 @@ impl<L: Clone + Debug> std::fmt::Debug for LangCtx<L> {
 }
 
 /* #region impl LangCtx: ID Helpers */
-impl<L: Clone> LangCtx<L> {
+impl<'a> LangCtx<'a> {
     /// create a new ScopeId, these identifiers are globally unique within the process
     fn mint_scope_id() -> ScopeId {
         static NEXT: AtomicU64 = AtomicU64::new(0);
@@ -53,8 +58,8 @@ impl<L: Clone> LangCtx<L> {
 /* #endregion */
 
 /* #region impl LangCtx: General Functionality */
-impl<L: Clone> LangCtx<L> {
-    pub fn new() -> Self {
+impl<'a> LangCtx<'a> {
+    pub fn new(ast: &'a Tree<AstNode>) -> Self {
         let scopes = DashMap::new();
         let root_scope_id = Self::mint_scope_id();
         scopes.insert(root_scope_id, Scope::default());
@@ -64,18 +69,19 @@ impl<L: Clone> LangCtx<L> {
             scope_parent: Default::default(),
             errors: Default::default(),
             scopes,
+            ast,
             root_scope_id,
         }
     }
 
-    pub fn make_lexical_context<'a>(
-        &'a self,
+    pub fn make_lexical_context<'b>(
+        &'b self,
         scope: ScopeId,
-        location: L,
-    ) -> LexicalContext<'a, L> {
+        node: DefaultLinearTreeId,
+    ) -> LexicalContext<'a, 'b> {
         LexicalContext {
             scope,
-            location,
+            node,
             parent: self,
         }
     }
@@ -209,14 +215,8 @@ impl<L: Clone> LangCtx<L> {
         }
     }
 
-    pub fn error(&self, err: CompilationError<L>) {
+    pub fn error(&self, err: CompilationError) {
         self.errors.insert(err);
     }
 }
 /* #endregion */
-
-impl<L: Clone> Default for LangCtx<L> {
-    fn default() -> Self {
-        Self::new()
-    }
-}

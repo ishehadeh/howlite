@@ -8,27 +8,26 @@ use howlite_typecheck::{
     Ty, TyArray,
 };
 use preseli::IntegerSet;
-use smallvec::SmallVec;
 
 use crate::{langctx::lexicalctx::LexicalContext, symtab::Symbol};
 
 use super::{SynthesizeTy, SynthesizeTyPure};
 
 impl SynthesizeTy for Ident {
-    fn synthesize_ty<L: Clone>(self, ctx: &LexicalContext<L>) -> Rc<Ty<Symbol>> {
+    fn synthesize_ty(&self, ctx: &LexicalContext) -> Rc<Ty<Symbol>> {
         ctx.var_get_or_err(ctx.sym_intern(&self.symbol))
             .last_assignment
     }
 }
 
 impl SynthesizeTyPure for LiteralInteger {
-    fn synthesize_ty_pure(self) -> Rc<Ty<Symbol>> {
+    fn synthesize_ty_pure(&self) -> Rc<Ty<Symbol>> {
         Rc::new(Ty::Int(TyInt::single(self.value)))
     }
 }
 
 impl SynthesizeTyPure for LiteralString {
-    fn synthesize_ty_pure(self) -> Rc<Ty<Symbol>> {
+    fn synthesize_ty_pure(&self) -> Rc<Ty<Symbol>> {
         let bytes = self.value.as_bytes();
         let values = IntegerSet::new_from_individual_generic(bytes);
         let element_ty = Rc::new(Ty::Int(TyInt {
@@ -44,7 +43,7 @@ impl SynthesizeTyPure for LiteralString {
 }
 
 impl SynthesizeTyPure for LiteralChar {
-    fn synthesize_ty_pure(self) -> Rc<Ty<Symbol>> {
+    fn synthesize_ty_pure(&self) -> Rc<Ty<Symbol>> {
         let c = self.value;
         let values = IntegerSet::new_from_individual(&[c as i128]);
         Rc::new(Ty::Int(TyInt {
@@ -54,10 +53,14 @@ impl SynthesizeTyPure for LiteralChar {
     }
 }
 
-impl SynthesizeTyPure for LiteralArray<Rc<Ty<Symbol>>> {
-    fn synthesize_ty_pure(self) -> Rc<Ty<Symbol>> {
+impl SynthesizeTy for LiteralArray {
+    fn synthesize_ty(&self, ctx: &LexicalContext) -> Rc<Ty<Symbol>> {
         let union = TyUnion {
-            tys: SmallVec::from(self.values.as_ref()),
+            tys: self
+                .values
+                .iter()
+                .map(|&child| ctx.child(child).synthesize_ty())
+                .collect(),
         };
 
         Rc::new(Ty::Array(TyArray {
@@ -67,15 +70,15 @@ impl SynthesizeTyPure for LiteralArray<Rc<Ty<Symbol>>> {
     }
 }
 
-impl SynthesizeTy for LiteralStruct<Rc<Ty<Symbol>>> {
-    fn synthesize_ty<L: Clone>(self, ctx: &LexicalContext<L>) -> Rc<Ty<Symbol>> {
+impl SynthesizeTy for LiteralStruct {
+    fn synthesize_ty(&self, ctx: &LexicalContext) -> Rc<Ty<Symbol>> {
         let ty = types::TyStruct {
             fields: self
                 .members
-                .into_iter()
+                .iter()
                 .map(|child| types::StructField {
                     name: ctx.sym_intern(child.data.field.as_str()),
-                    ty: child.data.value.clone(),
+                    ty: ctx.child(child.data.value).synthesize_ty(),
                 })
                 .collect(),
         };

@@ -12,13 +12,13 @@ use crate::{langctx::lexicalctx::LexicalContext, symtab::Symbol, CompilationErro
 use super::{SynthesizeTy, SynthesizeTyPure};
 
 impl SynthesizeTyPure for AstNode<ast::TyUnit> {
-    fn synthesize_ty_pure(self) -> Rc<Ty<Symbol>> {
+    fn synthesize_ty_pure(&self) -> Rc<Ty<Symbol>> {
         Rc::new(Ty::unit())
     }
 }
 
-impl SynthesizeTy for ast::TyNumberRange<Rc<Ty<Symbol>>> {
-    fn synthesize_ty<L: Clone>(self, ctx: &LexicalContext<L>) -> Rc<Ty<Symbol>> {
+impl SynthesizeTy for ast::TyNumberRange {
+    fn synthesize_ty(&self, ctx: &LexicalContext) -> Rc<Ty<Symbol>> {
         // check that the bound is an integer set with a single set
         // returns Some(i128) if valid, none otherwise
         let validate_bound = |bound: &Rc<Ty<Symbol>>| {
@@ -33,20 +33,18 @@ impl SynthesizeTy for ast::TyNumberRange<Rc<Ty<Symbol>>> {
                 })
                 .next()
         };
+        let lo_ty = ctx.child(self.lo).synthesize_ty();
+        let hi_ty = ctx.child(self.lo).synthesize_ty();
 
-        let lo = validate_bound(&self.lo);
-        let hi = validate_bound(&self.hi);
+        let lo = validate_bound(&lo_ty);
+        let hi = validate_bound(&hi_ty);
 
         if lo.is_none() {
-            ctx.error(CompilationErrorKind::InvalidIntegerBound {
-                got: self.lo.clone(),
-            })
+            ctx.error(CompilationErrorKind::InvalidIntegerBound { got: lo_ty.clone() })
         }
 
         if hi.is_none() {
-            ctx.error(CompilationErrorKind::InvalidIntegerBound {
-                got: self.hi.clone(),
-            })
+            ctx.error(CompilationErrorKind::InvalidIntegerBound { got: hi_ty.clone() })
         }
         match (lo, hi) {
             (Some(lo), Some(hi)) => {

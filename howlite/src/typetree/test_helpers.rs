@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use howlite_syntax::{
     ast::{
         BoxAstNode, ExprLet, HigherOrderNode, LiteralArray, LiteralChar, LiteralInteger,
@@ -8,7 +6,6 @@ use howlite_syntax::{
     tree::{DefaultLinearTreeId, Tree, TreeBuilder},
     AstNode, AstNodeData, Span,
 };
-use howlite_typecheck::Ty;
 use proptest::{
     prelude::{any, any_with, Just, Strategy},
     prop_oneof,
@@ -17,15 +14,18 @@ use proptest::{
 };
 use smol_str::SmolStr;
 
-use crate::{langctx::lexicalctx::LexicalContext, symtab::Symbol};
+pub fn box_tree_to_linear_helper(
+    builder: &TreeBuilder<AstNode>,
+    root: BoxAstNode,
+) -> DefaultLinearTreeId {
+    let node_with_child_ids = root.map(|child| box_tree_to_linear_helper(builder, child));
+    builder.push(node_with_child_ids)
+}
 
-use super::{traits::PrepareLexicalCtx, SynthesizeTy};
-
-pub fn synthesize_box_ast(ctx: &LexicalContext<'_, Span>, node: BoxAstNode) -> Rc<Ty<Symbol>> {
-    let AstNode { data, span } = node.into_inner();
-    let child_ctx = data.prepare_lexical_ctx(ctx.clone());
-    let ty_node = data.map(|child| synthesize_box_ast(&child_ctx, child));
-    ty_node.synthesize_ty(&ctx.clone().with_location(span))
+pub fn box_tree_to_linear(root: BoxAstNode) -> (DefaultLinearTreeId, Tree<AstNode>) {
+    let tree_builder = TreeBuilder::new();
+    let root_id = box_tree_to_linear_helper(&tree_builder, root);
+    (root_id, tree_builder.finalize())
 }
 
 #[macro_export]
@@ -52,11 +52,11 @@ macro_rules! get_node_type {
         ))
     };
     ($node:expr) => {{
-        let _lang = $crate::langctx::LangCtx::<howlite_syntax::Span>::new();
-        let _ty = $crate::typetree::test_helpers::synthesize_box_ast(
-            &_lang.make_lexical_context(_lang.root_scope_id, $node.span.clone()),
-            $node,
-        );
+        let (_root, _ast) = $crate::typetree::test_helpers::box_tree_to_linear($node);
+        let _lang = $crate::langctx::LangCtx::new(&_ast);
+        let _ty = _lang
+            .make_lexical_context(_lang.root_scope_id, _root)
+            .synthesize_ty();
         $crate::assert_lang_ok!(_lang);
         _ty
     }};

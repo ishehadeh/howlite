@@ -4,6 +4,7 @@ use std::{
 };
 
 use dashmap::DashMap;
+use howlite_syntax::Span;
 use howlite_typecheck::{
     errors::{IncompatibleError, OperationError},
     BindError, Ty,
@@ -15,11 +16,11 @@ use crate::symtab::Symbol;
 
 /* #region ErrorSet */
 #[derive(Debug)]
-pub struct ErrorSet<SourceLocationT> {
-    pub errors: DashMap<ErrorId, CompilationError<SourceLocationT>>,
+pub struct ErrorSet {
+    pub errors: DashMap<ErrorId, CompilationError>,
 }
 
-impl<SourceLocationT> Default for ErrorSet<SourceLocationT> {
+impl Default for ErrorSet {
     fn default() -> Self {
         Self {
             errors: Default::default(),
@@ -27,7 +28,7 @@ impl<SourceLocationT> Default for ErrorSet<SourceLocationT> {
     }
 }
 
-impl<SourceLocationT> ErrorSet<SourceLocationT> {
+impl ErrorSet {
     pub fn mint_error_id() -> ErrorId {
         static NEXT: AtomicU64 = AtomicU64::new(0);
         ErrorId(NEXT.fetch_add(1, Ordering::Relaxed))
@@ -38,7 +39,7 @@ impl<SourceLocationT> ErrorSet<SourceLocationT> {
     }
 
     /// Define a variable in the given scope
-    pub fn insert(&self, err: CompilationError<SourceLocationT>) -> ErrorId {
+    pub fn insert(&self, err: CompilationError) -> ErrorId {
         let id = Self::mint_error_id();
         debug_assert!(
             self.errors.insert(id, err).is_none(),
@@ -48,7 +49,7 @@ impl<SourceLocationT> ErrorSet<SourceLocationT> {
         id
     }
 
-    pub fn iter(&self) -> ErrorIter<'_, SourceLocationT> {
+    pub fn iter(&self) -> ErrorIter<'_> {
         ErrorIter {
             inner: self.errors.iter(),
         }
@@ -59,26 +60,26 @@ impl<SourceLocationT> ErrorSet<SourceLocationT> {
     }
 }
 
-pub struct ErrorIter<'a, SourceLocationT> {
-    inner: dashmap::iter::Iter<'a, ErrorId, CompilationError<SourceLocationT>>,
+pub struct ErrorIter<'a> {
+    inner: dashmap::iter::Iter<'a, ErrorId, CompilationError>,
 }
 
-pub struct ErrorEntry<'a, SourceLocationT> {
-    inner: dashmap::mapref::multiple::RefMulti<'a, ErrorId, CompilationError<SourceLocationT>>,
+pub struct ErrorEntry<'a> {
+    inner: dashmap::mapref::multiple::RefMulti<'a, ErrorId, CompilationError>,
 }
 
-impl<'a, SourceLocationT> ErrorEntry<'a, SourceLocationT> {
+impl<'a> ErrorEntry<'a> {
     pub fn id(&self) -> ErrorId {
         self.inner.key().clone()
     }
 
-    pub fn error(&self) -> &CompilationError<SourceLocationT> {
+    pub fn error(&self) -> &CompilationError {
         self.inner.value()
     }
 }
 
-impl<'a, SourceLocationT> Iterator for ErrorIter<'a, SourceLocationT> {
-    type Item = ErrorEntry<'a, SourceLocationT>;
+impl<'a> Iterator for ErrorIter<'a> {
+    type Item = ErrorEntry<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.inner.next().map(|inner| ErrorEntry { inner })
@@ -87,8 +88,8 @@ impl<'a, SourceLocationT> Iterator for ErrorIter<'a, SourceLocationT> {
 /* #endregion */
 
 #[derive(Clone, Debug)]
-pub struct CompilationError<SourceLocationT> {
-    pub location: SourceLocationT,
+pub struct CompilationError {
+    pub location: Span,
     pub kind: CompilationErrorKind,
 }
 

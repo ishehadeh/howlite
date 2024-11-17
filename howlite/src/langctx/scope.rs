@@ -3,9 +3,9 @@ use std::rc::Rc;
 use howlite_typecheck::{Ty, TyBinder};
 use smallvec::SmallVec;
 
-use crate::{symtab::Symbol, CompilationError, CompilationErrorKind};
+use crate::{symtab::Symbol, CompilationErrorKind};
 
-use super::LangCtx;
+use super::lexicalctx::LexicalContext;
 
 #[derive(Debug, Default)]
 pub struct Scope {
@@ -34,20 +34,12 @@ pub struct TyDef {
 }
 
 impl TyDef {
-    pub fn instantiate<SourceLocationT: Clone>(
-        &self,
-        err_location: SourceLocationT,
-        ctx: &LangCtx<SourceLocationT>,
-        params: &[Rc<Ty<Symbol>>],
-    ) -> Rc<Ty<Symbol>> {
+    pub fn instantiate(&self, ctx: &LexicalContext, params: &[Rc<Ty<Symbol>>]) -> Rc<Ty<Symbol>> {
         if params.len() != self.params.len() {
-            ctx.error(CompilationError {
-                location: err_location.clone(),
-                kind: CompilationErrorKind::IncorrectTyParamCount {
-                    expected: self.params.len(),
-                    got: params.len(),
-                    ty: self.name,
-                },
+            ctx.error(CompilationErrorKind::IncorrectTyParamCount {
+                expected: self.params.len(),
+                got: params.len(),
+                ty: self.name,
             });
         };
 
@@ -58,13 +50,10 @@ impl TyDef {
                 break;
             }
             if let Err(e) = given_ty.is_assignable_to(&*self.params[i].1) {
-                ctx.error(CompilationError {
-                    location: err_location.clone(),
-                    kind: CompilationErrorKind::InvalidTyParam {
-                        param: self.params[i].0,
-                        source: e,
-                        ty: self.name,
-                    },
+                ctx.error(CompilationErrorKind::InvalidTyParam {
+                    param: self.params[i].0,
+                    source: e,
+                    ty: self.name,
                 });
                 mapped_params.push((self.params[i].0, Rc::new(Ty::Hole)))
             } else {
@@ -75,10 +64,7 @@ impl TyDef {
         let mut bind = TyBinder::new(&mapped_params);
         let bound = bind.bind(self.ty.clone());
         for err in bind.errors() {
-            ctx.error(CompilationError {
-                location: err_location.clone(),
-                kind: err.clone().into(),
-            });
+            ctx.error(err.clone().into());
         }
 
         bound

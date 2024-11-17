@@ -9,11 +9,11 @@ use howlite_typecheck::Ty;
 
 use super::SynthesizeTy;
 
-impl SynthesizeTy for ExprLet<Rc<Ty<Symbol>>> {
-    fn synthesize_ty<L: Clone>(self, ctx: &LexicalContext<L>) -> Rc<Ty<Symbol>> {
+impl SynthesizeTy for ExprLet {
+    fn synthesize_ty(&self, ctx: &LexicalContext) -> Rc<Ty<Symbol>> {
         let var_symbol = ctx.sym_intern(self.name.as_str());
-        let var_ty = self.ty;
-        let var_value_ty = self.value;
+        let var_ty = ctx.child(self.ty).synthesize_ty();
+        let var_value_ty = ctx.child(self.value).synthesize_ty();
         ctx.var_def(
             var_symbol,
             VarDef {

@@ -1,36 +1,51 @@
 use std::rc::Rc;
 
+use howlite_syntax::{tree::DefaultLinearTreeId, AstNode};
 use howlite_typecheck::Ty;
 
-use crate::{symtab::Symbol, CompilationError, CompilationErrorKind};
+use crate::{symtab::Symbol, typetree::SynthesizeTy, CompilationError, CompilationErrorKind};
 
 use super::{LangCtx, ScopeId, TyDef, VarDef};
 
 #[derive(Debug, Clone)]
-pub struct LexicalContext<'a, LocT: Clone> {
+pub struct LexicalContext<'a, 'b> {
     pub(super) scope: ScopeId,
-    pub(super) location: LocT,
-    pub(super) parent: &'a LangCtx<LocT>,
+    pub(super) parent: &'a LangCtx<'b>,
+    pub(super) node: DefaultLinearTreeId,
 }
 
-impl<'a, LocT: Clone> LexicalContext<'a, LocT> {
-    pub fn with_location(mut self, location: LocT) -> Self {
-        self.location = location;
-        self
+impl<'a, 'b> LexicalContext<'a, 'b> {
+    pub fn child(&self, child_node_id: DefaultLinearTreeId) -> Self {
+        Self {
+            scope: self.scope,
+            parent: self.parent,
+            node: child_node_id,
+        }
     }
 
-    pub fn with_scope(mut self) -> Self {
-        self.scope = self.parent.scope_new(self.scope);
-        self
+    pub fn new_with_scope(&self) -> Self {
+        Self {
+            scope: self.parent.scope_new(self.scope),
+            parent: self.parent,
+            node: self.node,
+        }
+    }
+
+    pub fn node_data(&self) -> &AstNode {
+        self.parent.ast.get(self.node)
     }
 
     pub fn get_scope(&self) -> ScopeId {
         self.scope.clone()
     }
 
+    pub fn synthesize_ty(&self) -> Rc<Ty<Symbol>> {
+        self.node_data().data.synthesize_ty(self)
+    }
+
     pub fn error(&self, err: CompilationErrorKind) {
         self.parent.error(CompilationError {
-            location: self.location.clone(),
+            location: self.node_data().span.clone(),
             kind: err,
         });
     }
