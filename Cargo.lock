@@ -918,6 +918,7 @@ dependencies = [
  "num",
  "num-integer",
  "num-traits",
+ "proptest",
 ]
 
 [[package]]

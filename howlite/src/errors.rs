@@ -8,6 +8,7 @@ use howlite_typecheck::{
     errors::{IncompatibleError, OperationError},
     BindError, Ty,
 };
+use smol_str::SmolStr;
 use thiserror::Error;
 
 use crate::symtab::Symbol;
@@ -115,6 +116,9 @@ pub enum CompilationErrorKind {
         #[from]
         source: BindError<Symbol>,
     },
+
+    #[error("unknown variable '{name}'")]
+    UnknownVariable { name: SmolStr },
 
     #[error("expected integer bound to be a single Int, found: {got:?}")]
     InvalidIntegerBound { got: Rc<Ty<Symbol>> },

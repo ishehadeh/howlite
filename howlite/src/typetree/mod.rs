@@ -8,6 +8,7 @@
 //! On the other hand, most expressions are mapped to the type representing the set of possible values
 //! that would result from the given expression.
 
+mod atomic_exprs;
 mod constraint_term;
 mod constraint_tree;
 mod infix;
@@ -81,11 +82,8 @@ impl SynthesizeTy<Span> for AstNode<AstNodeData<Rc<Ty<Symbol>>>> {
             AstNodeData::ExprLet(n) => AstNode::new_narrow(span, n).synthesize_ty(ctx),
 
             AstNodeData::TyNumberRange(n) => AstNode::new_narrow(span, n).synthesize_ty(ctx),
-            AstNodeData::Ident(n) => ctx
-                .var_get(ctx.root_scope_id, ctx.symbols.intern(&n.symbol))
-                .unwrap()
-                .last_assignment
-                .clone(),
+            AstNodeData::Ident(n) => AstNode::new_narrow(span, n).synthesize_ty(ctx),
+            AstNodeData::TyNamed(_) => todo!(),
             AstNodeData::Block(n) => {
                 if n.returns {
                     n.statements
@@ -96,6 +94,7 @@ impl SynthesizeTy<Span> for AstNode<AstNodeData<Rc<Ty<Symbol>>>> {
                     Rc::new(Ty::unit())
                 }
             }
+
             AstNodeData::LiteralStructMember(_) => todo!(),
             AstNodeData::FieldAccess(_) => todo!(),
             AstNodeData::ArrayAccess(_) => todo!(),
@@ -120,7 +119,6 @@ impl SynthesizeTy<Span> for AstNode<AstNodeData<Rc<Ty<Symbol>>>> {
             AstNodeData::TyUnit(_) => todo!(),
             AstNodeData::TyParam(_) => todo!(),
             AstNodeData::TySlice(_) => todo!(),
-            AstNodeData::TyNamed(_) => todo!(),
         }
     }
 }
