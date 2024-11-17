@@ -21,6 +21,14 @@ pub use prefix::*;
 pub use ty_expr::*;
 
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    feature = "serde",
+    serde(bound(
+        serialize = "ChildT: serde::Serialize, A: Allocator",
+        deserialize = "ChildT: serde::Deserialize<'de>, A: Allocator + Default"
+    ))
+)]
 pub enum AstNodeData<ChildT = DefaultLinearTreeId, A: Allocator = Global> {
     LiteralInteger(LiteralInteger),
     LiteralChar(LiteralChar),
@@ -68,6 +76,7 @@ pub enum AstNodeData<ChildT = DefaultLinearTreeId, A: Allocator = Global> {
 }
 
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct AstNode<Data = AstNodeData<DefaultLinearTreeId>> {
     pub span: Span,
     pub data: Data,
@@ -92,6 +101,7 @@ impl<T> AstNode<T> {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Repaired<ChildT = DefaultLinearTreeId> {
     pub tree: Option<ChildT>,
 }
@@ -99,6 +109,7 @@ pub struct Repaired<ChildT = DefaultLinearTreeId> {
 gen_node_impls!(Repaired { &tree?, });
 
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct FieldAccess<ChildT = DefaultLinearTreeId> {
     pub field: SmolStr,
     pub lhs: ChildT,
@@ -106,6 +117,7 @@ pub struct FieldAccess<ChildT = DefaultLinearTreeId> {
 gen_node_impls!(FieldAccess { field, &lhs, });
 
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ArrayAccess<ChildT = DefaultLinearTreeId> {
     pub lhs: ChildT,
     pub index: ChildT,
@@ -113,6 +125,14 @@ pub struct ArrayAccess<ChildT = DefaultLinearTreeId> {
 gen_node_impls!(ArrayAccess { &lhs, &index, });
 
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    feature = "serde",
+    serde(bound(
+        serialize = "ChildT: serde::Serialize, A: Allocator",
+        deserialize = "ChildT: serde::Deserialize<'de>, A: Allocator + Default"
+    ))
+)]
 pub struct ExprCall<ChildT = DefaultLinearTreeId, A: Allocator = Global> {
     pub callee: ChildT,
     pub ty_params: Vec<ChildT, A>,
@@ -121,6 +141,7 @@ pub struct ExprCall<ChildT = DefaultLinearTreeId, A: Allocator = Global> {
 gen_node_impls!(ExprCall<A> { &callee, &ty_params*, &params*, });
 
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ExprLet<ChildT = DefaultLinearTreeId> {
     pub name: SmolStr,
     pub ty: ChildT,
@@ -130,12 +151,21 @@ pub struct ExprLet<ChildT = DefaultLinearTreeId> {
 gen_node_impls!(ExprLet { name, &ty, mutable, &value, });
 
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    feature = "serde",
+    serde(bound(
+        serialize = "ChildT: serde::Serialize, A: Allocator",
+        deserialize = "ChildT: serde::Deserialize<'de>, A: Allocator + Default"
+    ))
+)]
 pub struct Program<ChildT = DefaultLinearTreeId, A: Allocator = Global> {
     pub definitions: Vec<ChildT, A>,
 }
 gen_node_impls!(Program<A> { &definitions*, });
 
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ExprIf<ChildT = DefaultLinearTreeId> {
     pub condition: ChildT,
     pub success: ChildT,
@@ -144,6 +174,14 @@ pub struct ExprIf<ChildT = DefaultLinearTreeId> {
 gen_node_impls!(ExprIf { &condition, &success, &failure?, });
 
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    feature = "serde",
+    serde(bound(
+        serialize = "ChildT: serde::Serialize, A: Allocator",
+        deserialize = "ChildT: serde::Deserialize<'de>, A: Allocator + Default"
+    ))
+)]
 pub struct Block<ChildT = DefaultLinearTreeId, A: Allocator = Global> {
     /// Indicates that the value of the final value in `statements` should be the value of this block.
     /// For example:
@@ -167,12 +205,14 @@ pub struct Block<ChildT = DefaultLinearTreeId, A: Allocator = Global> {
 gen_node_impls!(Block<A> { returns, &statements*, });
 
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Ident {
     pub symbol: SmolStr,
 }
 gen_node_impls!(Ident { symbol });
 
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ExprWhile<ChildT = DefaultLinearTreeId> {
     pub condition: ChildT,
     pub body: ChildT,
@@ -180,6 +220,7 @@ pub struct ExprWhile<ChildT = DefaultLinearTreeId> {
 gen_node_impls!(ExprWhile { &condition, &body });
 
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ExprTypeConstruction<ChildT = DefaultLinearTreeId> {
     // TODO: rename this "Assume Operator" or "Type Judgement" or something
     pub ty: ChildT,
@@ -295,6 +336,7 @@ where
 }
 
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct BoxAstNode(Box<AstNode<AstNodeData<BoxAstNode>>>);
 impl BoxAstNode {
     pub fn new(span: Span, data: impl Into<AstNodeData<BoxAstNode>>) -> BoxAstNode {
@@ -308,6 +350,12 @@ impl BoxAstNode {
     pub fn into_inner(self) -> AstNode<AstNodeData<BoxAstNode>> {
         let BoxAstNode(inner) = self;
         *inner
+    }
+}
+
+impl From<AstNode<AstNodeData<BoxAstNode>>> for BoxAstNode {
+    fn from(value: AstNode<AstNodeData<BoxAstNode>>) -> Self {
+        Self(Box::new(value))
     }
 }
 

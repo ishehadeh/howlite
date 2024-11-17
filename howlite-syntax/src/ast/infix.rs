@@ -1,6 +1,7 @@
 use crate::{gen_node_impls, tree::DefaultLinearTreeId};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum InfixOp {
     Add,
     Sub,
@@ -27,6 +28,7 @@ pub enum InfixOp {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ExprInfix<ChildT = DefaultLinearTreeId> {
     pub lhs: ChildT,
     pub op: InfixOp,
