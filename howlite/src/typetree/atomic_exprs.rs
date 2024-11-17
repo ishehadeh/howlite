@@ -1,8 +1,7 @@
 use std::rc::Rc;
 
-use howlite_syntax::{
-    ast::{Ident, LiteralArray, LiteralChar, LiteralInteger, LiteralString, LiteralStruct},
-    AstNode, Span,
+use howlite_syntax::ast::{
+    Ident, LiteralArray, LiteralChar, LiteralInteger, LiteralString, LiteralStruct,
 };
 use howlite_typecheck::{
     types::{self, StorageClass, TyInt, TyUnion},
@@ -11,24 +10,14 @@ use howlite_typecheck::{
 use preseli::IntegerSet;
 use smallvec::SmallVec;
 
-use crate::{langctx::LangCtx, symtab::Symbol, CompilationError, CompilationErrorKind};
+use crate::{langctx::lexicalctx::LexicalContext, symtab::Symbol};
 
 use super::{SynthesizeTy, SynthesizeTyPure};
 
-impl SynthesizeTy<Span> for &AstNode<Ident> {
-    fn synthesize_ty(self, ctx: &LangCtx<Span>) -> Rc<Ty<Symbol>> {
-        match ctx.var_get(ctx.root_scope_id, ctx.symbols.intern(&self.data.symbol)) {
-            Some(t) => t.last_assignment.clone(),
-            None => {
-                ctx.error(CompilationError {
-                    location: self.span,
-                    kind: CompilationErrorKind::UnknownVariable {
-                        name: self.data.symbol.clone(),
-                    },
-                });
-                Rc::new(Ty::Hole)
-            }
-        }
+impl SynthesizeTy for Ident {
+    fn synthesize_ty<L: Clone>(self, ctx: &LexicalContext<L>) -> Rc<Ty<Symbol>> {
+        ctx.var_get_or_err(ctx.sym_intern(&self.symbol))
+            .last_assignment
     }
 }
 
@@ -38,9 +27,9 @@ impl SynthesizeTyPure for LiteralInteger {
     }
 }
 
-impl SynthesizeTyPure for AstNode<&LiteralString> {
+impl SynthesizeTyPure for LiteralString {
     fn synthesize_ty_pure(self) -> Rc<Ty<Symbol>> {
-        let bytes = self.data.value.as_bytes();
+        let bytes = self.value.as_bytes();
         let values = IntegerSet::new_from_individual_generic(bytes);
         let element_ty = Rc::new(Ty::Int(TyInt {
             values,
@@ -48,15 +37,15 @@ impl SynthesizeTyPure for AstNode<&LiteralString> {
         }));
 
         Rc::new(Ty::Array(TyArray {
-            length: self.data.value.len(),
+            length: self.value.len(),
             element_ty,
         }))
     }
 }
 
-impl SynthesizeTyPure for &AstNode<&LiteralChar> {
+impl SynthesizeTyPure for LiteralChar {
     fn synthesize_ty_pure(self) -> Rc<Ty<Symbol>> {
-        let c = self.data.value;
+        let c = self.value;
         let values = IntegerSet::new_from_individual(&[c as i128]);
         Rc::new(Ty::Int(TyInt {
             values,
@@ -65,28 +54,27 @@ impl SynthesizeTyPure for &AstNode<&LiteralChar> {
     }
 }
 
-impl SynthesizeTyPure for AstNode<LiteralArray<Rc<Ty<Symbol>>>> {
+impl SynthesizeTyPure for LiteralArray<Rc<Ty<Symbol>>> {
     fn synthesize_ty_pure(self) -> Rc<Ty<Symbol>> {
         let union = TyUnion {
-            tys: SmallVec::from(self.data.values.as_ref()),
+            tys: SmallVec::from(self.values.as_ref()),
         };
 
         Rc::new(Ty::Array(TyArray {
-            length: self.data.values.len(),
+            length: self.values.len(),
             element_ty: Rc::new(Ty::Union(union)),
         }))
     }
 }
 
-impl SynthesizeTy<Span> for AstNode<LiteralStruct<Rc<Ty<Symbol>>>> {
-    fn synthesize_ty(self, ctx: &LangCtx<Span>) -> Rc<Ty<Symbol>> {
+impl SynthesizeTy for LiteralStruct<Rc<Ty<Symbol>>> {
+    fn synthesize_ty<L: Clone>(self, ctx: &LexicalContext<L>) -> Rc<Ty<Symbol>> {
         let ty = types::TyStruct {
             fields: self
-                .data
                 .members
                 .into_iter()
                 .map(|child| types::StructField {
-                    name: ctx.symbols.intern(child.data.field.as_str()),
+                    name: ctx.sym_intern(child.data.field.as_str()),
                     ty: child.data.value.clone(),
                 })
                 .collect(),
@@ -98,12 +86,11 @@ impl SynthesizeTy<Span> for AstNode<LiteralStruct<Rc<Ty<Symbol>>>> {
 
 #[cfg(test)]
 mod test {
-    use crate::typetree::{
-        test_helpers::{any_ident, any_literal, literal_array, literal_struct},
-        SynthesizeTy,
+    use crate::{
+        get_node_type,
+        typetree::test_helpers::{any_ident, any_literal, literal_array, literal_struct},
     };
 
-    use super::LangCtx;
     use howlite_syntax::{
         ast::{BoxAstNode, LiteralChar, LiteralInteger, LiteralString},
         Span,
@@ -117,9 +104,8 @@ mod test {
     proptest! {
         #[test]
         fn synthesize_literal_string(s in any::<String>()) {
-            let lang = LangCtx::<Span>::new();
-            let program = BoxAstNode::new(Span::new(0,0), LiteralString { value: s.to_smolstr() });
-            let ty = program.synthesize_ty(&lang);
+            let ty = get_node_type!(boxed LiteralString { value: s.to_smolstr() });
+
             let arr = ty.as_array().expect("string didn't synthesize to array");
             assert_eq!(arr.length, s.len());
             let elem_ty = arr.element_ty.as_int().expect("element ty was not an int");
@@ -131,9 +117,7 @@ mod test {
 
         #[test]
         fn synthesize_literal_char(c in any::<char>()) {
-            let lang = LangCtx::<Span>::new();
-            let program = BoxAstNode::new(Span::new(0,0), LiteralChar { value: c });
-            let ty = program.synthesize_ty(&lang);
+            let ty = get_node_type!(boxed LiteralChar { value: c });
             let int = ty.as_int().expect("char didn't synthesize to int");
             assert!(int.values.includes(c as i128));
             assert_eq!(int.storage, StorageClass::unsigned(32));
@@ -143,22 +127,19 @@ mod test {
 
         #[test]
         fn synthesize_literal_struct(program in literal_struct(any_ident(), any_literal(), 0..24)) {
-            let lang = LangCtx::<Span>::new();
-            let ty = program.synthesize_ty(&lang);
+            let ty = get_node_type!(program);
             assert!(ty.as_struct().is_some(), "expected struct type, got: {:?}", ty);
         }
 
         #[test]
         fn synthesize_literal_array(program in literal_array(any_literal(), 0..10)) {
-            let lang = LangCtx::<Span>::new();
-            let ty = program.synthesize_ty(&lang);
+            let ty = get_node_type!(program);
             assert!(ty.as_array().is_some(), "expected array type, got: {:?}", ty);
         }
 
         #[test]
         fn synthesize_literal_array_large_int_table(program in literal_array(any::<LiteralInteger>().prop_map(|v| BoxAstNode::new(Span::new(0, 0), v)), 512..1024)) {
-            let lang = LangCtx::<Span>::new();
-            let ty = program.synthesize_ty(&lang);
+            let ty = get_node_type!(program);
             assert!(ty.as_array().is_some(), "expected array type, got: {:?}", ty);
         }
     }

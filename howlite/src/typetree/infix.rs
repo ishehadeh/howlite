@@ -1,19 +1,16 @@
 use std::rc::Rc;
 
-use howlite_syntax::{
-    ast::{ExprInfix, InfixOp},
-    AstNode, Span,
-};
+use howlite_syntax::ast::{ExprInfix, InfixOp};
 use howlite_typecheck::Ty;
 use sunstone::ops::ArithmeticSet;
 
-use crate::{langctx::LangCtx, symtab::Symbol, CompilationError};
+use crate::{langctx::lexicalctx::LexicalContext, symtab::Symbol};
 
 use super::SynthesizeTy;
 
-impl SynthesizeTy<Span> for AstNode<&ExprInfix<Rc<Ty<Symbol>>>> {
-    fn synthesize_ty(self, ctx: &LangCtx<Span>) -> Rc<Ty<Symbol>> {
-        let ExprInfix { lhs, op, rhs } = self.data;
+impl SynthesizeTy for ExprInfix<Rc<Ty<Symbol>>> {
+    fn synthesize_ty<L: Clone>(self, ctx: &LexicalContext<L>) -> Rc<Ty<Symbol>> {
+        let ExprInfix { lhs, op, rhs } = self;
 
         let op_result = match op {
             InfixOp::Add => lhs.arithmetic_rec(&*rhs, |a, b| a.add_all(b)),
@@ -25,10 +22,7 @@ impl SynthesizeTy<Span> for AstNode<&ExprInfix<Rc<Ty<Symbol>>>> {
         match op_result {
             Ok(v) => Rc::new(v),
             Err(e) => {
-                ctx.error(CompilationError {
-                    location: self.span,
-                    kind: e.into(),
-                });
+                ctx.error(e.into());
                 Rc::new(Ty::Hole)
             }
         }
@@ -59,6 +53,9 @@ mod test {
         );
         let ctx = LangCtx::new();
         let tt_builder = TypeTreeBuilder::new(&ctx, &ast);
-        assert_eq!(tt_builder.get_ty(block_node_id), t_int!(3))
+        assert_eq!(
+            tt_builder.get_ty(block_node_id, ctx.root_scope_id),
+            t_int!(3)
+        )
     }
 }

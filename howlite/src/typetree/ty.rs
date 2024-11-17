@@ -2,12 +2,12 @@
 
 use std::rc::Rc;
 
-use howlite_syntax::{ast, AstNode, Span};
+use howlite_syntax::{ast, AstNode};
 use howlite_typecheck::{types::TyInt, Ty};
 use preseli::IntegerSet;
 use sunstone::ops::{Bounded, PartialBounded};
 
-use crate::{langctx::LangCtx, symtab::Symbol, CompilationError, CompilationErrorKind};
+use crate::{langctx::lexicalctx::LexicalContext, symtab::Symbol, CompilationErrorKind};
 
 use super::{SynthesizeTy, SynthesizeTyPure};
 
@@ -17,8 +17,8 @@ impl SynthesizeTyPure for AstNode<ast::TyUnit> {
     }
 }
 
-impl SynthesizeTy<Span> for AstNode<ast::TyNumberRange<Rc<Ty<Symbol>>>> {
-    fn synthesize_ty(self, ctx: &LangCtx<Span>) -> Rc<Ty<Symbol>> {
+impl SynthesizeTy for ast::TyNumberRange<Rc<Ty<Symbol>>> {
+    fn synthesize_ty<L: Clone>(self, ctx: &LexicalContext<L>) -> Rc<Ty<Symbol>> {
         // check that the bound is an integer set with a single set
         // returns Some(i128) if valid, none otherwise
         let validate_bound = |bound: &Rc<Ty<Symbol>>| {
@@ -34,25 +34,19 @@ impl SynthesizeTy<Span> for AstNode<ast::TyNumberRange<Rc<Ty<Symbol>>>> {
                 .next()
         };
 
-        let lo = validate_bound(&self.data.lo);
-        let hi = validate_bound(&self.data.hi);
+        let lo = validate_bound(&self.lo);
+        let hi = validate_bound(&self.hi);
 
         if lo.is_none() {
-            ctx.error(CompilationError {
-                location: self.span,
-                kind: CompilationErrorKind::InvalidIntegerBound {
-                    got: self.data.lo.clone(),
-                },
-            });
+            ctx.error(CompilationErrorKind::InvalidIntegerBound {
+                got: self.lo.clone(),
+            })
         }
 
         if hi.is_none() {
-            ctx.error(CompilationError {
-                location: self.span,
-                kind: CompilationErrorKind::InvalidIntegerBound {
-                    got: self.data.hi.clone(),
-                },
-            });
+            ctx.error(CompilationErrorKind::InvalidIntegerBound {
+                got: self.hi.clone(),
+            })
         }
         match (lo, hi) {
             (Some(lo), Some(hi)) => {
@@ -65,21 +59,15 @@ impl SynthesizeTy<Span> for AstNode<ast::TyNumberRange<Rc<Ty<Symbol>>>> {
 
 #[cfg(test)]
 mod test {
-    use howlite_syntax::{ast::BoxAstNode, Span};
+    use howlite_syntax::ast::BoxAstNode;
     use proptest::{prelude::Strategy, proptest};
 
-    use crate::{
-        assert_lang_ok,
-        langctx::LangCtx,
-        typetree::{test_helpers::make_ty_number_range, SynthesizeTy},
-    };
+    use crate::{get_node_type, typetree::test_helpers::make_ty_number_range};
 
     proptest!(
         #[test]
         fn ty_number_range(program in any_ty_number_range_with_literal()) {
-            let lang = LangCtx::<Span>::new();
-            let ty = program.synthesize_ty(&lang);
-            assert_lang_ok!(lang);
+            let ty = get_node_type!(program);
             assert!(ty.as_int().is_some(), "expected int type, got: {:?}", ty);
         }
     );

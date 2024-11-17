@@ -33,15 +33,19 @@ use howlite_syntax::{
     AstNode, AstNodeData, Span,
 };
 use howlite_typecheck::Ty;
+use traits::PrepareLexicalCtx;
 // pub use original::*;
 pub use traits::{SynthesizeTy, SynthesizeTyPure};
 
-use crate::{langctx::LangCtx, symtab::Symbol};
+use crate::{
+    langctx::{lexicalctx::LexicalContext, LangCtx, ScopeId},
+    symtab::Symbol,
+};
 
 pub struct TypeTreeBuilder<'a, 'b> {
     tree: &'a Tree<AstNode>,
     ctx: &'b LangCtx<Span>,
-    ty: DashMap<DefaultLinearTreeId, Rc<Ty<Symbol>>>,
+    ty: DashMap<(ScopeId, DefaultLinearTreeId), Rc<Ty<Symbol>>>,
 }
 
 impl<'a, 'b> TypeTreeBuilder<'a, 'b> {
@@ -53,36 +57,49 @@ impl<'a, 'b> TypeTreeBuilder<'a, 'b> {
         }
     }
 
-    fn calc_ty(&self, node_id: DefaultLinearTreeId) -> Rc<Ty<Symbol>> {
+    fn calc_ty(&self, node_id: DefaultLinearTreeId, scope: ScopeId) -> Rc<Ty<Symbol>> {
         let node = self.tree.get(node_id);
-        let node = node.clone().map(|child_id| self.get_ty(child_id));
-        let ty = node.synthesize_ty(self.ctx);
-        _ = self.ty.insert(node_id, ty.clone());
+        let ctx = self.ctx.make_lexical_context(scope, node.span.clone());
+        let child_ctx = node.data.prepare_lexical_ctx(ctx.clone());
+
+        let node = node
+            .clone()
+            .map(|child_id| self.get_ty(child_id, child_ctx.get_scope()));
+        let ty = node.data.synthesize_ty(&ctx);
+        _ = self.ty.insert((ctx.get_scope(), node_id), ty.clone());
         ty
     }
 
-    pub fn get_ty(&self, node_id: DefaultLinearTreeId) -> Rc<Ty<Symbol>> {
+    pub fn get_ty(&self, node_id: DefaultLinearTreeId, scope: ScopeId) -> Rc<Ty<Symbol>> {
         self.ty
-            .get(&node_id)
+            .get(&(scope, node_id))
             .map(|c| c.value().clone())
-            .unwrap_or_else(|| self.calc_ty(node_id))
+            .unwrap_or_else(|| self.calc_ty(node_id, scope))
     }
 }
 
-impl SynthesizeTy<Span> for AstNode<AstNodeData<Rc<Ty<Symbol>>>> {
-    fn synthesize_ty(self, ctx: &LangCtx<Span>) -> Rc<Ty<Symbol>> {
-        let AstNode { data, span } = self;
-        match data {
-            AstNodeData::LiteralInteger(n) => n.synthesize_ty(ctx),
-            AstNodeData::LiteralString(n) => AstNode::new_narrow(span, &n).synthesize_ty(ctx),
-            AstNodeData::LiteralChar(n) => AstNode::new_narrow(span, &n).synthesize_ty(ctx),
-            AstNodeData::ExprInfix(n) => AstNode::new_narrow(span, &n).synthesize_ty(ctx),
-            AstNodeData::LiteralStruct(n) => AstNode::new_narrow(span, n).synthesize_ty(ctx),
-            AstNodeData::LiteralArray(n) => AstNode::new_narrow(span, n).synthesize_ty(ctx),
-            AstNodeData::ExprLet(n) => AstNode::new_narrow(span, n).synthesize_ty(ctx),
+impl<T> PrepareLexicalCtx<Span> for AstNodeData<T> {
+    fn prepare_lexical_ctx<'a>(&self, ctx: LexicalContext<'a, Span>) -> LexicalContext<'a, Span> {
+        match self {
+            AstNodeData::Block(_) => ctx.with_scope(),
+            _ => ctx,
+        }
+    }
+}
 
-            AstNodeData::TyNumberRange(n) => AstNode::new_narrow(span, n).synthesize_ty(ctx),
-            AstNodeData::Ident(n) => AstNode::new_narrow(span, n).synthesize_ty(ctx),
+impl SynthesizeTy for AstNodeData<Rc<Ty<Symbol>>> {
+    fn synthesize_ty<L: Clone>(self, ctx: &LexicalContext<L>) -> Rc<Ty<Symbol>> {
+        match self {
+            AstNodeData::LiteralInteger(n) => n.synthesize_ty(ctx),
+            AstNodeData::LiteralString(n) => n.synthesize_ty(ctx),
+            AstNodeData::LiteralChar(n) => n.synthesize_ty(ctx),
+            AstNodeData::ExprInfix(n) => n.synthesize_ty(ctx),
+            AstNodeData::LiteralStruct(n) => n.synthesize_ty(ctx),
+            AstNodeData::LiteralArray(n) => n.synthesize_ty(ctx),
+            AstNodeData::ExprLet(n) => n.synthesize_ty(ctx),
+
+            AstNodeData::TyNumberRange(n) => n.synthesize_ty(ctx),
+            AstNodeData::Ident(n) => n.synthesize_ty(ctx),
             AstNodeData::TyNamed(_) => todo!(),
             AstNodeData::Block(n) => {
                 if n.returns {

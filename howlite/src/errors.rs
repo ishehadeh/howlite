@@ -111,14 +111,17 @@ pub enum CompilationErrorKind {
         ty: Symbol,
     },
 
-    #[error("Unknown type: {source}")]
-    UnknownTyName {
+    #[error("failed while trying to instantiate type: {source}")]
+    TypeInstantiateError {
         #[from]
         source: BindError<Symbol>,
     },
 
     #[error("unknown variable '{name}'")]
     UnknownVariable { name: SmolStr },
+
+    #[error("unknown type '{name}'")]
+    UnknownType { name: SmolStr },
 
     #[error("expected integer bound to be a single Int, found: {got:?}")]
     InvalidIntegerBound { got: Rc<Ty<Symbol>> },

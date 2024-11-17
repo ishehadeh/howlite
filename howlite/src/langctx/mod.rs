@@ -1,8 +1,11 @@
 mod scope;
 
-use std::sync::{
-    atomic::{AtomicU64, Ordering},
-    RwLock,
+use std::{
+    fmt::Debug,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        RwLock,
+    },
 };
 
 use crate::{
@@ -11,13 +14,16 @@ use crate::{
     CompilationError,
 };
 
+pub mod lexicalctx;
+
 use dashmap::DashMap;
+use lexicalctx::LexicalContext;
 pub use scope::*;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ScopeId(u64);
 
-pub struct LangCtx<SourceLocationT> {
+pub struct LangCtx<SourceLocationT: Clone> {
     pub symbols: SyncSymbolTable,
     scopes: DashMap<ScopeId, Scope>,
     pub errors: ErrorSet<SourceLocationT>,
@@ -25,8 +31,19 @@ pub struct LangCtx<SourceLocationT> {
     pub root_scope_id: ScopeId,
 }
 
+impl<L: Clone + Debug> std::fmt::Debug for LangCtx<L> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LangCtx")
+            .field("scopes", &self.scopes)
+            .field("errors", &self.errors)
+            .field("scope_parent", &self.scope_parent)
+            .field("root_scope_id", &self.root_scope_id)
+            .finish()
+    }
+}
+
 /* #region impl LangCtx: ID Helpers */
-impl<L> LangCtx<L> {
+impl<L: Clone> LangCtx<L> {
     /// create a new ScopeId, these identifiers are globally unique within the process
     fn mint_scope_id() -> ScopeId {
         static NEXT: AtomicU64 = AtomicU64::new(0);
@@ -36,7 +53,7 @@ impl<L> LangCtx<L> {
 /* #endregion */
 
 /* #region impl LangCtx: General Functionality */
-impl<L> LangCtx<L> {
+impl<L: Clone> LangCtx<L> {
     pub fn new() -> Self {
         let scopes = DashMap::new();
         let root_scope_id = Self::mint_scope_id();
@@ -48,6 +65,18 @@ impl<L> LangCtx<L> {
             errors: Default::default(),
             scopes,
             root_scope_id,
+        }
+    }
+
+    pub fn make_lexical_context<'a>(
+        &'a self,
+        scope: ScopeId,
+        location: L,
+    ) -> LexicalContext<'a, L> {
+        LexicalContext {
+            scope,
+            location,
+            parent: self,
         }
     }
 
@@ -97,7 +126,7 @@ impl<L> LangCtx<L> {
         }
 
         debug_assert!(
-            self.scopes.insert(new_scope_id, Scope::default()).is_some(),
+            !self.scopes.insert(new_scope_id, Scope::default()).is_some(),
             "LangCtx::scope_new(): scope exists, this should be impossible"
         );
 
@@ -186,7 +215,7 @@ impl<L> LangCtx<L> {
 }
 /* #endregion */
 
-impl<L> Default for LangCtx<L> {
+impl<L: Clone> Default for LangCtx<L> {
     fn default() -> Self {
         Self::new()
     }

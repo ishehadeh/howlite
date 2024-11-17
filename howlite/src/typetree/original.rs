@@ -1,21 +1,20 @@
 use std::rc::Rc;
 
 use crate::{
-    langctx::{LangCtx, VarDef},
+    langctx::{lexicalctx::LexicalContext, VarDef},
     symtab::Symbol,
 };
-use howlite_syntax::{ast::ExprLet, AstNode, Span};
+use howlite_syntax::ast::ExprLet;
 use howlite_typecheck::Ty;
 
 use super::SynthesizeTy;
 
-impl SynthesizeTy<Span> for AstNode<ExprLet<Rc<Ty<Symbol>>>> {
-    fn synthesize_ty(self, ctx: &LangCtx<Span>) -> Rc<Ty<Symbol>> {
-        let var_symbol = ctx.symbols.intern(self.data.name.as_str());
-        let var_ty = self.data.ty;
-        let var_value_ty = self.data.value;
+impl SynthesizeTy for ExprLet<Rc<Ty<Symbol>>> {
+    fn synthesize_ty<L: Clone>(self, ctx: &LexicalContext<L>) -> Rc<Ty<Symbol>> {
+        let var_symbol = ctx.sym_intern(self.name.as_str());
+        let var_ty = self.ty;
+        let var_value_ty = self.value;
         ctx.var_def(
-            ctx.root_scope_id,
             var_symbol,
             VarDef {
                 assumed_ty: var_ty,
@@ -29,22 +28,15 @@ impl SynthesizeTy<Span> for AstNode<ExprLet<Rc<Ty<Symbol>>>> {
 
 #[cfg(test)]
 mod test {
-    use crate::{
-        assert_lang_ok,
-        typetree::{test_helpers::simple_scalar_let, SynthesizeTy},
-    };
+    use crate::{get_node_type, typetree::test_helpers::simple_scalar_let};
 
-    use super::LangCtx;
-    use howlite_syntax::Span;
     use proptest::prelude::*;
 
     proptest! {
 
         #[test]
         fn let_expr_simple(program in simple_scalar_let()) {
-            let lang = LangCtx::<Span>::new();
-            let ty = program.synthesize_ty(&lang);
-            assert_lang_ok!(lang);
+            let ty = get_node_type!(program);
             assert!(ty.as_int().is_some(), "expected int type, got: {:?}", ty);
         }
     }

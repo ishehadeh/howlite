@@ -17,37 +17,15 @@ use proptest::{
 };
 use smol_str::SmolStr;
 
-use crate::{langctx::LangCtx, symtab::Symbol};
+use crate::{langctx::lexicalctx::LexicalContext, symtab::Symbol};
 
-use super::SynthesizeTy;
+use super::{traits::PrepareLexicalCtx, SynthesizeTy};
 
-impl SynthesizeTy<Span> for BoxAstNode {
-    fn synthesize_ty(self, ctx: &LangCtx<Span>) -> Rc<Ty<Symbol>> {
-        let AstNode { data, span } = self.into_inner();
-        match data {
-            AstNodeData::LiteralInteger(n) => n.synthesize_ty(ctx),
-            AstNodeData::LiteralString(n) => AstNode::new_narrow(span, &n).synthesize_ty(ctx),
-            AstNodeData::LiteralChar(n) => AstNode::new_narrow(span, &n).synthesize_ty(ctx),
-            AstNodeData::ExprInfix(n) => {
-                AstNode::new_narrow(span, &n.map(|c| c.synthesize_ty(ctx))).synthesize_ty(ctx)
-            }
-            AstNodeData::LiteralStruct(n) => {
-                AstNode::new_narrow(span, n.map(|c| c.synthesize_ty(ctx))).synthesize_ty(ctx)
-            }
-            AstNodeData::LiteralArray(n) => {
-                AstNode::new_narrow(span, n.map(|c| c.synthesize_ty(ctx))).synthesize_ty(ctx)
-            }
-            AstNodeData::ExprLet(n) => {
-                AstNode::new_narrow(span, n.map(|c| c.synthesize_ty(ctx))).synthesize_ty(ctx)
-            }
-
-            AstNodeData::TyNumberRange(n) => {
-                AstNode::new_narrow(span, n.map(|c| c.synthesize_ty(ctx))).synthesize_ty(ctx)
-            }
-            // AstNodeData::Block(n) => n.synthesize_ty(ctx),
-            t => todo!("ty not implemented for test checker: {:?}", t),
-        }
-    }
+pub fn synthesize_box_ast(ctx: &LexicalContext<'_, Span>, node: BoxAstNode) -> Rc<Ty<Symbol>> {
+    let AstNode { data, span } = node.into_inner();
+    let child_ctx = data.prepare_lexical_ctx(ctx.clone());
+    let ty_node = data.map(|child| synthesize_box_ast(&child_ctx, child));
+    ty_node.synthesize_ty(&ctx.clone().with_location(span))
 }
 
 #[macro_export]
@@ -62,6 +40,25 @@ macro_rules! assert_lang_ok {
                 .collect();
             panic!("ERRORS {:?}", _errs);
         }
+    }};
+}
+
+#[macro_export]
+macro_rules! get_node_type {
+    (boxed $node:expr) => {
+        $crate::get_node_type!(howlite_syntax::ast::BoxAstNode::new(
+            howlite_syntax::Span::new(0, 0),
+            $node,
+        ))
+    };
+    ($node:expr) => {{
+        let _lang = $crate::langctx::LangCtx::<howlite_syntax::Span>::new();
+        let _ty = $crate::typetree::test_helpers::synthesize_box_ast(
+            &_lang.make_lexical_context(_lang.root_scope_id, $node.span.clone()),
+            $node,
+        );
+        $crate::assert_lang_ok!(_lang);
+        _ty
     }};
 }
 

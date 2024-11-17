@@ -29,8 +29,8 @@ impl ToContraintTerm for ExprInfix<ConstraintTerm> {
             InfixOp::CmpLt => self
                 .lhs
                 .compare_term(BinaryConstraintRelation::Lt, self.rhs),
-            InfixOp::CmpGtEq => todo!(),
-            InfixOp::CmpLtEq => todo!(),
+            InfixOp::CmpGtEq => todo!(">= constraint"),
+            InfixOp::CmpLtEq => todo!("<= constraint"),
             InfixOp::BitOr => todo!("bit-wise constraints"),
             InfixOp::BitAnd => todo!("bit-wise constraints"),
             InfixOp::BitXor => todo!("bit-wise constraints"),
