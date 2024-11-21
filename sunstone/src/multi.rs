@@ -1071,7 +1071,9 @@ impl<I: SetElement> SetOpIncludeExclude<I> for DynSet<I> {
                 }
             }
             DynSetData::Contiguous => todo!("DynSet::exclude_mut(): when contiguous"),
-            DynSetData::Stripe(_stripe_set) => todo!("DynSet::exclude_mut(): when stripe"),
+            DynSetData::Stripe(stripe) => {
+                stripe.exclude_mut(element);
+            }
         }
     }
 }

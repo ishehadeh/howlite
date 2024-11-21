@@ -21,13 +21,13 @@ pub enum BinaryConstraintRelation {
 }
 
 impl BinaryConstraintRelation {
-    fn to_set(&self, rhs: preseli::IntegerSet) -> preseli::IntegerSet {
+    fn to_set(&self, rhs: &preseli::IntegerSet) -> preseli::IntegerSet {
         match self {
             BinaryConstraintRelation::Lt => rhs
                 .partial_bounds()
                 .map(|b| IntegerSet::new_from_range(i128::MIN, *b.lo() - 1))
                 .unwrap_or(IntegerSet::empty()),
-            BinaryConstraintRelation::Eq => rhs,
+            BinaryConstraintRelation::Eq => rhs.clone(),
             BinaryConstraintRelation::Gt => rhs
                 .partial_bounds()
                 .map(|b| IntegerSet::new_from_range(*b.hi() + 1, i128::MAX))
@@ -43,6 +43,7 @@ impl BinaryConstraintRelation {
 
 #[derive(Debug, Clone)]
 pub enum ConstraintTerm {
+    NotApplicable,
     Literal(preseli::IntegerSet),
     Var(Symbol),
     UnaryConstraint {
@@ -72,20 +73,21 @@ impl ConstraintTerm {
     pub fn unary_constraint_from_relation(
         var: Symbol,
         relation: BinaryConstraintRelation,
-        rhs: IntegerSet,
+        rhs: &IntegerSet,
     ) -> Self {
         ConstraintTerm::UnaryConstraint {
             var,
-            superset: relation.to_set(rhs),
+            superset: relation.to_set(&rhs),
         }
     }
 
     pub fn compare_literal(
         &mut self,
         relation: BinaryConstraintRelation,
-        rhs: preseli::IntegerSet,
+        rhs: &preseli::IntegerSet,
     ) {
         match self {
+            ConstraintTerm::NotApplicable => (),
             ConstraintTerm::Literal(_) => todo!(),
             ConstraintTerm::Var(symbol) => {
                 *self = Self::unary_constraint_from_relation(*symbol, relation, rhs)
@@ -98,9 +100,9 @@ impl ConstraintTerm {
                 value,
             } => {
                 // move literals to the same side, then make this a unary constraint
-                let mut new_rhs_set = rhs;
+                let mut new_rhs_set = rhs.clone();
                 new_rhs_set.sub_all(value);
-                *self = Self::unary_constraint_from_relation(*var, relation, new_rhs_set)
+                *self = Self::unary_constraint_from_relation(*var, relation, &new_rhs_set)
             }
             ConstraintTerm::UnaryOperation {
                 var,
@@ -113,9 +115,9 @@ impl ConstraintTerm {
                     relation,
                     BinaryConstraintRelation::Eq | BinaryConstraintRelation::Ne
                 ) {
-                    let mut new_rhs_set = rhs;
+                    let mut new_rhs_set = rhs.clone();
                     new_rhs_set.div_all(value);
-                    *self = Self::unary_constraint_from_relation(*var, relation, new_rhs_set)
+                    *self = Self::unary_constraint_from_relation(*var, relation, &new_rhs_set)
                 } else {
                     let inverse_relation = match relation {
                         BinaryConstraintRelation::Lt => BinaryConstraintRelation::Gt,
@@ -124,19 +126,19 @@ impl ConstraintTerm {
                             unreachable!()
                         }
                     };
-                    let mut ge_zero = rhs;
+                    let mut ge_zero = rhs.clone();
                     let mut lt_zero = ge_zero.take_below(&0);
 
                     let ge_zero_constraint = if !ge_zero.is_empty() {
                         ge_zero.div_all(value);
 
-                        Some(inverse_relation.to_set(ge_zero))
+                        Some(inverse_relation.to_set(&ge_zero))
                     } else {
                         None
                     };
                     let lt_zero_constraint = if !lt_zero.is_empty() {
                         lt_zero.div_all(value);
-                        Some(inverse_relation.to_set(lt_zero))
+                        Some(inverse_relation.to_set(&lt_zero))
                     } else {
                         None
                     };
@@ -157,9 +159,10 @@ impl ConstraintTerm {
         }
     }
 
-    pub fn compare_term(self, op: BinaryConstraintRelation, rhs: Self) -> Self {
+    pub fn compare_term(&self, op: BinaryConstraintRelation, rhs: &Self) -> Self {
         match (self, rhs) {
-            (ConstraintTerm::Literal(lit), mut set) | (mut set, ConstraintTerm::Literal(lit)) => {
+            (ConstraintTerm::Literal(lit), set) | (set, ConstraintTerm::Literal(lit)) => {
+                let mut set = set.clone();
                 set.compare_literal(op, lit);
                 set
             }
@@ -167,14 +170,18 @@ impl ConstraintTerm {
         }
     }
 
-    pub fn apply_term(self, op: ConstraintOp, rhs: Self) -> Self {
+    pub fn apply_term(&self, op: ConstraintOp, rhs: &Self) -> Self {
         match (self, rhs) {
-            (ConstraintTerm::Literal(lit), mut set) | (mut set, ConstraintTerm::Literal(lit)) => {
+            (ConstraintTerm::NotApplicable, _) => ConstraintTerm::NotApplicable,
+            (_, ConstraintTerm::NotApplicable) => ConstraintTerm::NotApplicable,
+            (ConstraintTerm::Literal(lit), set) | (set, ConstraintTerm::Literal(lit)) => {
+                let mut set = set.clone();
                 set.apply_literal(op, lit);
                 set
             }
-            (ConstraintTerm::Var(var), mut set) | (mut set, ConstraintTerm::Var(var)) => {
-                set.apply_var(op, var);
+            (ConstraintTerm::Var(var), set) | (set, ConstraintTerm::Var(var)) => {
+                let mut set = set.clone();
+                set.apply_var(op, *var);
                 set
             }
             (ConstraintTerm::UnaryConstraint { .. }, _)
@@ -188,7 +195,7 @@ impl ConstraintTerm {
                 ConstraintTerm::UnaryOperation {
                     var: lvar,
                     op: lop,
-                    value: mut lvalue,
+                    value: lvalue,
                 },
                 ConstraintTerm::UnaryOperation {
                     var: rvar,
@@ -199,13 +206,15 @@ impl ConstraintTerm {
                 if op == ConstraintOp::Mul {
                     todo!("(x + a)(y + b) not supported, make this a nice error")
                 } else {
-                    if lop == rop && rop == ConstraintOp::Add {
+                    #[allow(clippy::redundant_else)]
+                    if lop == rop && *rop == ConstraintOp::Add {
+                        let mut lvalue = lvalue.clone();
                         lvalue.add_all(&rvalue);
                         ConstraintTerm::BinaryOperation {
-                            lhs: lvar,
+                            lhs: lvar.clone(),
                             lhs_offset: lvalue,
                             op: ConstraintOp::Add,
-                            rhs: rvar,
+                            rhs: rvar.clone(),
                         }
                     } else {
                         todo!("arbitrary multipliers for variables (big TODO haha)")
@@ -222,18 +231,19 @@ impl ConstraintTerm {
         }
     }
 
-    pub fn apply_literal(&mut self, op: ConstraintOp, lit: preseli::IntegerSet) {
+    pub fn apply_literal(&mut self, op: ConstraintOp, lit: &preseli::IntegerSet) {
         match self {
+            ConstraintTerm::NotApplicable => (),
             ConstraintTerm::Var(s) => {
                 *self = ConstraintTerm::UnaryOperation {
                     var: *s,
                     op,
-                    value: lit,
+                    value: lit.clone(),
                 }
             }
             ConstraintTerm::Literal(s) => match op {
-                ConstraintOp::Mul => s.mul_all(&lit),
-                ConstraintOp::Add => s.add_all(&lit),
+                ConstraintOp::Mul => s.mul_all(lit),
+                ConstraintOp::Add => s.add_all(lit),
             },
             // TODO: mark as dependent on the value of var
             ConstraintTerm::UnaryConstraint { .. } => todo!(),
@@ -256,6 +266,7 @@ impl ConstraintTerm {
 
     pub fn apply_var(&mut self, op: ConstraintOp, var: Symbol) {
         match self {
+            ConstraintTerm::NotApplicable => (),
             ConstraintTerm::Var(s) => {
                 *self = ConstraintTerm::BinaryOperation {
                     lhs: *s,

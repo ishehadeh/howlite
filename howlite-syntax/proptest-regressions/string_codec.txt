@@ -11,3 +11,4 @@ cc 8289e26d2eb4ad9c2d8f2e533484c830a7cfd5e03afa6199d0d59b119dfeaf76 # shrinks to
 cc 655a4eb386e2bc7e775d2c648d309ff73a48c08d2f48fa4cf641a3f86fc31b69 # shrinks to (expected, lit) = ('\'', "\\'")
 cc e37cc51017e53f52f254729dc03aeca760c16cf1e2549077dfce173fd130989a # shrinks to (expected, lit) = ('\u{143d6}', "\u{143d6}")
 cc edec168d0c7801469541ba29dbae5db8af6ec54a136ef8b5975e0b8c3798d47d # shrinks to (expected, lit) = ("`f𐣵🢘𐖼U\"%ቍ\\\"🕴Ⱥ'^᥀𑛃", "\\x60\\U000066\\U0108f5\\U01F898\\U0105bc\\U000055\\U000022\\U000025\\U00124d\\U00005c\\U000022\\U01f574\\U00023a\\U000027\\U00005e\\U001940\\U0116c3")
+cc 49bf3dd56472a0460524ecbc63028587fb82aee3dffbd7df937d245df6501fc2 # shrinks to (expected, lit) = ("\u{1772}𐲮𐠼<\"𐳄Ⱥ$X$6¥5ᾪ𑃘$ೱ\u{2029}🕴&`𐞍ଢ଼ழLࠑ¥", "\\U001772\\U010cae\\U01083c\\U00003c\\U000022\\U010cc4Ⱥ\\U000024\\U000058\\x246\\U0000a5\\U000035ᾪ𑃘\\x24\\U000cf1\\U002029\\U01F574\\u0026\\U000060𐞍ଢ଼\\u0bb4\\u004c\\u0811\\xa5")

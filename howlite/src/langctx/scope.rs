@@ -24,6 +24,7 @@ pub struct Scope {
 pub struct VarDef {
     pub assumed_ty: Rc<Ty<Symbol>>,
     pub last_assignment: Rc<Ty<Symbol>>,
+    pub is_mutable: bool,
 }
 
 #[derive(Debug, Clone)]

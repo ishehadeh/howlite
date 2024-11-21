@@ -26,7 +26,7 @@ mod construct_macros;
 pub mod errors;
 pub mod types;
 mod util;
-use sunstone::ops::{SetOpIncludes, Subset};
+use sunstone::ops::{SetOpIncludeExclude, SetOpIncludes, Subset, Union};
 use types::{StructField, TyInt, TyStruct, TyUnion};
 use util::try_collect::TryCollect;
 
@@ -121,6 +121,32 @@ impl<SymbolT: Symbol> Ty<SymbolT> {
 
     pub const fn is_hole(&self) -> bool {
         matches!(self, Self::Hole)
+    }
+
+    pub fn union(tys: &[Rc<Self>]) -> Rc<Self> {
+        let int_union = tys
+            .iter()
+            .filter_map(|t| t.as_int())
+            .map(|t| t.values.clone())
+            .reduce(|all, next| all.union(next))
+            .map(|values| Ty::Int(TyInt::from_set(values)));
+        let mut values: SmallVec<[Rc<Self>; 8]> = Default::default();
+        if let Some(i) = int_union {
+            values.push(Rc::new(i));
+        }
+        for t in tys {
+            match &*t.clone() {
+                Ty::Union(u) => values.extend(u.tys.iter().cloned()),
+                Ty::Int(_) => (),
+                _ => values.push(t.clone()),
+            }
+        }
+
+        if values.len() == 1 {
+            values[0].clone()
+        } else {
+            Rc::new(Ty::Union(TyUnion { tys: values }))
+        }
     }
 
     _impl_as!(as_struct(&Ty::Struct) => &TyStruct<SymbolT>);

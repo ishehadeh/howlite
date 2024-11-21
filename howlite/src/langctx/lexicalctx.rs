@@ -32,7 +32,11 @@ impl<'a, 'b> LexicalContext<'a, 'b> {
     }
 
     pub fn node_data(&self) -> &AstNode {
-        self.parent.ast.get(self.node)
+        self.get_node(self.node)
+    }
+
+    pub fn get_node(&self, id: DefaultLinearTreeId) -> &AstNode {
+        self.parent.ast.get(id)
     }
 
     pub fn get_scope(&self) -> ScopeId {
@@ -73,6 +77,7 @@ impl<'a, 'b> LexicalContext<'a, 'b> {
                 VarDef {
                     assumed_ty: hole.clone(),
                     last_assignment: hole,
+                    is_mutable: true,
                 }
             }
         }

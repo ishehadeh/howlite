@@ -68,7 +68,7 @@ impl SynthesizeTy for AstNodeData {
                 }
             }
 
-            AstNodeData::ExprIf(_) => todo!(),
+            AstNodeData::ExprIf(v) => v.synthesize_ty(ctx),
             AstNodeData::LiteralStructMember(_) => todo!(),
             AstNodeData::FieldAccess(_) => todo!(),
             AstNodeData::ArrayAccess(_) => todo!(),

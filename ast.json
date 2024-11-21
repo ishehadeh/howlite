@@ -1,0 +1,1217 @@
+{
+  "ast": {
+    "span": {
+      "start": 0,
+      "end": 1060
+    },
+    "data": {
+      "Program": {
+        "definitions": [
+          {
+            "span": {
+              "start": 54,
+              "end": 145
+            },
+            "data": {
+              "DefType": {
+                "name": "Utf8Invalid",
+                "alias": false,
+                "ty": {
+                  "span": {
+                    "start": 73,
+                    "end": 97
+                  },
+                  "data": {
+                    "TyExprUnion": {
+                      "lhs": {
+                        "span": {
+                          "start": 73,
+                          "end": 85
+                        },
+                        "data": {
+                          "TyExprUnion": {
+                            "lhs": {
+                              "span": {
+                                "start": 73,
+                                "end": 78
+                              },
+                              "data": {
+                                "TyNumberRange": {
+                                  "lo": {
+                                    "span": {
+                                      "start": 73,
+                                      "end": 78
+                                    },
+                                    "data": {
+                                      "LiteralInteger": {
+                                        "value": 192
+                                      }
+                                    }
+                                  },
+                                  "hi": {
+                                    "span": {
+                                      "start": 73,
+                                      "end": 78
+                                    },
+                                    "data": {
+                                      "LiteralInteger": {
+                                        "value": 192
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "rhs": {
+                              "span": {
+                                "start": 80,
+                                "end": 85
+                              },
+                              "data": {
+                                "TyNumberRange": {
+                                  "lo": {
+                                    "span": {
+                                      "start": 80,
+                                      "end": 85
+                                    },
+                                    "data": {
+                                      "LiteralInteger": {
+                                        "value": 193
+                                      }
+                                    }
+                                  },
+                                  "hi": {
+                                    "span": {
+                                      "start": 80,
+                                      "end": 85
+                                    },
+                                    "data": {
+                                      "LiteralInteger": {
+                                        "value": 193
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "rhs": {
+                        "span": {
+                          "start": 87,
+                          "end": 97
+                        },
+                        "data": {
+                          "TyNumberRange": {
+                            "lo": {
+                              "span": {
+                                "start": 87,
+                                "end": 91
+                              },
+                              "data": {
+                                "LiteralInteger": {
+                                  "value": 245
+                                }
+                              }
+                            },
+                            "hi": {
+                              "span": {
+                                "start": 93,
+                                "end": 97
+                              },
+                              "data": {
+                                "LiteralInteger": {
+                                  "value": 255
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "ty_params": []
+              }
+            }
+          },
+          {
+            "span": {
+              "start": 145,
+              "end": 237
+            },
+            "data": {
+              "DefType": {
+                "name": "Utf8Continuation",
+                "alias": false,
+                "ty": {
+                  "span": {
+                    "start": 169,
+                    "end": 193
+                  },
+                  "data": {
+                    "TyNumberRange": {
+                      "lo": {
+                        "span": {
+                          "start": 169,
+                          "end": 180
+                        },
+                        "data": {
+                          "LiteralInteger": {
+                            "value": 128
+                          }
+                        }
+                      },
+                      "hi": {
+                        "span": {
+                          "start": 182,
+                          "end": 193
+                        },
+                        "data": {
+                          "LiteralInteger": {
+                            "value": 191
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "ty_params": []
+              }
+            }
+          },
+          {
+            "span": {
+              "start": 237,
+              "end": 281
+            },
+            "data": {
+              "DefType": {
+                "name": "Utf8Single",
+                "alias": false,
+                "ty": {
+                  "span": {
+                    "start": 255,
+                    "end": 279
+                  },
+                  "data": {
+                    "TyNumberRange": {
+                      "lo": {
+                        "span": {
+                          "start": 255,
+                          "end": 266
+                        },
+                        "data": {
+                          "LiteralInteger": {
+                            "value": 0
+                          }
+                        }
+                      },
+                      "hi": {
+                        "span": {
+                          "start": 268,
+                          "end": 279
+                        },
+                        "data": {
+                          "LiteralInteger": {
+                            "value": 127
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "ty_params": []
+              }
+            }
+          },
+          {
+            "span": {
+              "start": 281,
+              "end": 325
+            },
+            "data": {
+              "DefType": {
+                "name": "Utf8Double",
+                "alias": false,
+                "ty": {
+                  "span": {
+                    "start": 299,
+                    "end": 323
+                  },
+                  "data": {
+                    "TyNumberRange": {
+                      "lo": {
+                        "span": {
+                          "start": 299,
+                          "end": 310
+                        },
+                        "data": {
+                          "LiteralInteger": {
+                            "value": 192
+                          }
+                        }
+                      },
+                      "hi": {
+                        "span": {
+                          "start": 312,
+                          "end": 323
+                        },
+                        "data": {
+                          "LiteralInteger": {
+                            "value": 223
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "ty_params": []
+              }
+            }
+          },
+          {
+            "span": {
+              "start": 325,
+              "end": 369
+            },
+            "data": {
+              "DefType": {
+                "name": "Utf8Triple",
+                "alias": false,
+                "ty": {
+                  "span": {
+                    "start": 343,
+                    "end": 367
+                  },
+                  "data": {
+                    "TyNumberRange": {
+                      "lo": {
+                        "span": {
+                          "start": 343,
+                          "end": 354
+                        },
+                        "data": {
+                          "LiteralInteger": {
+                            "value": 224
+                          }
+                        }
+                      },
+                      "hi": {
+                        "span": {
+                          "start": 356,
+                          "end": 367
+                        },
+                        "data": {
+                          "LiteralInteger": {
+                            "value": 239
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "ty_params": []
+              }
+            }
+          },
+          {
+            "span": {
+              "start": 369,
+              "end": 414
+            },
+            "data": {
+              "DefType": {
+                "name": "Utf8Quad",
+                "alias": false,
+                "ty": {
+                  "span": {
+                    "start": 387,
+                    "end": 411
+                  },
+                  "data": {
+                    "TyNumberRange": {
+                      "lo": {
+                        "span": {
+                          "start": 387,
+                          "end": 398
+                        },
+                        "data": {
+                          "LiteralInteger": {
+                            "value": 240
+                          }
+                        }
+                      },
+                      "hi": {
+                        "span": {
+                          "start": 400,
+                          "end": 411
+                        },
+                        "data": {
+                          "LiteralInteger": {
+                            "value": 231
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "ty_params": []
+              }
+            }
+          },
+          {
+            "span": {
+              "start": 414,
+              "end": 583
+            },
+            "data": {
+              "DefType": {
+                "name": "Utf8Byte",
+                "alias": false,
+                "ty": {
+                  "span": {
+                    "start": 430,
+                    "end": 580
+                  },
+                  "data": {
+                    "TyExprUnion": {
+                      "lhs": {
+                        "span": {
+                          "start": 430,
+                          "end": 567
+                        },
+                        "data": {
+                          "TyExprUnion": {
+                            "lhs": {
+                              "span": {
+                                "start": 430,
+                                "end": 534
+                              },
+                              "data": {
+                                "TyExprUnion": {
+                                  "lhs": {
+                                    "span": {
+                                      "start": 430,
+                                      "end": 509
+                                    },
+                                    "data": {
+                                      "TyExprUnion": {
+                                        "lhs": {
+                                          "span": {
+                                            "start": 430,
+                                            "end": 482
+                                          },
+                                          "data": {
+                                            "TyExprUnion": {
+                                              "lhs": {
+                                                "span": {
+                                                  "start": 430,
+                                                  "end": 455
+                                                },
+                                                "data": {
+                                                  "TyNamed": {
+                                                    "name": "Utf8Single",
+                                                    "parameters": []
+                                                  }
+                                                }
+                                              },
+                                              "rhs": {
+                                                "span": {
+                                                  "start": 457,
+                                                  "end": 482
+                                                },
+                                                "data": {
+                                                  "TyNamed": {
+                                                    "name": "Utf8Double",
+                                                    "parameters": []
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          }
+                                        },
+                                        "rhs": {
+                                          "span": {
+                                            "start": 484,
+                                            "end": 509
+                                          },
+                                          "data": {
+                                            "TyNamed": {
+                                              "name": "Utf8Triple",
+                                              "parameters": []
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  },
+                                  "rhs": {
+                                    "span": {
+                                      "start": 511,
+                                      "end": 534
+                                    },
+                                    "data": {
+                                      "TyNamed": {
+                                        "name": "Utf8Quad",
+                                        "parameters": []
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "rhs": {
+                              "span": {
+                                "start": 536,
+                                "end": 567
+                              },
+                              "data": {
+                                "TyNamed": {
+                                  "name": "Utf8Continuation",
+                                  "parameters": []
+                                }
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "rhs": {
+                        "span": {
+                          "start": 569,
+                          "end": 580
+                        },
+                        "data": {
+                          "TyNamed": {
+                            "name": "Utf8Invalid",
+                            "parameters": []
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "ty_params": []
+              }
+            }
+          },
+          {
+            "span": {
+              "start": 583,
+              "end": 617
+            },
+            "data": {
+              "DefType": {
+                "name": "UnicodeChar",
+                "alias": false,
+                "ty": {
+                  "span": {
+                    "start": 602,
+                    "end": 615
+                  },
+                  "data": {
+                    "TyNumberRange": {
+                      "lo": {
+                        "span": {
+                          "start": 602,
+                          "end": 605
+                        },
+                        "data": {
+                          "LiteralInteger": {
+                            "value": 0
+                          }
+                        }
+                      },
+                      "hi": {
+                        "span": {
+                          "start": 607,
+                          "end": 615
+                        },
+                        "data": {
+                          "LiteralInteger": {
+                            "value": 1114111
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "ty_params": []
+              }
+            }
+          },
+          {
+            "span": {
+              "start": 617,
+              "end": 652
+            },
+            "data": {
+              "DefType": {
+                "name": "InvalidUtf8Error",
+                "alias": false,
+                "ty": {
+                  "span": {
+                    "start": 641,
+                    "end": 649
+                  },
+                  "data": {
+                    "TyNumberRange": {
+                      "lo": {
+                        "span": {
+                          "start": 641,
+                          "end": 649
+                        },
+                        "data": {
+                          "LiteralInteger": {
+                            "value": 16777215
+                          }
+                        }
+                      },
+                      "hi": {
+                        "span": {
+                          "start": 641,
+                          "end": 649
+                        },
+                        "data": {
+                          "LiteralInteger": {
+                            "value": 16777215
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "ty_params": []
+              }
+            }
+          },
+          {
+            "span": {
+              "start": 652,
+              "end": 1060
+            },
+            "data": {
+              "DefFunc": {
+                "name": "utf8_decode",
+                "ty_params": [],
+                "params": [
+                  {
+                    "span": {
+                      "start": 669,
+                      "end": 696
+                    },
+                    "data": {
+                      "DefParam": {
+                        "mutable": false,
+                        "name": "sequence",
+                        "ty": {
+                          "span": {
+                            "start": 679,
+                            "end": 696
+                          },
+                          "data": {
+                            "TySlice": {
+                              "element_ty": {
+                                "span": {
+                                  "start": 681,
+                                  "end": 689
+                                },
+                                "data": {
+                                  "TyNamed": {
+                                    "name": "Utf8Byte",
+                                    "parameters": []
+                                  }
+                                }
+                              },
+                              "length_ty": {
+                                "span": {
+                                  "start": 691,
+                                  "end": 695
+                                },
+                                "data": {
+                                  "TyNumberRange": {
+                                    "lo": {
+                                      "span": {
+                                        "start": 691,
+                                        "end": 692
+                                      },
+                                      "data": {
+                                        "LiteralInteger": {
+                                          "value": 0
+                                        }
+                                      }
+                                    },
+                                    "hi": {
+                                      "span": {
+                                        "start": 694,
+                                        "end": 695
+                                      },
+                                      "data": {
+                                        "LiteralInteger": {
+                                          "value": 3
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                ],
+                "return_ty": {
+                  "span": {
+                    "start": 699,
+                    "end": 730
+                  },
+                  "data": {
+                    "TyExprUnion": {
+                      "lhs": {
+                        "span": {
+                          "start": 699,
+                          "end": 711
+                        },
+                        "data": {
+                          "TyNamed": {
+                            "name": "UnicodeChar",
+                            "parameters": []
+                          }
+                        }
+                      },
+                      "rhs": {
+                        "span": {
+                          "start": 713,
+                          "end": 730
+                        },
+                        "data": {
+                          "TyNamed": {
+                            "name": "InvalidUtf8Error",
+                            "parameters": []
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "body": {
+                  "span": {
+                    "start": 730,
+                    "end": 1060
+                  },
+                  "data": {
+                    "Block": {
+                      "returns": true,
+                      "statements": [
+                        {
+                          "span": {
+                            "start": 736,
+                            "end": 1059
+                          },
+                          "data": {
+                            "ExprIf": {
+                              "condition": {
+                                "span": {
+                                  "start": 739,
+                                  "end": 766
+                                },
+                                "data": {
+                                  "ExprInfix": {
+                                    "lhs": {
+                                      "span": {
+                                        "start": 739,
+                                        "end": 751
+                                      },
+                                      "data": {
+                                        "ArrayAccess": {
+                                          "lhs": {
+                                            "span": {
+                                              "start": 739,
+                                              "end": 747
+                                            },
+                                            "data": {
+                                              "Ident": {
+                                                "symbol": "sequence"
+                                              }
+                                            }
+                                          },
+                                          "index": {
+                                            "span": {
+                                              "start": 748,
+                                              "end": 749
+                                            },
+                                            "data": {
+                                              "LiteralInteger": {
+                                                "value": 0
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    },
+                                    "op": "CmpLtEq",
+                                    "rhs": {
+                                      "span": {
+                                        "start": 754,
+                                        "end": 766
+                                      },
+                                      "data": {
+                                        "LiteralInteger": {
+                                          "value": 127
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              },
+                              "success": {
+                                "span": {
+                                  "start": 766,
+                                  "end": 805
+                                },
+                                "data": {
+                                  "Block": {
+                                    "returns": true,
+                                    "statements": [
+                                      {
+                                        "span": {
+                                          "start": 776,
+                                          "end": 803
+                                        },
+                                        "data": {
+                                          "ExprTypeConstruction": {
+                                            "ty": {
+                                              "span": {
+                                                "start": 787,
+                                                "end": 803
+                                              },
+                                              "data": {
+                                                "TyNamed": {
+                                                  "name": "UnicodeChar",
+                                                  "parameters": []
+                                                }
+                                              }
+                                            },
+                                            "value": {
+                                              "span": {
+                                                "start": 776,
+                                                "end": 785
+                                              },
+                                              "data": {
+                                                "Ident": {
+                                                  "symbol": "sequence"
+                                                }
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    ]
+                                  }
+                                }
+                              },
+                              "failure": {
+                                "span": {
+                                  "start": 810,
+                                  "end": 1059
+                                },
+                                "data": {
+                                  "ExprIf": {
+                                    "condition": {
+                                      "span": {
+                                        "start": 813,
+                                        "end": 840
+                                      },
+                                      "data": {
+                                        "ExprInfix": {
+                                          "lhs": {
+                                            "span": {
+                                              "start": 813,
+                                              "end": 825
+                                            },
+                                            "data": {
+                                              "ArrayAccess": {
+                                                "lhs": {
+                                                  "span": {
+                                                    "start": 813,
+                                                    "end": 821
+                                                  },
+                                                  "data": {
+                                                    "Ident": {
+                                                      "symbol": "sequence"
+                                                    }
+                                                  }
+                                                },
+                                                "index": {
+                                                  "span": {
+                                                    "start": 822,
+                                                    "end": 823
+                                                  },
+                                                  "data": {
+                                                    "LiteralInteger": {
+                                                      "value": 0
+                                                    }
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          },
+                                          "op": "CmpLtEq",
+                                          "rhs": {
+                                            "span": {
+                                              "start": 828,
+                                              "end": 840
+                                            },
+                                            "data": {
+                                              "LiteralInteger": {
+                                                "value": 223
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    },
+                                    "success": {
+                                      "span": {
+                                        "start": 840,
+                                        "end": 1059
+                                      },
+                                      "data": {
+                                        "Block": {
+                                          "returns": true,
+                                          "statements": [
+                                            {
+                                              "span": {
+                                                "start": 850,
+                                                "end": 1057
+                                              },
+                                              "data": {
+                                                "ExprIf": {
+                                                  "condition": {
+                                                    "span": {
+                                                      "start": 853,
+                                                      "end": 894
+                                                    },
+                                                    "data": {
+                                                      "ExprInfix": {
+                                                        "lhs": {
+                                                          "span": {
+                                                            "start": 853,
+                                                            "end": 879
+                                                          },
+                                                          "data": {
+                                                            "ExprInfix": {
+                                                              "lhs": {
+                                                                "span": {
+                                                                  "start": 853,
+                                                                  "end": 865
+                                                                },
+                                                                "data": {
+                                                                  "ArrayAccess": {
+                                                                    "lhs": {
+                                                                      "span": {
+                                                                        "start": 853,
+                                                                        "end": 861
+                                                                      },
+                                                                      "data": {
+                                                                        "Ident": {
+                                                                          "symbol": "sequence"
+                                                                        }
+                                                                      }
+                                                                    },
+                                                                    "index": {
+                                                                      "span": {
+                                                                        "start": 862,
+                                                                        "end": 863
+                                                                      },
+                                                                      "data": {
+                                                                        "LiteralInteger": {
+                                                                          "value": 1
+                                                                        }
+                                                                      }
+                                                                    }
+                                                                  }
+                                                                }
+                                                              },
+                                                              "op": "BitAnd",
+                                                              "rhs": {
+                                                                "span": {
+                                                                  "start": 867,
+                                                                  "end": 879
+                                                                },
+                                                                "data": {
+                                                                  "LiteralInteger": {
+                                                                    "value": 192
+                                                                  }
+                                                                }
+                                                              }
+                                                            }
+                                                          }
+                                                        },
+                                                        "op": "CmpNe",
+                                                        "rhs": {
+                                                          "span": {
+                                                            "start": 882,
+                                                            "end": 894
+                                                          },
+                                                          "data": {
+                                                            "LiteralInteger": {
+                                                              "value": 128
+                                                            }
+                                                          }
+                                                        }
+                                                      }
+                                                    }
+                                                  },
+                                                  "success": {
+                                                    "span": {
+                                                      "start": 894,
+                                                      "end": 927
+                                                    },
+                                                    "data": {
+                                                      "Block": {
+                                                        "returns": true,
+                                                        "statements": [
+                                                          {
+                                                            "span": {
+                                                              "start": 908,
+                                                              "end": 925
+                                                            },
+                                                            "data": {
+                                                              "LiteralInteger": {
+                                                                "value": 16777215
+                                                              }
+                                                            }
+                                                          }
+                                                        ]
+                                                      }
+                                                    }
+                                                  },
+                                                  "failure": {
+                                                    "span": {
+                                                      "start": 932,
+                                                      "end": 1057
+                                                    },
+                                                    "data": {
+                                                      "Block": {
+                                                        "returns": true,
+                                                        "statements": [
+                                                          {
+                                                            "span": {
+                                                              "start": 946,
+                                                              "end": 1051
+                                                            },
+                                                            "data": {
+                                                              "ExprInfix": {
+                                                                "lhs": {
+                                                                  "span": {
+                                                                    "start": 947,
+                                                                    "end": 995
+                                                                  },
+                                                                  "data": {
+                                                                    "ExprInfix": {
+                                                                      "lhs": {
+                                                                        "span": {
+                                                                          "start": 948,
+                                                                          "end": 989
+                                                                        },
+                                                                        "data": {
+                                                                          "ExprTypeConstruction": {
+                                                                            "ty": {
+                                                                              "span": {
+                                                                                "start": 978,
+                                                                                "end": 989
+                                                                              },
+                                                                              "data": {
+                                                                                "TyNamed": {
+                                                                                  "name": "UnicodeChar",
+                                                                                  "parameters": []
+                                                                                }
+                                                                              }
+                                                                            },
+                                                                            "value": {
+                                                                              "span": {
+                                                                                "start": 949,
+                                                                                "end": 974
+                                                                              },
+                                                                              "data": {
+                                                                                "ExprInfix": {
+                                                                                  "lhs": {
+                                                                                    "span": {
+                                                                                      "start": 949,
+                                                                                      "end": 961
+                                                                                    },
+                                                                                    "data": {
+                                                                                      "ArrayAccess": {
+                                                                                        "lhs": {
+                                                                                          "span": {
+                                                                                            "start": 949,
+                                                                                            "end": 957
+                                                                                          },
+                                                                                          "data": {
+                                                                                            "Ident": {
+                                                                                              "symbol": "sequence"
+                                                                                            }
+                                                                                          }
+                                                                                        },
+                                                                                        "index": {
+                                                                                          "span": {
+                                                                                            "start": 958,
+                                                                                            "end": 959
+                                                                                          },
+                                                                                          "data": {
+                                                                                            "LiteralInteger": {
+                                                                                              "value": 0
+                                                                                            }
+                                                                                          }
+                                                                                        }
+                                                                                      }
+                                                                                    }
+                                                                                  },
+                                                                                  "op": "BitAnd",
+                                                                                  "rhs": {
+                                                                                    "span": {
+                                                                                      "start": 963,
+                                                                                      "end": 974
+                                                                                    },
+                                                                                    "data": {
+                                                                                      "LiteralInteger": {
+                                                                                        "value": 31
+                                                                                      }
+                                                                                    }
+                                                                                  }
+                                                                                }
+                                                                              }
+                                                                            }
+                                                                          }
+                                                                        }
+                                                                      },
+                                                                      "op": "BitLShift",
+                                                                      "rhs": {
+                                                                        "span": {
+                                                                          "start": 994,
+                                                                          "end": 995
+                                                                        },
+                                                                        "data": {
+                                                                          "LiteralInteger": {
+                                                                            "value": 6
+                                                                          }
+                                                                        }
+                                                                      }
+                                                                    }
+                                                                  }
+                                                                },
+                                                                "op": "BitOr",
+                                                                "rhs": {
+                                                                  "span": {
+                                                                    "start": 1000,
+                                                                    "end": 1041
+                                                                  },
+                                                                  "data": {
+                                                                    "ExprTypeConstruction": {
+                                                                      "ty": {
+                                                                        "span": {
+                                                                          "start": 1030,
+                                                                          "end": 1041
+                                                                        },
+                                                                        "data": {
+                                                                          "TyNamed": {
+                                                                            "name": "UnicodeChar",
+                                                                            "parameters": []
+                                                                          }
+                                                                        }
+                                                                      },
+                                                                      "value": {
+                                                                        "span": {
+                                                                          "start": 1001,
+                                                                          "end": 1026
+                                                                        },
+                                                                        "data": {
+                                                                          "ExprInfix": {
+                                                                            "lhs": {
+                                                                              "span": {
+                                                                                "start": 1001,
+                                                                                "end": 1013
+                                                                              },
+                                                                              "data": {
+                                                                                "ArrayAccess": {
+                                                                                  "lhs": {
+                                                                                    "span": {
+                                                                                      "start": 1001,
+                                                                                      "end": 1009
+                                                                                    },
+                                                                                    "data": {
+                                                                                      "Ident": {
+                                                                                        "symbol": "sequence"
+                                                                                      }
+                                                                                    }
+                                                                                  },
+                                                                                  "index": {
+                                                                                    "span": {
+                                                                                      "start": 1010,
+                                                                                      "end": 1011
+                                                                                    },
+                                                                                    "data": {
+                                                                                      "LiteralInteger": {
+                                                                                        "value": 1
+                                                                                      }
+                                                                                    }
+                                                                                  }
+                                                                                }
+                                                                              }
+                                                                            },
+                                                                            "op": "BitAnd",
+                                                                            "rhs": {
+                                                                              "span": {
+                                                                                "start": 1015,
+                                                                                "end": 1026
+                                                                              },
+                                                                              "data": {
+                                                                                "LiteralInteger": {
+                                                                                  "value": 63
+                                                                                }
+                                                                              }
+                                                                            }
+                                                                          }
+                                                                        }
+                                                                      }
+                                                                    }
+                                                                  }
+                                                                }
+                                                              }
+                                                            }
+                                                          }
+                                                        ]
+                                                      }
+                                                    }
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          ]
+                                        }
+                                      }
+                                    },
+                                    "failure": null
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "errors": []
+}
