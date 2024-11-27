@@ -286,7 +286,7 @@ impl SynthesizeTy for ExprIf {
                     values: lhs_false_values,
                     storage: original_lhs_val.storage.clone(),
                 };
-                let false_rdhs_val = TyInt {
+                let false_rhs_val = TyInt {
                     values: rhs_false_values,
                     storage: original_rhs_val.storage.clone(),
                 };
