@@ -10,6 +10,7 @@ lrpar = "=0.13.7"
 allocator-api2 = "*"
 logos = "*"
 smol_str = { version = "=0.3.2" }
+aries = { path = "../../aries/solver", features = ["i128"] }
 
 # Testing dependecies
 proptest = { version = "=1.5.0", optional = true }
@@ -34,9 +35,9 @@ proptest = { version = "=1.5.0" }
 pretty_assertions = "*"
 
 [features]
-cli = [ "dep:clap" ]
-serde = [ "dep:serde", "smol_str/serde", "allocator-api2/serde" ]
-serde_json = [ "dep:serde_json" ]
+cli = ["dep:clap"]
+serde = ["dep:serde", "smol_str/serde", "allocator-api2/serde"]
+serde_json = ["dep:serde_json"]
 
 proptest = [
     "dep:proptest",
@@ -46,5 +47,6 @@ proptest = [
 ]
 
 [[bin]]
+
 name = "parse"
-required-features = [ "cli", "serde", "serde_json" ]
+required-features = ["cli", "serde", "serde_json"]

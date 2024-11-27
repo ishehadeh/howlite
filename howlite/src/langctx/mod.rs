@@ -132,7 +132,7 @@ impl<'a> LangCtx<'a> {
         }
 
         debug_assert!(
-            !self.scopes.insert(new_scope_id, Scope::default()).is_some(),
+            self.scopes.insert(new_scope_id, Scope::default()).is_none(),
             "LangCtx::scope_new(): scope exists, this should be impossible"
         );
 

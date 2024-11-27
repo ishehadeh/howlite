@@ -8,20 +8,22 @@ howlite-syntax = { path = "../howlite-syntax", features = ["proptest"] }
 howlite-typecheck = { path = "../howlite-typecheck" }
 preseli = { path = "../preseli" }
 sunstone = { path = "../sunstone" }
-thiserror = "*"
-hashbrown = "*"
-bumpalo = { version = "*", features = ["boxed", "allocator-api2"] }
-smallvec = { version = "*" }
-slotmap = "*"
-allocator-api2 = "*"
-dashmap = "*"
+thiserror = "=2.0.3"
+hashbrown = "=0.15.1"
+bumpalo = { version = "=3.16.0", features = ["boxed", "allocator-api2"] }
+smallvec = { version = "=1.13.2" }
+slotmap = "=1.0.7"
+allocator-api2 = "=0.2.20"
+dashmap = "=6.1.0"
 smol_str = "=0.3.2"
-rustc-hash = { version = "2.0", default-features = false }
-
+rustc-hash = { version = "=2.0", default-features = false }
+tracing = "=0.1.40"
+aries = { path = "../../aries/solver", features = ["i128"] }
 [dev-dependencies]
 # used for stress-testing symbol table
 rand = { version = "=0.8.5" }
 proptest = { version = "=1.5.0" }
+tracing-test = "=0.2.5"
 
 [[bin]]
 name = "hlt-typecheck"

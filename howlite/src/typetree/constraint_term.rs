@@ -1,4 +1,4 @@
-use preseli::IntegerSet;
+use preseli::{environment::Constraint, IntegerSet};
 use sunstone::{
     multi::DynSet,
     ops::{ArithmeticSet, Bounded, PartialBounded, SetSubtract, Union},
@@ -25,15 +25,15 @@ impl BinaryConstraintRelation {
         match self {
             BinaryConstraintRelation::Lt => rhs
                 .partial_bounds()
-                .map(|b| IntegerSet::new_from_range(i128::MIN, *b.lo() - 1))
+                .map(|b| IntegerSet::new_from_range(i64::MIN as i128, *b.lo() - 1))
                 .unwrap_or(IntegerSet::empty()),
             BinaryConstraintRelation::Eq => rhs.clone(),
             BinaryConstraintRelation::Gt => rhs
                 .partial_bounds()
-                .map(|b| IntegerSet::new_from_range(*b.hi() + 1, i128::MAX))
+                .map(|b| IntegerSet::new_from_range(*b.hi() + 1, u64::MAX as i128))
                 .unwrap_or(IntegerSet::empty()),
             BinaryConstraintRelation::Ne => {
-                let mut complement = IntegerSet::new_from_range(i128::MIN, i128::MAX);
+                let mut complement = IntegerSet::new_from_range(i64::MIN as i128, u64::MAX as i128);
                 complement.set_subtract_mut(&rhs);
                 complement
             }
@@ -161,10 +161,18 @@ impl ConstraintTerm {
 
     pub fn compare_term(&self, op: BinaryConstraintRelation, rhs: &Self) -> Self {
         match (self, rhs) {
-            (ConstraintTerm::Literal(lit), set) | (set, ConstraintTerm::Literal(lit)) => {
-                let mut set = set.clone();
-                set.compare_literal(op, lit);
-                set
+            (lhs, ConstraintTerm::Literal(rhs_lit)) => {
+                let mut lhs = lhs.clone();
+                lhs.compare_literal(op, rhs_lit);
+                lhs
+            }
+            (&ConstraintTerm::Var(lhs), &ConstraintTerm::Var(rhs)) => {
+                ConstraintTerm::BinaryConstraint {
+                    lhs,
+                    lhs_offset: DynSet::new_from_range(0, 0),
+                    relation: op,
+                    rhs,
+                }
             }
             a => todo!("handle constraint variants: {:#?}", a),
         }

@@ -13,7 +13,9 @@
 //!
 use std::rc::Rc;
 
+use aries::model::Model;
 use errors::{IncompatibleError, OperationError, StructIncompatibility};
+use lazy_static::lazy_static;
 pub use preseli;
 use preseli::integer::Scalar;
 pub use preseli::IntegerSet;

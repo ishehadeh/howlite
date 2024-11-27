@@ -4,10 +4,14 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-num-traits = "*"
-num-integer = "*"
-bumpalo = { version = "*", features = ["collections"] }
-num = "*"
+num = "=0.4.3"
+num-traits = "=0.2.19"
+num-integer = "=0.1.46"
+
+bumpalo = { version = "=3.16.0", features = ["collections"] }
+
+tracing = { version = "=0.1.40" }
 
 [dev-dependencies]
-proptest = "*"
+proptest = "1.5.0"
+tracing-test = "0.2.5"

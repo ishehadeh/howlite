@@ -48,23 +48,23 @@ pub(crate) fn shift_hi_mutation(
 #[doc(hidden)]
 #[macro_export]
 macro_rules! _iset_helper {
-    (@range [$($args:expr),*,] -> $x:literal .. $y:literal, $($rest:tt)*) => {
+    (@range [$($args:expr),*$(,)?] -> $x:literal .. $y:literal, $($rest:tt)*) => {
         $crate::_iset_helper!(@range [($x, $y), $($args),*] -> $($rest)*)
     };
 
-    (@range [$($args:expr),*,] -> $x:literal, $($rest:tt)*) => {
+    (@range [$($args:expr),*$(,)?] -> $x:literal, $($rest:tt)*) => {
         $crate::_iset_helper!(@range [($x, $x), $($args),*] -> $($rest)*)
     };
 
-    (@range [$($args:expr),*,] -> $x:literal .. $y:literal) => {
+    (@range [$($args:expr),*$(,)?] -> $x:literal .. $y:literal) => {
          &[($x, $y), $($args),*]
     };
 
-    (@range [$($args:expr),*,] -> $x:literal) => {
+    (@range [$($args:expr),*$(,)?] -> $x:literal) => {
         &[($x, $x), $($args),*]
     };
 
-    (@range [$($args:expr),*,] ->) => {
+    (@range [$($args:expr),*$(,)?] ->) => {
         &[$($args),*]
     };
 }
@@ -72,7 +72,7 @@ macro_rules! _iset_helper {
 #[macro_export]
 macro_rules! iset {
     ($($args:tt)*) => {
-        $crate::IntegerSet::new_from_tuples($crate::_iset_helper!(@range [,] -> $($args)*))
+        $crate::IntegerSet::new_from_tuples($crate::_iset_helper!(@range [] -> $($args)*))
     };
 
 }

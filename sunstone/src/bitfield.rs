@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 
 use num::ToPrimitive;
+use tracing::{debug, field::debug};
 
 use crate::{
     ops::{self, ArithmeticSet, Bounded, IntersectMut, SetOpIncludes, SetSubtract, UnionMut},
@@ -90,6 +91,10 @@ impl<const BLOCKS: usize> BitField<BLOCKS> {
                 stripe.add_range(self.longest_stripe_from(n / 64, n % 64));
             }
         }
+    }
+    pub fn iter_step_ranges(&self) -> impl Iterator<Item = StepRange<usize>> + '_ {
+        self.iter_values_from(0, 0)
+            .map(|n| self.longest_stripe_from(n / 64, n % 64))
     }
 
     /// Returns the highest value in the set, or None if the set is empty
@@ -410,6 +415,53 @@ impl<const BLOCKS: usize> BitField<BLOCKS> {
         sum
     }
 
+    pub fn arith_sub<const SUM_WIDTH: usize>(&self, other: &Self) -> BitField<SUM_WIDTH> {
+        let mut sum = BitField::<SUM_WIDTH>::new();
+        for i in 0..self.field.len() {
+            debug!(lhs_i = ?i, lhs_block = format!("{:064b}", self.field[i]));
+
+            if self.field[i] == 0 {
+                continue;
+            }
+
+            for j in 0..other.field.len() {
+                debug!(rhs_i = ?j, rhs_block = format!("{:064b}", other.field[j]));
+
+                if other.field[j] == 0 {
+                    continue;
+                }
+
+                let block_offset = i - j;
+
+                for bit_offset in 0..Self::block_width() {
+                    if other.field[j] & (1 << bit_offset) > 0 {
+                        debug!(bit = ?bit_offset);
+                        // offset the entire other block by this bit & block index in self
+                        sum.field[block_offset] |= self.field[i] >> bit_offset;
+
+                        // if necessary overflow to the next block in the sum
+                        if bit_offset > 0 {
+                            let lower_mask = u64::MAX >> (Self::block_width() - bit_offset);
+                            debug!("lower_mask = {:064b}", lower_mask);
+
+                            sum.field[block_offset - 1] |=
+                                (self.field[i] & lower_mask) << (Self::block_width() - bit_offset);
+                        }
+
+                        debug!(
+                            blocks = ?(block_offset, block_offset - 1),
+                            hi = format!("{:064b}", sum.field[block_offset]),
+                            lo = format!("{:064b}", sum.field[block_offset - 1]),
+                            "updated sum"
+                        );
+                    }
+                }
+            }
+        }
+
+        sum
+    }
+
     const fn elem_addr(el: usize) -> (usize, usize) {
         let bit_index = el % Self::block_width();
         let block_index = el / Self::block_width();
@@ -686,11 +738,11 @@ impl<const WIDTH: usize> ArithmeticSet<&Self, usize> for BitField<WIDTH> {
         self.exclude_range(rhs, Self::block_width() * WIDTH - 1);
     }
 
-    fn sub_all(&mut self, rhs: &Self) {
+    fn sub_all(&mut self, _rhs: &Self) {
         todo!()
     }
 
-    fn div_all(&mut self, rhs: &Self) {
+    fn div_all(&mut self, _rhs: &Self) {
         todo!()
     }
 }
@@ -700,6 +752,8 @@ impl Copy for BitField<2> {}
 
 #[cfg(test)]
 mod test {
+    use tracing_test::traced_test;
+
     use crate::{
         bitfield::BitField,
         ops::{ArithmeticSet, Intersect, SetOpIncludeExclude, SetOpIncludes, Union},
@@ -784,6 +838,23 @@ mod test {
         assert!(sum.includes(173));
         assert!(sum.includes(223));
         assert!(sum.includes(250));
+    }
+
+    #[traced_test]
+    #[test]
+    pub fn arith_sub_set() {
+        let mut a: BitField<4> = BitField::default();
+        a.include_mut(200);
+        a.include_mut(150);
+        let mut b: BitField<4> = BitField::default();
+        b.include_mut(100);
+        b.include_mut(23);
+        let sum = a.arith_sub::<8>(&b);
+        dbg!(&sum);
+        assert!(sum.includes(100));
+        assert!(sum.includes(177));
+        assert!(sum.includes(127));
+        assert!(sum.includes(50));
     }
 
     #[test]

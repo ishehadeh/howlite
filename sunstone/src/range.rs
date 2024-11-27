@@ -4,7 +4,7 @@ use std::{
     ops::{Add, Div, Mul, Sub},
 };
 
-use num::{Integer, Signed, Zero};
+use num::Integer;
 
 use crate::ops::{self, Bounded};
 
@@ -108,6 +108,7 @@ where
     for<'a> T: Clone + Sub<&'a T>,
 {
     pub fn len_clone(&self) -> <T as Sub<&'_ T>>::Output {
+        // TODO: handle overflow
         self.hi().clone() - self.lo()
     }
 }
@@ -117,6 +118,7 @@ where
     for<'b> &'a T: Sub<&'b T>,
 {
     pub fn len(&self) -> <&'a T as Sub<&'_ T>>::Output {
+        // TODO: handle overflow
         self.hi - self.lo
     }
 }
@@ -320,6 +322,7 @@ mod test {
         })
     }
 
+    #[allow(dead_code)]
     fn any_range<I: Integer + Debug + Arbitrary>() -> impl Strategy<Value = Range<I>> {
         range_strategy(any::<I>(), any::<I>())
     }

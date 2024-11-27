@@ -1,6 +1,5 @@
-use std::fmt::Debug;
-
 use num_integer::Integer;
+use tracing::warn;
 
 use crate::{
     ops::{Bounded, Intersect, Set, SetOpIncludes, Subset},
@@ -8,13 +7,13 @@ use crate::{
 };
 
 #[cfg(test)]
-pub trait RangeValue: Integer + Clone + Debug {}
+pub trait RangeValue: Integer + Clone + std::fmt::Debug {}
 
 #[cfg(not(test))]
 pub trait RangeValue: Integer + Clone {}
 
 #[cfg(test)]
-impl<T> RangeValue for T where T: Integer + Clone + Debug {}
+impl<T> RangeValue for T where T: Integer + Clone + std::fmt::Debug {}
 
 #[cfg(not(test))]
 impl<T> RangeValue for T where T: Integer + Clone {}
@@ -37,11 +36,21 @@ impl<'a, I: SetElement> Iterator for StepRangeIter<'a, I> {
         }
     }
 }
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct StepRange<I: SetElement> {
     lo: I,
     hi: I,
     step: I,
+}
+
+impl<I: SetElement + std::fmt::Debug> std::fmt::Debug for StepRange<I> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "[{:?}, {:?}, step: {:?}]",
+            &self.lo, &self.hi, &self.step
+        )
+    }
 }
 
 impl<'a, I: SetElement + 'a> IntoIterator for &'a StepRange<I> {
@@ -60,10 +69,21 @@ impl<'a, I: SetElement + 'a> IntoIterator for &'a StepRange<I> {
 impl<I: SetElement> StepRange<I> {
     #[inline]
     pub fn try_new(lo: I, hi: I, step: I) -> Option<StepRange<I>> {
-        if step <= I::zero() || lo > hi || !(hi.clone() - lo.clone()).is_multiple_of(&step) {
-            None
+        if lo <= hi && step >= I::zero() {
+            let dist = if lo < I::zero() && hi > I::zero() {
+                hi.clone() % &step - lo.clone() % &step
+            } else {
+                hi.clone() % &step + lo.clone() % &step
+            };
+            if dist.is_multiple_of(&step) {
+                Some(StepRange { lo, hi, step })
+            } else {
+                warn!(lo = ?&lo, hi = ?&hi, step = ?&step, ?dist, "invalid range parameters, (dist % step == 0 is false)");
+                None
+            }
         } else {
-            Some(StepRange { lo, hi, step })
+            warn!(lo = ?&lo, hi = ?&hi, step = ?&step, "invalid range parameters, (lo <= hi is {}), (step >= 1 is {})", lo <= hi, step >= I::zero());
+            None
         }
     }
 
@@ -126,13 +146,29 @@ impl<I: SetElement> StepRange<I> {
     }
 
     /// return the first element in step_range greater or equal `n`
-    pub fn first_element_ge(&self, n: I) -> I {
-        (n - self.offset()).next_multiple_of(&self.step) + self.offset()
+    pub fn first_element_ge(&self, n: I) -> Option<I> {
+        if &n <= self.lo() {
+            Some(self.lo().clone())
+        } else if &n >= self.hi() {
+            None
+        } else if self.step().is_one() {
+            Some(n)
+        } else {
+            Some((n - self.offset()).next_multiple_of(&self.step) + self.offset())
+        }
     }
 
     /// return the first element in step_range less or equal to `n`
-    pub fn first_element_le(&self, n: I) -> I {
-        n.prev_multiple_of(&self.step) + self.offset()
+    pub fn first_element_le(&self, n: I) -> Option<I> {
+        if &n <= self.lo() {
+            None
+        } else if &n >= self.hi() {
+            Some(self.hi().clone())
+        } else if self.step().is_one() {
+            Some(n)
+        } else {
+            Some(n.prev_multiple_of(&self.step) + self.offset())
+        }
     }
 
     /// shorten this range if `other` covers part of it. If `other` covers all of `self`, return true
@@ -184,18 +220,25 @@ impl<I: SetElement> StepRange<I> {
         (self.hi().clone() - self.lo().clone()) / self.step().clone()
     }
 
+    /// Returns true if this set contains a single element.
+    /// Marginally more efficient than calling StepRange::size(), if arithmetic is costly.
     pub fn is_size_one(&self) -> bool {
         self.hi() == self.lo()
     }
 
     /// split into two, leaving self containing all elements  < el, and returning all elements >= el (if they exist)
-    /// This function panics if lo < el < hi is not satisfied
+    ///
+    /// ## Panics
+    /// - if self.lo() > el
+    /// - if self.hi() < el
     pub fn split_at_exclusive(&mut self, el: &I) -> Self {
         assert!(self.lo() < el);
         assert!(self.hi() > el);
 
         let mut high_part = self.clone();
-        let split_elem = self.first_element_ge(el.clone());
+        let split_elem = self
+            .first_element_ge(el.clone())
+            .expect("StepRange::first_element_ge() return None, this should be unreachable.");
         high_part.set_lo(split_elem.clone());
         self.set_hi(split_elem - self.step());
         high_part
@@ -331,49 +374,6 @@ where
     }
 }
 
-#[test]
-fn simple() {
-    let a = StepRange::new(0, 100, 1);
-    let b = StepRange::new(0, 50, 5);
-    assert!(!a.subset_of(&b));
-    assert!(b.subset_of(&a));
-
-    let c = StepRange::new(0, 60, 3);
-    let d = StepRange::new(5, 32, 9);
-    assert!(!d.subset_of(&c));
-
-    let e = StepRange::new(3, 30, 9);
-    assert!(e.subset_of(&c));
-}
-
-#[test]
-fn bound_adjust() {
-    assert_eq!(StepRange::new(1, 7, 3).with_lo(3), StepRange::new(4, 7, 3));
-    assert_eq!(
-        StepRange::new(0, 12, 3).with_lo(4),
-        StepRange::new(6, 12, 3)
-    );
-    assert_eq!(
-        StepRange::new(0, 25, 5).with_lo(12),
-        StepRange::new(15, 25, 5)
-    );
-    assert_eq!(
-        StepRange::new(10, 25, 5).with_lo(25),
-        StepRange::new(25, 25, 5)
-    );
-
-    assert_eq!(StepRange::new(1, 7, 3).with_hi(5), StepRange::new(1, 4, 3));
-    assert_eq!(StepRange::new(0, 12, 3).with_hi(8), StepRange::new(0, 6, 3));
-    assert_eq!(
-        StepRange::new(5, 25, 5).with_hi(12),
-        StepRange::new(5, 10, 5)
-    );
-    assert_eq!(
-        StepRange::new(10, 25, 5).with_hi(10),
-        StepRange::new(10, 10, 5)
-    );
-}
-
 impl<I: SetElement> From<crate::range::Range<I>> for StepRange<I> {
     fn from(value: crate::range::Range<I>) -> Self {
         let (lo, hi) = value.into_tuple();
@@ -381,22 +381,71 @@ impl<I: SetElement> From<crate::range::Range<I>> for StepRange<I> {
     }
 }
 
-#[test]
-fn compactify() {
-    let a = StepRange::new(2, 26, 4);
-    let b = StepRange::new(10, 26, 2);
-    assert_eq!(a.compactify(&b), Some(StepRange::new(2, 6, 4)))
-}
+#[cfg(test)]
 
-#[test]
-fn split_at_exclusive() {
-    let mut lower = StepRange::new(2, 26, 4);
-    let upper = lower.split_at_exclusive(&10);
-    assert_eq!(lower, StepRange::new(2, 6, 4));
-    assert_eq!(upper, StepRange::new(10, 26, 4));
+mod test {
+    use crate::{ops::Subset, step_range::StepRange};
 
-    let mut lower = StepRange::new(2, 8, 3);
-    let upper = lower.split_at_exclusive(&3);
-    assert_eq!(lower, StepRange::new(2, 2, 3));
-    assert_eq!(upper, StepRange::new(5, 8, 3));
+    #[test]
+    fn simple() {
+        let a = StepRange::new(0, 100, 1);
+        let b = StepRange::new(0, 50, 5);
+        assert!(!a.subset_of(&b));
+        assert!(b.subset_of(&a));
+
+        let c = StepRange::new(0, 60, 3);
+        let d = StepRange::new(5, 32, 9);
+        assert!(!d.subset_of(&c));
+
+        let e = StepRange::new(3, 30, 9);
+        assert!(e.subset_of(&c));
+    }
+
+    #[test]
+    fn bound_adjust() {
+        assert_eq!(StepRange::new(1, 7, 3).with_lo(3), StepRange::new(4, 7, 3));
+        assert_eq!(
+            StepRange::new(0, 12, 3).with_lo(4),
+            StepRange::new(6, 12, 3)
+        );
+        assert_eq!(
+            StepRange::new(0, 25, 5).with_lo(12),
+            StepRange::new(15, 25, 5)
+        );
+        assert_eq!(
+            StepRange::new(10, 25, 5).with_lo(25),
+            StepRange::new(25, 25, 5)
+        );
+
+        assert_eq!(StepRange::new(1, 7, 3).with_hi(5), StepRange::new(1, 4, 3));
+        assert_eq!(StepRange::new(0, 12, 3).with_hi(8), StepRange::new(0, 6, 3));
+        assert_eq!(
+            StepRange::new(5, 25, 5).with_hi(12),
+            StepRange::new(5, 10, 5)
+        );
+        assert_eq!(
+            StepRange::new(10, 25, 5).with_hi(10),
+            StepRange::new(10, 10, 5)
+        );
+    }
+
+    #[test]
+    fn compactify() {
+        let a = StepRange::new(2, 26, 4);
+        let b = StepRange::new(10, 26, 2);
+        assert_eq!(a.compactify(&b), Some(StepRange::new(2, 6, 4)))
+    }
+
+    #[test]
+    fn split_at_exclusive() {
+        let mut lower = StepRange::new(2, 26, 4);
+        let upper = lower.split_at_exclusive(&10);
+        assert_eq!(lower, StepRange::new(2, 6, 4));
+        assert_eq!(upper, StepRange::new(10, 26, 4));
+
+        let mut lower = StepRange::new(2, 8, 3);
+        let upper = lower.split_at_exclusive(&3);
+        assert_eq!(lower, StepRange::new(2, 2, 3));
+        assert_eq!(upper, StepRange::new(5, 8, 3));
+    }
 }

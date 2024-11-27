@@ -3,8 +3,8 @@ use std::cmp::Ordering;
 use crate::{
     bitfield::BitField,
     ops::{
-        ArithmeticSet, Bounded, PartialBounded, Set, SetOpIncludeExclude, SetOpIncludes,
-        SetSubtract, Subset, Union,
+        ArithmeticSet, Bounded, IntersectMut, PartialBounded, Set, SetOpIncludeExclude,
+        SetOpIncludes, SetSubtract, Subset, Union,
     },
     range::Range,
     step_range::StepRange,
@@ -23,7 +23,7 @@ pub struct DynSet<I: SetElement> {
 }
 
 #[derive(Debug, Clone)]
-enum DynSetData<I: SetElement> {
+pub enum DynSetData<I: SetElement> {
     Empty,
     Small(SmallSet<I>),
     Contiguous,
@@ -31,9 +31,21 @@ enum DynSetData<I: SetElement> {
 }
 
 #[derive(Debug, Clone)]
-struct SmallSet<I: SetElement> {
+pub struct SmallSet<I: SetElement> {
     elements: Box<BitField<SMALL_SET_WORD_COUNT>>,
     offset: I,
+}
+
+impl<I: SetElement> SmallSet<I> {
+    pub fn stripes(&self) -> impl Iterator<Item = StepRange<I>> + '_ {
+        self.elements.iter_step_ranges().map(move |s| {
+            StepRange::new(
+                I::from_usize(*s.lo()).unwrap() + &self.offset,
+                I::from_usize(*s.hi()).unwrap() + &self.offset,
+                I::from_usize(*s.step()).unwrap(),
+            )
+        })
+    }
 }
 
 impl<I: SetElement> DynSet<I> {
@@ -266,6 +278,10 @@ impl<I: SetElement> DynSet<I> {
         todo!("non-small set from individual")
     }
 
+    pub fn inner(&self) -> &DynSetData<I> {
+        &self.data
+    }
+
     pub fn new_from_individual(slice: &[I]) -> DynSet<I> {
         let (min, max) = slice.iter().fold((&slice[0], &slice[0]), |(min, max), el| {
             if el < min {
@@ -303,8 +319,8 @@ impl<I: SetElement> DynSet<I> {
 
     fn upgrade_from_contiguous(&mut self) {
         assert!(matches!(self.data, DynSetData::Contiguous));
-        if let Some(len_usize) = self.range.len_clone().to_usize() {
-            if len_usize < SMALL_SET_MAX_RANGE {
+        match self.range.len_clone().to_usize() {
+            Some(len_usize) if len_usize < SMALL_SET_MAX_RANGE => {
                 let offset = self.range.lo().clone();
                 self.data = DynSetData::Small(SmallSet {
                     elements: {
@@ -315,9 +331,10 @@ impl<I: SetElement> DynSet<I> {
                     offset,
                 })
             }
-        } else {
-            self.data = DynSetData::Stripe(StripeSet::new(vec![self.range.clone().into()]));
+            _ => self.data = DynSetData::Stripe(StripeSet::new(vec![self.range.clone().into()])),
         }
+
+        assert!(!matches!(self.data, DynSetData::Contiguous));
     }
 
     fn upgrade_from_small(&mut self) {
@@ -332,7 +349,7 @@ impl<I: SetElement> DynSet<I> {
                         StepRange::new(
                             I::from_usize(*s.lo()).unwrap() + &small_set.offset,
                             I::from_usize(*s.hi()).unwrap() + &small_set.offset,
-                            I::from_usize(*s.step()).unwrap() + &small_set.offset,
+                            I::from_usize(*s.step()).unwrap(),
                         )
                     })
                     .collect(),
@@ -353,6 +370,7 @@ impl<I: SetElement> Union<DynSet<I>> for DynSet<I> {
         self
     }
 }
+
 impl<'a, I: SetElement> Union<DynSet<I>> for &'a mut DynSet<I> {
     type Output = Self;
 
@@ -729,7 +747,65 @@ impl<'a, I: SetElement> ArithmeticSet<&'a Self, &'a I> for DynSet<I> {
     }
 
     fn sub_all(&mut self, rhs: &'a Self) {
-        todo!()
+        match (&mut self.data, &rhs.data) {
+            // TODO: how do we define arithmetic with empty???
+            // TODO: quickly adapted this from add_all, needs tests
+            (_, DynSetData::Empty) => (),
+            (DynSetData::Empty, _data) => *self = rhs.clone(),
+
+            (DynSetData::Small(s1), DynSetData::Small(s2)) => {
+                if let Some(new_max_in_field) = ((self.range.hi().clone() - &s1.offset)
+                    - (rhs.range.hi().clone() - &s2.offset))
+                    .to_usize()
+                {
+                    if new_max_in_field < SMALL_SET_MAX_RANGE {
+                        s1.offset = s2.offset.clone() - &s1.offset;
+                        s1.elements =
+                            Box::new(s1.elements.arith_sub::<SMALL_SET_WORD_COUNT>(&s2.elements));
+                        self.range = Range::new(
+                            rhs.range.lo().clone() + self.range.lo(),
+                            rhs.range.hi().clone() + self.range.hi(),
+                        );
+                        return;
+                    }
+                }
+
+                self.upgrade_from_small();
+                self.sub_all(rhs);
+            }
+            (DynSetData::Small(_), DynSetData::Contiguous) => {
+                let mut new_rhs = rhs.clone();
+                new_rhs.upgrade_from_contiguous();
+                self.sub_all(&new_rhs);
+            }
+            (DynSetData::Small(_), DynSetData::Stripe(_stripe_set)) => {
+                //    TODO: performance, we could effiecently add stripe here, if its small enough
+                self.upgrade_from_small();
+                self.sub_all(rhs);
+            }
+            (DynSetData::Contiguous, DynSetData::Contiguous) => {
+                self.range = rhs.range.clone() + self.range.clone();
+            }
+            (DynSetData::Contiguous, _) => {
+                self.upgrade_from_contiguous();
+                self.sub_all(rhs);
+            }
+            (DynSetData::Stripe(s1), DynSetData::Contiguous) => {
+                let rhs_stripe_set = StripeSet::new(vec![rhs.range.clone().into()]);
+                *s1 = s1.arith_sub(&rhs_stripe_set);
+                self.range = s1.get_range().unwrap();
+            }
+            (DynSetData::Stripe(s1), DynSetData::Stripe(s2)) => {
+                *s1 = s1.arith_sub(&s2);
+                self.range = s1.get_range().unwrap();
+            }
+            (DynSetData::Stripe(_), data) => {
+                assert!(matches!(data, DynSetData::Small(_)));
+                let mut new_rhs = rhs.clone();
+                new_rhs.upgrade_from_small();
+                self.sub_all(&new_rhs);
+            }
+        };
     }
 
     fn div_all(&mut self, rhs: &'a Self) {
@@ -1075,6 +1151,21 @@ impl<I: SetElement> SetOpIncludeExclude<I> for DynSet<I> {
                 stripe.exclude_mut(element);
             }
         }
+    }
+}
+
+impl<'a, I: SetElement> IntersectMut<&'a Self> for DynSet<I> {
+    fn intersect_mut(&mut self, rhs: &'a Self) {
+        // all lhs elements not in rhs
+        let mut excl_l = self.clone();
+        excl_l.set_subtract_mut(rhs);
+
+        // all rhs elements that are not in lhs
+        let mut excl_r = rhs.clone();
+        excl_r.set_subtract_mut(self);
+
+        self.set_subtract_mut(&excl_l);
+        self.set_subtract_mut(&excl_r);
     }
 }
 

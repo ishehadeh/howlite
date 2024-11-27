@@ -1,5 +1,7 @@
 use std::cmp::Ordering;
 
+use tracing::{debug, debug_span, instrument, trace};
+
 use crate::{
     ops::{Bounded, Set, SetOpIncludeExclude, SetOpIncludes, SetSubtract, Subset, Union},
     range::Range,
@@ -7,9 +9,17 @@ use crate::{
     SetElement,
 };
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct StripeSet<I: SetElement> {
     ranges: Vec<StepRange<I>>,
+}
+
+impl<I: SetElement + std::fmt::Debug> std::fmt::Debug for StripeSet<I> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("StripeSet")
+            .field("ranges", &self.ranges)
+            .finish()
+    }
 }
 
 impl<T2, I> PartialEq<T2> for StripeSet<I>
@@ -82,6 +92,36 @@ where
                         new.add_range(StepRange::new(
                             base_range.lo().clone() + el.clone(),
                             base_range.hi().clone() + el,
+                            base_range.step().clone(),
+                        ))
+                    }
+                }
+            }
+        }
+
+        new
+    }
+
+    pub fn arith_sub(&self, other: &StripeSet<I>) -> Self {
+        let mut new = StripeSet::new(vec![]);
+        for lhs in &self.ranges {
+            for rhs in &other.ranges {
+                if &rhs.size() >= lhs.step() && rhs.step().is_one() {
+                    new.add_range(StepRange::new(
+                        lhs.lo().clone() - rhs.lo().clone(),
+                        lhs.hi().clone() - rhs.hi().clone(),
+                        I::one(),
+                    ))
+                } else {
+                    // range  that we have to expand
+                    let (explode_range, base_range) = (rhs, lhs);
+                    debug!(explode = ?lhs, base = ?rhs, "exploding range over base");
+
+                    for el in explode_range {
+                        debug!("explode, base={:?}", el);
+                        new.add_range(StepRange::new(
+                            base_range.lo().clone() - el.clone(),
+                            base_range.hi().clone() - el,
                             base_range.step().clone(),
                         ))
                     }
@@ -405,14 +445,22 @@ where
 }
 
 impl<'a, I: SetElement> SetSubtract<&'a StripeSet<I>> for StripeSet<I> {
+    #[instrument(fields(none))]
     fn set_subtract_mut(&mut self, rhs: &'a Self) {
         for rhs_stripe in rhs.stripes() {
             let mut i = 0;
+            let span = debug_span!("rhs", rhs = ?rhs_stripe);
+            let _guard = span.enter();
             // here we go changing the array during iteration again :)
             'check_sub: while i < self.ranges.len() {
                 let lhs_stripe = &self.ranges[i];
+
+                let span1 = debug_span!("lhs", lhs = ?lhs_stripe, i);
+                let _guard1 = span1.enter();
+
                 if lhs_stripe.lo() > rhs_stripe.hi() || lhs_stripe.hi() < rhs_stripe.lo() {
                     // skip ranges that certainly have no intersect
+                    trace!("no overlap, skipping");
                     i += 1;
                     continue;
                 }
@@ -424,18 +472,22 @@ impl<'a, I: SetElement> SetSubtract<&'a StripeSet<I>> for StripeSet<I> {
                 //         This could be anything <= lcm
                 //         first_el = lcm
                 let lcm_step = lhs_stripe.step().lcm(rhs_stripe.step());
+                debug!(lcm_step = ?&lcm_step, "lcm(lhs.step, rhs.step)");
+
+                // lcm_range is
                 let mut lcm_range = StepRange::new(
                     rhs_stripe.lo().clone(),
-                    (rhs_stripe.hi().clone() + I::one()).prev_multiple_of(&lcm_step)
-                        - rhs_stripe.lo().mod_floor(&lcm_step),
+                    (rhs_stripe.hi().clone() / &lcm_step) * &lcm_step,
                     lcm_step,
                 );
+                debug!(lcm_range = ?&lcm_range, "initial LCM range");
 
                 // LCM offset may be any N where:
                 //  1) N mod step(RHS) = lo(RHS) mod step(RHS)    i.e. N is an element of RHS
                 //  2) N < step(LSM)   since, past the step we'd just repeat
-                while !lhs_stripe.includes(lcm_range.first_element_ge(lhs_stripe.lo().clone())) {
-                    dbg!(lcm_range.first_element_ge(lhs_stripe.lo().clone()));
+                while !lhs_stripe
+                    .includes(lcm_range.first_element_ge(lhs_stripe.lo().clone()).unwrap())
+                {
                     lcm_range.set_lo(lcm_range.lo().clone() + lcm_range.step());
                     if &(lcm_range.step().clone() + rhs_stripe.lo()) <= lcm_range.lo() {
                         // couldn't find any elements in lhs! continue on
@@ -443,6 +495,7 @@ impl<'a, I: SetElement> SetSubtract<&'a StripeSet<I>> for StripeSet<I> {
                         continue 'check_sub;
                     }
                 }
+                debug!(lcm_range = ?&lcm_range, "corrected LCM range");
 
                 // unfortunately, it looks like we need to modify the range.
                 //  we're about to modify the array, so get an owned copy.
@@ -453,13 +506,22 @@ impl<'a, I: SetElement> SetSubtract<&'a StripeSet<I>> for StripeSet<I> {
                     StepRange::new(I::zero(), I::zero(), I::one()),
                 );
 
-                let first_lhs_removal = lcm_range.first_element_ge(lhs_stripe.lo().clone());
-                let last_lhs_removal = lcm_range.first_element_le(lhs_stripe.hi().clone());
+                let first_lhs_removal =
+                    lcm_range.first_element_ge(lhs_stripe.lo().clone()).unwrap();
+                let last_lhs_removal = lcm_range
+                    .first_element_le(lhs_stripe.hi().clone())
+                    .unwrap_or_else(|| lhs_stripe.hi().clone());
                 let lo_dist_to_first_removal = first_lhs_removal.clone() - lhs_stripe.lo();
                 let hi_dist_to_last_removal = lhs_stripe.hi().clone() - &last_lhs_removal;
-
                 let lhs_span_length = I::one() + lhs_stripe.hi() - lhs_stripe.lo();
 
+                debug!(
+                    ?first_lhs_removal,
+                    ?last_lhs_removal,
+                    ?lo_dist_to_first_removal,
+                    ?hi_dist_to_last_removal,
+                    ?lhs_span_length
+                );
                 // if removal is below removed step, we can act like the lower part of the range is removed,
                 // since the split from lhs <= the rest.
                 // see the below loop for a better explaination
@@ -468,7 +530,6 @@ impl<'a, I: SetElement> SetSubtract<&'a StripeSet<I>> for StripeSet<I> {
 
                 let has_suffix = &hi_dist_to_last_removal >= lcm_range.step().min(&lhs_span_length);
                 let removal_span_len = I::one() + &last_lhs_removal - &first_lhs_removal;
-
                 let new_ranges_count = lcm_range.step().clone().min(removal_span_len.clone())
                     / lhs_stripe.step()
                     - I::one()
@@ -476,6 +537,7 @@ impl<'a, I: SetElement> SetSubtract<&'a StripeSet<I>> for StripeSet<I> {
                     + if has_suffix { I::one() } else { I::zero() };
 
                 if new_ranges_count.is_zero() {
+                    debug!("removing whole range");
                     // our whole range is removed
                     self.ranges.remove(i);
                     continue;
@@ -488,6 +550,9 @@ impl<'a, I: SetElement> SetSubtract<&'a StripeSet<I>> for StripeSet<I> {
                         (0..new_ranges_count.to_usize().unwrap())
                             .map(|_| StepRange::new(I::zero(), I::zero(), I::one())),
                     );
+                    debug!(replacements = ?new_ranges_count, "splitting range into multiple");
+                } else {
+                    debug!("updating range in-place");
                 }
 
                 if has_prefix {
@@ -510,6 +575,10 @@ impl<'a, I: SetElement> SetSubtract<&'a StripeSet<I>> for StripeSet<I> {
 
                 if first_lhs_removal == last_lhs_removal {
                     continue;
+                }
+
+                if lcm_range.step().is_one() {
+                    continue; // quick fix
                 }
 
                 // let A = first removed element
@@ -548,7 +617,7 @@ impl<'a, I: SetElement> SetSubtract<&'a StripeSet<I>> for StripeSet<I> {
                             base
                         }
                     };
-
+                    debug!(?end, ?start, ?i, "adding new range");
                     self.ranges[i] = StepRange::new(start, end, lcm_range.step().clone());
                     i += 1;
                 }
@@ -591,99 +660,158 @@ where
     }
 }
 
-#[test]
-fn simple() {
-    let a = StripeSet::new(vec![StepRange::new(0, 12, 2), StepRange::new(15, 20, 1)]);
-    let b = StripeSet::new(vec![StepRange::new(0, 18, 6)]);
-    assert!(b.subset_of(&a));
-    assert!(!a.subset_of(&b));
-}
+#[cfg(test)]
+mod test {
+    use tracing_test::traced_test;
 
-#[test]
-fn insert() {
-    let mut a = StripeSet::new(vec![StepRange::new(0, 10, 2), StepRange::new(15, 20, 1)]);
-    a.add_range(StepRange::new(10, 18, 2));
-    assert_eq!(
-        a.ranges,
-        vec![StepRange::new(0, 14, 2), StepRange::new(15, 20, 1)]
-    );
+    use crate::{
+        ops::{SetOpIncludes, SetSubtract, Subset, Union},
+        step_range::StepRange,
+        stripeset::StripeSet,
+    };
 
-    let mut a = StripeSet::new(vec![]);
+    #[test]
+    fn simple() {
+        let a = StripeSet::new(vec![StepRange::new(0, 12, 2), StepRange::new(15, 20, 1)]);
+        let b = StripeSet::new(vec![StepRange::new(0, 18, 6)]);
+        assert!(b.subset_of(&a));
+        assert!(!a.subset_of(&b));
+    }
 
-    a.add_range(StepRange::new(10, 18, 2));
-    a.add_range(StepRange::new(0, 10, 2));
-    a.add_range(StepRange::new(15, 20, 1));
-    assert_eq!(
-        a.ranges,
-        vec![StepRange::new(0, 14, 2), StepRange::new(15, 20, 1)]
-    );
+    #[test]
+    fn insert() {
+        let mut a = StripeSet::new(vec![StepRange::new(0, 10, 2), StepRange::new(15, 20, 1)]);
+        a.add_range(StepRange::new(10, 18, 2));
+        assert_eq!(
+            a.ranges,
+            vec![StepRange::new(0, 14, 2), StepRange::new(15, 20, 1)]
+        );
 
-    a.add_range(StepRange::new(20, 25, 1));
+        let mut a = StripeSet::new(vec![]);
 
-    assert_eq!(
-        a.ranges,
-        vec![StepRange::new(0, 14, 2), StepRange::new(15, 25, 1)]
-    );
-}
+        a.add_range(StepRange::new(10, 18, 2));
+        a.add_range(StepRange::new(0, 10, 2));
+        a.add_range(StepRange::new(15, 20, 1));
+        assert_eq!(
+            a.ranges,
+            vec![StepRange::new(0, 14, 2), StepRange::new(15, 20, 1)]
+        );
 
-#[test]
-fn subset() {
-    let a = StripeSet::new(vec![StepRange::new(0, 6, 2), StepRange::new(10, 22, 6)]);
-    let b = StripeSet::new(vec![StepRange::new(6, 14, 4)]);
-    assert!(b.subset_of(&a));
-}
+        a.add_range(StepRange::new(20, 25, 1));
 
-#[test]
-fn union() {
-    let a = StripeSet::new(vec![StepRange::new(0, 5, 1), StepRange::new(10, 20, 2)]);
-    let b = StripeSet::new(vec![StepRange::new(0, 18, 6)]);
-    let c = a.clone().union(b.clone());
-    dbg!(&c);
-    assert!(a.subset_of(&c));
-    assert!(b.subset_of(&c));
-}
+        assert_eq!(
+            a.ranges,
+            vec![StepRange::new(0, 14, 2), StepRange::new(15, 25, 1)]
+        );
+    }
 
-#[test]
-fn subtraction() {
-    let mut a = StripeSet::new(vec![StepRange::new(0, 5, 1), StepRange::new(10, 20, 2)]);
-    let b = StripeSet::new(vec![StepRange::new(0, 18, 6)]);
-    dbg!(&a, &b);
-    a.set_subtract_mut(&b);
-    dbg!(&a);
-    assert!(!a.includes(0));
-    assert!(!a.includes(6));
-    assert!(!a.includes(12));
-    assert!(!a.includes(18));
-}
+    #[test]
+    fn subset() {
+        let a = StripeSet::new(vec![StepRange::new(0, 6, 2), StepRange::new(10, 22, 6)]);
+        let b = StripeSet::new(vec![StepRange::new(6, 14, 4)]);
+        assert!(b.subset_of(&a));
+    }
 
-#[test]
-fn arith() {
-    let a = StripeSet::new(vec![StepRange::new(0, 5, 1)]);
-    let b = StripeSet::new(vec![StepRange::new(0, 100, 10)]);
-    let c = a.arith_add(&b);
-    assert_eq!(
-        c.ranges,
-        vec![
-            StepRange::new(0, 100, 10),
-            StepRange::new(1, 101, 10),
-            StepRange::new(2, 102, 10),
-            StepRange::new(3, 103, 10),
-            StepRange::new(4, 104, 10),
-            StepRange::new(5, 105, 10)
-        ]
-    );
+    #[test]
+    fn union() {
+        let a = StripeSet::new(vec![StepRange::new(0, 5, 1), StepRange::new(10, 20, 2)]);
+        let b = StripeSet::new(vec![StepRange::new(0, 18, 6)]);
+        let c = a.clone().union(b.clone());
+        dbg!(&c);
+        assert!(a.subset_of(&c));
+        assert!(b.subset_of(&c));
+    }
 
-    let d = c.arith_add(&a);
-    assert_eq!(d, StripeSet::new(vec![StepRange::new(0, 110, 1)]))
-}
+    #[traced_test]
+    #[test]
+    fn subtraction() {
+        let mut a = StripeSet::new(vec![StepRange::new(0, 5, 1), StepRange::new(10, 20, 2)]);
+        let b = StripeSet::new(vec![StepRange::new(0, 18, 6)]);
+        dbg!(&a, &b);
+        a.set_subtract_mut(&b);
+        dbg!(&a);
+        assert!(!a.includes(0));
+        assert!(!a.includes(6));
+        assert!(!a.includes(12));
+        assert!(!a.includes(18));
+    }
 
-#[test]
-fn modulo() {
-    let mut a = StripeSet::new(vec![StepRange::new(0, 15, 5)]);
-    a.modulo(&4);
-    assert_eq!(a, StripeSet::new(vec![StepRange::new(1, 3, 1)]));
+    #[traced_test]
+    #[test]
+    fn subtraction2() {
+        let mut a = StripeSet::new(vec![StepRange::new(i64::MIN as i128, 4, 1)]);
+        let b = StripeSet::new(vec![StepRange::new(0, 10, 1)]);
+        dbg!(&a, &b);
+        a.set_subtract_mut(&b);
+        dbg!(&a);
+        assert_eq!(
+            a,
+            StripeSet::new(vec![StepRange::new(i64::MIN as i128, 0, 1)])
+        );
+    }
 
-    let mut b = StripeSet::new(vec![StepRange::new(1, 20, 1), StepRange::new(3, 39, 6)]);
-    b.modulo(&7);
-    assert_eq!(b, StripeSet::new(vec![StepRange::new(0, 6, 1)]));
+    #[traced_test]
+    #[test]
+    fn subtraction3() {
+        let mut a = StripeSet::new(vec![StepRange::new(0 as i128, 10, 1)]);
+        let b = StripeSet::new(vec![StepRange::new(6, 10, 1)]);
+        dbg!(&a, &b);
+        a.set_subtract_mut(&b);
+        dbg!(&a);
+        assert_eq!(a, StripeSet::new(vec![StepRange::new(0 as i128, 5, 1)]));
+    }
+
+    #[test]
+    fn arith_add() {
+        let a = StripeSet::new(vec![StepRange::new(0, 5, 1)]);
+        let b = StripeSet::new(vec![StepRange::new(0, 100, 10)]);
+        let c = a.arith_add(&b);
+        assert_eq!(
+            c.ranges,
+            vec![
+                StepRange::new(0, 100, 10),
+                StepRange::new(1, 101, 10),
+                StepRange::new(2, 102, 10),
+                StepRange::new(3, 103, 10),
+                StepRange::new(4, 104, 10),
+                StepRange::new(5, 105, 10)
+            ]
+        );
+
+        let d = c.arith_add(&a);
+        assert_eq!(d, StripeSet::new(vec![StepRange::new(0, 110, 1)]))
+    }
+
+    #[traced_test]
+    #[test]
+    fn arith_sub() {
+        let a = StripeSet::new(vec![StepRange::new(0, 5, 1)]);
+        let b = StripeSet::new(vec![StepRange::new(0, 100, 10)]);
+        let c = a.arith_sub(&b);
+        assert_eq!(
+            c.ranges,
+            vec![
+                StepRange::new(-100, 0, 10),
+                StepRange::new(-99, 1, 10),
+                StepRange::new(-98, 2, 10),
+                StepRange::new(-97, 3, 10),
+                StepRange::new(-96, 4, 10),
+                StepRange::new(-95, 5, 10)
+            ]
+        );
+
+        let d = c.arith_add(&a);
+        assert_eq!(d, StripeSet::new(vec![StepRange::new(-105, 5, 1)]))
+    }
+
+    #[test]
+    fn modulo() {
+        let mut a = StripeSet::new(vec![StepRange::new(0, 15, 5)]);
+        a.modulo(&4);
+        assert_eq!(a, StripeSet::new(vec![StepRange::new(1, 3, 1)]));
+
+        let mut b = StripeSet::new(vec![StepRange::new(1, 20, 1), StepRange::new(3, 39, 6)]);
+        b.modulo(&7);
+        assert_eq!(b, StripeSet::new(vec![StepRange::new(0, 6, 1)]));
+    }
 }
