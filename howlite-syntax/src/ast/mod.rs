@@ -134,11 +134,11 @@ gen_node_impls!(ArrayAccess { &lhs, &index, });
     ))
 )]
 pub struct ExprCall<ChildT = DefaultLinearTreeId, A: Allocator = Global> {
-    pub callee: ChildT,
+    pub callee: SmolStr,
     pub ty_params: Vec<ChildT, A>,
     pub params: Vec<ChildT, A>,
 }
-gen_node_impls!(ExprCall<A> { &callee, &ty_params*, &params*, });
+gen_node_impls!(ExprCall<A> { callee, &ty_params*, &params*, });
 
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]

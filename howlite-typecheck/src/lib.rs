@@ -13,9 +13,7 @@
 //!
 use std::rc::Rc;
 
-use aries::model::Model;
 use errors::{IncompatibleError, OperationError, StructIncompatibility};
-use lazy_static::lazy_static;
 pub use preseli;
 use preseli::integer::Scalar;
 pub use preseli::IntegerSet;
@@ -24,6 +22,7 @@ pub use instantiate::{BindError, TyBinder};
 pub mod shape;
 mod symbol;
 use shape::TypeShape;
+use sunstone::ops::PartialBounded;
 
 mod access_path;
 mod construct_macros;
@@ -367,45 +366,75 @@ impl<SymbolT: Symbol> Ty<SymbolT> {
                     })
                 }
             }
-            (Ty::Array(superset), Ty::Array(subset)) => {
-                if subset.element_ty.sizeof() != superset.element_ty.sizeof() {
+            (Ty::Array(assignee), Ty::Array(assigned_to)) => {
+                if assignee.element_ty.sizeof() != assigned_to.element_ty.sizeof() {
                     return Err(IncompatibleError::SeriesElementsWrongSize {
-                        subset_size: subset.element_ty.sizeof(),
-                        superset_size: superset.element_ty.sizeof(),
+                        subset_size: assignee.element_ty.sizeof(),
+                        superset_size: assigned_to.element_ty.sizeof(),
                     });
                 }
-                subset
+                assignee
                     .element_ty
-                    .is_assignable_to(&superset.element_ty)
+                    .is_assignable_to(&assigned_to.element_ty)
                     .map_err(|error| IncompatibleError::IncompatibleElement {
                         error: Box::new(error),
                     })?;
-                if subset.length <= superset.length {
+                if assignee.length >= assigned_to.length {
                     Err(IncompatibleError::IncompatibleIndices {
-                        subset_indicies: IntegerSet::new_from_tuples(&[(0, subset.length as i128)]),
+                        subset_indicies: IntegerSet::new_from_tuples(&[(
+                            0,
+                            assignee.length as i128,
+                        )]),
                         superset_indicies: IntegerSet::new_from_tuples(&[(
                             0,
-                            superset.length as i128,
+                            assigned_to.length as i128,
                         )]),
                     })
                 } else {
                     Ok(())
                 }
             }
-            (Ty::Slice(superset), Ty::Slice(subset)) => {
-                if subset.element_ty.sizeof() != superset.element_ty.sizeof() {
+            (Ty::Slice(assignee), Ty::Slice(assigned_to)) => {
+                if assigned_to.element_ty.sizeof() != assignee.element_ty.sizeof() {
                     return Err(IncompatibleError::SeriesElementsWrongSize {
-                        subset_size: subset.element_ty.sizeof(),
-                        superset_size: superset.element_ty.sizeof(),
+                        subset_size: assigned_to.element_ty.sizeof(),
+                        superset_size: assignee.element_ty.sizeof(),
                     });
                 }
-                subset
+                assignee
                     .element_ty
-                    .is_assignable_to(&superset.element_ty)
+                    .is_assignable_to(&assigned_to.element_ty)
                     .map_err(|error| IncompatibleError::IncompatibleElement {
                         error: Box::new(error),
                     })?;
-                subset.index_set.is_assignable_to(&superset.index_set)
+                let assignee_max_index = *assignee
+                    .index_set
+                    .as_int()
+                    .unwrap()
+                    .values
+                    .partial_hi()
+                    .unwrap();
+                let assigned_to_max_index = *assigned_to
+                    .index_set
+                    .as_int()
+                    .unwrap()
+                    .values
+                    .partial_hi()
+                    .unwrap();
+                if assignee_max_index < assigned_to_max_index {
+                    Err(IncompatibleError::IncompatibleIndices {
+                        subset_indicies: IntegerSet::new_from_tuples(&[(
+                            0,
+                            assignee_max_index as i128,
+                        )]),
+                        superset_indicies: IntegerSet::new_from_tuples(&[(
+                            0,
+                            assigned_to_max_index as i128,
+                        )]),
+                    })
+                } else {
+                    Ok(())
+                }
             }
 
             (Ty::Struct(superset), Ty::Struct(subset)) => {
@@ -555,7 +584,7 @@ mod test {
     #[test]
     fn compat_slice() {
         let a1: Rc<Ty<()>> = t_slice![t_int!(0..10); 0..10];
-        let a2 = t_slice![t_int!(0..5); 0..5];
+        let a2 = t_slice![t_int!(0..5); 0..15];
 
         a2.is_assignable_to(&a1).unwrap();
 

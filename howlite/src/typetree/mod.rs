@@ -34,14 +34,11 @@ use howlite_typecheck::Ty;
 pub use traits::{SynthesizeTy, SynthesizeTyPure};
 
 use crate::{
-    langctx::{lexicalctx::LexicalContext, Scope},
+    langctx::lexicalctx::LexicalContext,
     symtab::Symbol,
 };
 
-pub struct Implication {
-    pub predicate: preseli::IntegerSet,
-    pub conculsion: Scope,
-}
+
 
 impl SynthesizeTy for AstNodeData {
     fn synthesize_ty(&self, ctx: &LexicalContext) -> Rc<Ty<Symbol>> {
@@ -65,7 +62,7 @@ impl SynthesizeTy for AstNodeData {
             AstNodeData::Ident(n) => n.synthesize_ty(ctx),
             AstNodeData::FieldAccess(f) => f.synthesize_ty(ctx),
             AstNodeData::ArrayAccess(a) => a.synthesize_ty(ctx),
-            AstNodeData::ExprCall(_) => todo!(),
+            AstNodeData::ExprCall(ec) => ec.synthesize_ty(ctx),
             AstNodeData::ExprPrefix(ep) => ep.synthesize_ty(ctx),
             AstNodeData::ExprTypeConstruction(etc) => etc.synthesize_ty(ctx),
 

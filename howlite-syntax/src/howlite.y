@@ -334,22 +334,22 @@ ExprWhile -> Result<AstRef>:
 /// BEGIN: Call Expression
 
 ExprCall -> Result<AstRef>:
-    Term '(' Trivia ExprCallParamListOpt ')' Trivia {
+    IDENT Trivia '(' Trivia ExprCallParamListOpt ')' Trivia {
       // TODO: inner trivia
-      trivia!(right trivia_tree, $6,
+      trivia!(right trivia_tree, $7,
         node!(tree, $span, ExprCall {
-          callee: $1?,
-          params: $4?,
+          callee: $lexer.span_str($1?.span()).into(),
+          params: $5?,
           ty_params: vec![]
         }))
     }
-  | Term ':[' Trivia TyParamList ']' Trivia '(' Trivia ExprCallParamListOpt ')' Trivia {
+  | IDENT Trivia ':[' Trivia TyParamList ']' Trivia '(' Trivia ExprCallParamListOpt ')' Trivia {
       // TODO: inner trivia
-      trivia!(right trivia_tree, $11,
+      trivia!(right trivia_tree, $12,
         node!(tree, $span, ExprCall {
-          callee: $1?,
-          params: $9?,
-          ty_params: $4?, // TODO: inner trivia
+          callee: $lexer.span_str($1?.span()).into(),
+          params: $10?,
+          ty_params: $5?, // TODO: inner trivia
         }))
     }
   ;

@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use howlite_syntax::ast::{
-    Ident, LiteralArray, LiteralChar, LiteralInteger, LiteralString, LiteralStruct,
+    ExprCall, Ident, LiteralArray, LiteralChar, LiteralInteger, LiteralString, LiteralStruct,
 };
 use howlite_typecheck::{
     types::{self, StorageClass, TyInt},
@@ -12,6 +12,23 @@ use preseli::IntegerSet;
 use crate::{langctx::lexicalctx::LexicalContext, symtab::Symbol};
 
 use super::{SynthesizeTy, SynthesizeTyPure};
+
+impl SynthesizeTy for ExprCall {
+    fn synthesize_ty(&self, ctx: &LexicalContext<'_, '_>) -> Rc<Ty<Symbol>> {
+        let ty_params: Vec<_> = self
+            .ty_params
+            .iter()
+            .map(|t| ctx.child(*t).synthesize_ty())
+            .collect();
+        let params: Vec<_> = self
+            .params
+            .iter()
+            .map(|t| ctx.child(*t).synthesize_ty())
+            .collect();
+        let func = ctx.func_get_or_err(ctx.sym_intern(&self.callee));
+        func.check_params(ctx, &ty_params, &params)
+    }
+}
 
 impl SynthesizeTy for Ident {
     fn synthesize_ty(&self, ctx: &LexicalContext) -> Rc<Ty<Symbol>> {
@@ -90,7 +107,10 @@ impl SynthesizeTy for LiteralStruct {
 mod test {
     use crate::{
         get_node_type,
-        typetree::test_helpers::{any_ident, any_literal, literal_array, literal_struct},
+        langctx::LangCtx,
+        typetree::test_helpers::{
+            any_ident, any_literal, literal_array, literal_struct, must_parse,
+        },
     };
 
     use howlite_syntax::{
@@ -151,5 +171,26 @@ mod test {
             let ty = get_node_type!(program);
             assert!(ty.as_array().is_some(), "expected array type, got: {:?}", ty);
         }
+    }
+
+    #[test]
+    fn test_call_simple() {
+        let (block_node_id, ast) = must_parse(
+            r#"
+        func id(t: 0..0xffffffff): 0..0xffffffff { t }
+        
+        func main(): unit {
+            let a: 0..0xffffffff = id(1);
+        }
+        "#,
+        );
+        let ctx = LangCtx::new(&ast);
+        let _ = ctx
+            .make_lexical_context(ctx.root_scope_id, block_node_id)
+            .synthesize_ty();
+        for err in ctx.errors.iter() {
+            println!("Error: {:?}", err.error());
+        }
+        assert!(ctx.errors.is_empty());
     }
 }
