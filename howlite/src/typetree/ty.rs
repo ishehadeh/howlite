@@ -8,7 +8,7 @@ use howlite_syntax::{
 };
 use howlite_typecheck::{
     types::{StructField, TyInt, TyStruct},
-    Ty,
+    Ty, TyArray,
 };
 use preseli::IntegerSet;
 use smallvec::SmallVec;
@@ -18,9 +18,20 @@ use crate::{langctx::lexicalctx::LexicalContext, symtab::Symbol, CompilationErro
 
 use super::{SynthesizeTy, SynthesizeTyPure};
 
-impl SynthesizeTyPure for AstNode<ast::TyUnit> {
+impl SynthesizeTyPure for ast::TyUnit {
     fn synthesize_ty_pure(&self) -> Rc<Ty<Symbol>> {
         Rc::new(Ty::unit())
+    }
+}
+
+impl SynthesizeTy for ast::TyArray {
+    fn synthesize_ty(&self, ctx: &LexicalContext<'_, '_>) -> Rc<Ty<Symbol>> {
+        let element_ty = ctx.child(self.element_ty).synthesize_ty();
+        assert!(self.length <= usize::MAX as i128 && self.length >= 0);
+        Rc::new(Ty::Array(TyArray {
+            length: self.length as usize,
+            element_ty,
+        }))
     }
 }
 

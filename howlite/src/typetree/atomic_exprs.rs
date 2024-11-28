@@ -55,17 +55,16 @@ impl SynthesizeTyPure for LiteralChar {
 
 impl SynthesizeTy for LiteralArray {
     fn synthesize_ty(&self, ctx: &LexicalContext) -> Rc<Ty<Symbol>> {
-        let union = TyUnion {
-            tys: self
-                .values
-                .iter()
-                .map(|&child| ctx.child(child).synthesize_ty())
-                .collect(),
-        };
+        let tys: Vec<_> = self
+            .values
+            .iter()
+            .map(|&child| ctx.child(child).synthesize_ty())
+            .collect();
+        let element_ty = Ty::union(&tys);
 
         Rc::new(Ty::Array(TyArray {
             length: self.values.len(),
-            element_ty: Rc::new(Ty::Union(union)),
+            element_ty,
         }))
     }
 }

@@ -70,9 +70,7 @@ impl SynthesizeTy for AstNodeData {
             }
 
             AstNodeData::ExprIf(v) => v.synthesize_ty(ctx),
-            AstNodeData::LiteralStructMember(_) => {
-                unreachable!("literal struct member should never appear in the AST")
-            }
+            
 
             AstNodeData::FieldAccess(f) => f.synthesize_ty(ctx),
             AstNodeData::ArrayAccess(a) => a.synthesize_ty(ctx),
@@ -91,11 +89,15 @@ impl SynthesizeTy for AstNodeData {
             AstNodeData::TyRef(_) => todo!(),
             AstNodeData::TyExprUnion(_) => todo!(),
             AstNodeData::TyStruct(ts) => ts.synthesize_ty(ctx),
-            AstNodeData::TyStructMember(_) => todo!(),
-            AstNodeData::TyArray(_) => todo!(),
-            AstNodeData::TyUnit(_) => todo!(),
+            AstNodeData::TyArray(ta) => ta.synthesize_ty(ctx),
+            AstNodeData::TyUnit(tu) => tu.synthesize_ty(ctx),
             AstNodeData::TyParam(_) => todo!(),
             AstNodeData::TySlice(_) => todo!(),
+
+            AstNodeData::TyStructMember(_) => unreachable!("TyStruct handles its children, we should never try to synthesize a TyStructMember directly"),
+            AstNodeData::LiteralStructMember(_) => {
+                unreachable!("literal struct member should never appear in the AST")
+            }
         }
     }
 }

@@ -96,4 +96,22 @@ mod test {
             t_int!(6)
         )
     }
+
+    #[test]
+    fn array_access() {
+        let (block_node_id, ast) = must_parse_expr(
+            r#"
+        {
+            let a: [0..100;  5] = #[0, 1, 2, 3, 4];
+            a[0]
+        }
+        "#,
+        );
+        let ctx = LangCtx::new(&ast);
+        assert_eq!(
+            ctx.make_lexical_context(ctx.root_scope_id, block_node_id)
+                .synthesize_ty(),
+            t_int!(0..4)
+        )
+    }
 }
