@@ -70,11 +70,7 @@ impl<I: SetElement> StepRange<I> {
     #[inline]
     pub fn try_new(lo: I, hi: I, step: I) -> Option<StepRange<I>> {
         if lo <= hi && step >= I::zero() {
-            let dist = if lo < I::zero() && hi > I::zero() {
-                hi.clone() % &step - lo.clone() % &step
-            } else {
-                hi.clone() % &step + lo.clone() % &step
-            };
+            let dist = hi.clone() % &step - lo.clone() % &step;
             if dist.is_multiple_of(&step) {
                 Some(StepRange { lo, hi, step })
             } else {
