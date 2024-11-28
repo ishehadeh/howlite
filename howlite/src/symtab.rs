@@ -1,4 +1,8 @@
-use std::{hash::BuildHasher, sync::RwLock};
+use std::{
+    hash::{BuildHasher, DefaultHasher},
+    num::NonZeroU32,
+    sync::RwLock,
+};
 
 use hashbrown::{DefaultHashBuilder, HashTable};
 use smol_str::SmolStr;
@@ -81,27 +85,27 @@ impl<H: BuildHasher> OwnedSymbolTable<H> {
 
 // implementation note: symbols are offset + length into a string table packed into a u64
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Symbol(u64, u64); // store the hash and sequence number of the symbol
+pub struct Symbol {
+    /// reserve zero for enum variants
+    seq: NonZeroU32,
+    hash: u32,
+} // store the hash and sequence number of the symbol
 
 impl std::fmt::Debug for Symbol {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "<Symbol {:016x}.{:016x}>", self.0, self.1)
+        write!(f, "<Symbol {:08x}.{:08x}>", self.seq, self.hash)
     }
 }
 
 pub struct SymbolTable<'a, H: BuildHasher = DefaultHashBuilder> {
     hasher_builder: H,
-    sequence: u64,
-    symbols: HashTable<(u64, u64, &'a str)>,
+    sequence: NonZeroU32,
+    symbols: HashTable<(Symbol, &'a str)>,
 }
 
 impl<'a> Default for SymbolTable<'a, DefaultHashBuilder> {
     fn default() -> Self {
-        Self {
-            hasher_builder: Default::default(),
-            sequence: Default::default(),
-            symbols: Default::default(),
-        }
+        Self::new_with_hasher_builder(Default::default())
     }
 }
 
@@ -115,36 +119,39 @@ impl<'a, H: BuildHasher> SymbolTable<'a, H> {
     pub fn new_with_hasher_builder(hasher_builder: H) -> Self {
         Self {
             hasher_builder,
-            sequence: 0,
+            sequence: NonZeroU32::new(1).expect("1 == 0?"),
             symbols: Default::default(),
         }
     }
 
     pub fn stringify(&self, sym: Symbol) -> Result<&'a str, SymbolTableError> {
-        let Symbol(hash, seq) = sym;
+        let Symbol { hash, seq } = sym;
         self.symbols
-            .find(hash, move |(b_hash, b_seq, _)| {
-                *b_hash == hash && *b_seq == seq
-            })
-            .map(|(_, _, s)| *s)
+            .find(hash as u64, move |(s, _)| s.hash == hash && s.seq == seq)
+            .map(|(_, s)| *s)
             .ok_or(SymbolTableError::InvalidSymbol { symbol: sym })
     }
 
     pub fn intern(&mut self, s: &'a str) -> Symbol {
-        let s_hash = self.hasher_builder.hash_one(s);
+        let hash = self.hasher_builder.hash_one(s) & u32::MAX as u64;
         let existing = self
             .symbols
-            .find(s_hash, |(t_hash, _, t)| *t_hash == s_hash && *t == s);
-        if let Some((_, s_seq, _)) = existing {
-            Symbol(s_hash, *s_seq)
+            .find(hash, |(sym, t)| sym.hash == hash as u32 && *t == s);
+        if let Some((sym, _)) = existing {
+            *sym
         } else {
-            let s_seq = self.sequence;
-            self.sequence += 1;
+            let seq = self.sequence;
+            self.sequence = self
+                .sequence
+                .checked_add(1)
+                .expect("symbol table ran out of symbols! (there are > u32::MAX total symbols)");
+            let sym = Symbol {
+                seq,
+                hash: hash as u32,
+            };
             self.symbols
-                .insert_unique(s_hash, (s_hash, s_seq, s), |(_, _, t)| {
-                    self.hasher_builder.hash_one(t)
-                });
-            Symbol(s_hash, s_seq)
+                .insert_unique(hash, (sym, s), |(_, t)| self.hasher_builder.hash_one(t));
+            sym
         }
     }
 }

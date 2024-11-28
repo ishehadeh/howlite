@@ -1,39 +1,22 @@
-use std::{rc::Rc, sync::Arc};
+use std::rc::Rc;
 
 use crate::{
     langctx::{lexicalctx::LexicalContext, VarDef},
     symtab::Symbol,
-    typetree::BinaryConstraintRelation,
+    typetree::{BinaryConstraintRelation, ModelVarRef},
 };
 use aries::{
-    backtrack::{Backtrack, DecLvl},
-    core::{
-        state::{Cause, Domains, Term},
-        Lit, VarRef,
-    },
+    backtrack::Backtrack,
+    core::Lit,
     model::{
-        extensions::{AssignmentExt, Shaped},
+        extensions::Shaped,
         lang::{
-            expr::{self, eq, geq, gt, leq, lt, neq, or, And, Or},
-            IAtom, IVar,
+            expr::{self, eq, gt, lt, or},
+            IVar,
         },
-        symbols::SymbolTable,
-        types::TypeHierarchy,
         Model,
     },
-    reasoners::eq::ReifyEq,
-    reif::{ReifExpr, Reifiable},
-    solver::{
-        search::{
-            activity::{ActivityBrancher, BranchingParams, DefaultHeuristic},
-            combinators::{AndThen, UntilFirstConflict, WithGeomRestart},
-            conflicts::ConflictBasedBrancher,
-            default_brancher,
-            lexical::Lexical,
-        },
-        Solver,
-    },
-    utils::input::Sym,
+    solver::Solver,
 };
 use howlite_syntax::ast::{ExprIf, ExprLet};
 use howlite_typecheck::{types::TyInt, Ty};
@@ -99,14 +82,12 @@ where
     var
 }
 
-pub fn determine_all_values<const N: usize, Lbl>(
-    solver: &mut Solver<Lbl>,
-    vars: [IVar; N],
-) -> [IntegerSet; N]
+pub fn determine_all_values<Lbl>(solver: &mut Solver<Lbl>, vars: &[IVar]) -> Vec<IntegerSet>
 where
     Lbl: std::fmt::Display + std::fmt::Debug + Clone + Eq + std::hash::Hash + Send + Sync + 'static,
 {
-    let mut sets: [IntegerSet; N] = core::array::from_fn(|_| IntegerSet::empty());
+    let mut sets: Vec<IntegerSet> = Vec::with_capacity(vars.len());
+    sets.resize_with(vars.len(), || IntegerSet::empty());
     while let Some(sol) = solver.solve().unwrap() {
         let mut clause = Vec::with_capacity(vars.len() * 2);
 
@@ -153,187 +134,52 @@ impl SynthesizeTy for ExprLet {
 impl SynthesizeTy for ExprIf {
     fn synthesize_ty(&self, ctx: &LexicalContext<'_, '_>) -> Rc<Ty<Symbol>> {
         let cond_ctx = ctx.child(self.condition);
-        let mut constraints = ConstraintTree::new(&cond_ctx);
+        let mut constraints = ConstraintTree::new(cond_ctx);
         let cond_term = constraints.get_constraint_term(self.condition);
         let true_ctx = ctx.new_with_scope().child(self.success);
         let false_ctx = ctx.new_with_scope().child(self.failure.unwrap());
 
-        match cond_term {
-            super::ConstraintTerm::NotApplicable => (),
-            super::ConstraintTerm::Literal(_) => (),
-            &super::ConstraintTerm::Var(var) => {
-                let original_def = ctx.var_get(var).unwrap();
-                let original_val = original_def.assumed_ty.as_int().unwrap();
-                false_ctx.var_def(
-                    var,
+        let cond_lit = constraints.model_builder.reify_term(cond_term.unwrap());
+        let true_model = constraints.model_builder.model.clone();
+        let false_model = constraints.model_builder.model;
+
+        let modified_vars_model: Vec<IVar> = constraints
+            .modified_vars
+            .iter()
+            .map(|s| true_model.get_int_var(&ModelVarRef::HltVar(*s)).unwrap())
+            .collect();
+
+        let mut true_solver = Solver::new(true_model);
+        let mut false_solver = Solver::new(false_model);
+        true_solver.reasoners.sat.add_clause([cond_lit]);
+        false_solver.reasoners.sat.add_clause([cond_lit.not()]);
+
+        for (solver, ctx) in [
+            (&mut true_solver, &true_ctx),
+            (&mut false_solver, &false_ctx),
+        ] {
+            let new_values = determine_all_values(solver, &modified_vars_model);
+            for (i, true_var_value) in new_values.into_iter().enumerate() {
+                let name = constraints.modified_vars[i];
+                let original_def = ctx.var_get_or_err(name);
+                let original_int_def = original_def.last_assignment.as_int().unwrap();
+                ctx.var_def(
+                    name,
                     VarDef {
                         assumed_ty: original_def.assumed_ty.clone(),
                         last_assignment: Rc::new(Ty::Int(TyInt {
-                            values: IntegerSet::new_from_range(0, 0),
-                            storage: original_val.storage.clone(),
+                            values: true_var_value,
+                            storage: original_int_def.storage.clone(),
                         })),
                         is_mutable: original_def.is_mutable,
                     },
                 );
-                let mut non_zero = original_val.clone();
-                non_zero.values.exclude_mut(&0);
-                true_ctx.var_def(
-                    var,
-                    VarDef {
-                        assumed_ty: original_def.assumed_ty.clone(),
-                        last_assignment: Rc::new(Ty::Int(non_zero)),
-                        is_mutable: original_def.is_mutable,
-                    },
-                );
             }
-            super::ConstraintTerm::UnaryConstraint { var, superset } => {
-                let original_def = ctx.var_get(*var).unwrap();
-                let original_val = original_def.assumed_ty.as_int().unwrap();
+        }
 
-                let mut true_val = original_val.clone();
-                true_val.values.intersect_mut(superset);
-
-                let mut false_val = original_val.clone();
-                false_val.values.set_subtract_mut(&true_val.values);
-                false_ctx.var_def(
-                    *var,
-                    VarDef {
-                        assumed_ty: original_def.assumed_ty.clone(),
-                        last_assignment: Rc::new(Ty::Int(false_val)),
-                        is_mutable: original_def.is_mutable,
-                    },
-                );
-                true_ctx.var_def(
-                    *var,
-                    VarDef {
-                        assumed_ty: original_def.assumed_ty.clone(),
-                        last_assignment: Rc::new(Ty::Int(true_val)),
-                        is_mutable: original_def.is_mutable,
-                    },
-                );
-            }
-            super::ConstraintTerm::BinaryConstraint {
-                lhs,
-                lhs_offset,
-                relation,
-                rhs,
-            } => {
-                let original_lhs_def = ctx.var_get(*lhs).unwrap();
-                let original_lhs_val = original_lhs_def.assumed_ty.as_int().unwrap();
-                let original_rhs_def = ctx.var_get(*rhs).unwrap();
-                let original_rhs_val = original_rhs_def.assumed_ty.as_int().unwrap();
-
-                let mut model = Model::new();
-
-                let mut lbl_counter = 0;
-                let lhs_solver_var =
-                    set_to_expr(&mut model, "lhs", &original_lhs_val.values, || {
-                        lbl_counter += 1;
-                        format!("_{lbl_counter}").leak()
-                    });
-
-                let rhs_solver_var =
-                    set_to_expr(&mut model, "rhs", &original_rhs_val.values, || {
-                        lbl_counter += 1;
-                        format!("_{lbl_counter}").leak()
-                    });
-                model.print_state();
-
-                let p = model.new_bvar("a");
-
-                match relation {
-                    BinaryConstraintRelation::Lt => {
-                        // model.enforce(lt(lhs_solver_var, rhs_solver_var), [p.true_lit()]);
-                        // model.enforce(geq(lhs_solver_var, rhs_solver_var), [p.false_lit()]);
-                        model.bind(lt(lhs_solver_var, rhs_solver_var), p.true_lit());
-                    }
-                    BinaryConstraintRelation::Eq => todo!(),
-                    BinaryConstraintRelation::Gt => {
-                        model.enforce(gt(lhs_solver_var, rhs_solver_var), [p.true_lit()]);
-                    }
-                    BinaryConstraintRelation::Ne => todo!(),
-                }
-                let original_model = model.clone();
-                model.print_state();
-
-                let mut solver = Solver::new(model);
-
-                let true_clause = solver.reasoners.sat.add_clause([p.true_lit()]);
-                let [lhs_true_values, rhs_true_values] = determine_all_values(
-                    &mut solver,
-                    [lhs_solver_var.into(), rhs_solver_var.into()],
-                );
-                solver.model.print_state();
-
-                let mut solver = Solver::new(original_model);
-
-                solver.reasoners.sat.add_clause([p.false_lit()]);
-                let [lhs_false_values, rhs_false_values] = determine_all_values(
-                    &mut solver,
-                    [lhs_solver_var.into(), rhs_solver_var.into()],
-                );
-
-                let true_lhs_val = TyInt {
-                    values: lhs_true_values,
-                    storage: original_lhs_val.storage.clone(),
-                };
-                let true_rhs_val = TyInt {
-                    values: rhs_true_values,
-                    storage: original_rhs_val.storage.clone(),
-                };
-
-                let false_lhs_val = TyInt {
-                    values: lhs_false_values,
-                    storage: original_lhs_val.storage.clone(),
-                };
-                let false_rhs_val = TyInt {
-                    values: rhs_false_values,
-                    storage: original_rhs_val.storage.clone(),
-                };
-                debug!(?false_lhs_val);
-                debug!(?false_rhs_val);
-                debug!(?true_lhs_val);
-                debug!(?true_rhs_val);
-
-                false_ctx.var_def(
-                    *lhs,
-                    VarDef {
-                        assumed_ty: original_lhs_def.assumed_ty.clone(),
-                        last_assignment: Rc::new(Ty::Int(false_lhs_val)),
-                        is_mutable: original_lhs_def.is_mutable,
-                    },
-                );
-                false_ctx.var_def(
-                    *rhs,
-                    VarDef {
-                        assumed_ty: original_rhs_def.assumed_ty.clone(),
-                        last_assignment: Rc::new(Ty::Int(false_rhs_val)),
-                        is_mutable: original_rhs_def.is_mutable,
-                    },
-                );
-                true_ctx.var_def(
-                    *lhs,
-                    VarDef {
-                        assumed_ty: original_lhs_def.assumed_ty.clone(),
-                        last_assignment: Rc::new(Ty::Int(true_lhs_val)),
-                        is_mutable: original_lhs_def.is_mutable,
-                    },
-                );
-                true_ctx.var_def(
-                    *rhs,
-                    VarDef {
-                        assumed_ty: original_rhs_def.assumed_ty.clone(),
-                        last_assignment: Rc::new(Ty::Int(true_rhs_val)),
-                        is_mutable: original_rhs_def.is_mutable,
-                    },
-                );
-            }
-            super::ConstraintTerm::UnaryOperation { .. } => todo!(),
-            super::ConstraintTerm::BinaryOperation { .. } => todo!(),
-        };
         let t_type = true_ctx.synthesize_ty();
         let f_type = false_ctx.synthesize_ty();
-        dbg!(&t_type, &f_type);
+
         Ty::union(&[t_type, f_type])
     }
 }
