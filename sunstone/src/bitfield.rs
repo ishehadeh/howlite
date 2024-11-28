@@ -299,19 +299,21 @@ impl<const BLOCKS: usize> BitField<BLOCKS> {
             }
         }
         let value_shift = n % 64;
-        //bits that would be shifted off the end
-        let overflow_mask: u64 = !(u64::MAX >> value_shift);
-        let mut overflow_last = 0;
-        let mut overflow_now;
-        for x in &mut self.field {
-            // save bits that will overflow on this block
-            overflow_now = *x & overflow_mask;
+        if value_shift > 0 {
+            //bits that would be shifted off the end
+            let overflow_mask: u64 = !(u64::MAX >> value_shift);
+            let mut overflow_last = 0;
+            let mut overflow_now;
+            for x in &mut self.field {
+                // save bits that will overflow on this block
+                overflow_now = *x & overflow_mask;
 
-            *x <<= value_shift;
+                *x <<= value_shift;
 
-            // apply overflow bits from prev iter
-            *x |= overflow_last;
-            overflow_last = overflow_now >> (Self::block_width() - value_shift);
+                // apply overflow bits from prev iter
+                *x |= overflow_last;
+                overflow_last = overflow_now >> (Self::block_width() - value_shift);
+            }
         }
 
         let block_shift = n / 64;
