@@ -98,7 +98,7 @@ impl SynthesizeTy for AstNodeData {
 
             // types
             AstNodeData::TyNumberRange(n) => n.synthesize_ty(ctx),
-            AstNodeData::TyNamed(_) => todo!(),
+            AstNodeData::TyNamed(tn) => tn.synthesize_ty(ctx),
             AstNodeData::TyRef(tr) => tr.synthesize_ty(ctx),
             AstNodeData::TyExprUnion(tu) => tu.synthesize_ty(ctx),
             AstNodeData::TyStruct(ts) => ts.synthesize_ty(ctx),

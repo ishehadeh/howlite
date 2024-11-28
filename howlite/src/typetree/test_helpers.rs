@@ -46,18 +46,27 @@ macro_rules! assert_lang_ok {
 
 #[macro_export]
 macro_rules! get_node_type {
-    (boxed $node:expr) => {
+    (boxed $node:expr$(, type $tname:ident = $tdef:expr)*) => {
         $crate::get_node_type!(howlite_syntax::ast::BoxAstNode::new(
             howlite_syntax::Span::new(0, 0),
             $node,
-        ))
+        ) $(, type $tname = $tdef)*)
     };
-    ($node:expr) => {{
+    ($node:expr $(, type $tname:ident = $tdef:expr)*) => {{
         let (_root, _ast) = $crate::typetree::test_helpers::box_tree_to_linear($node);
         let _lang = $crate::langctx::LangCtx::new(&_ast);
+        $(
+            let _def_ty_name = _lang.symbols.intern(std::stringify!($tname));
+            _lang.ty_def(_lang.root_scope_id, $crate::langctx::TyDef {
+                name: _def_ty_name,
+                params: Default::default(),
+                ty: $tdef,
+            });
+        )*
+
         let _ty = _lang
-            .make_lexical_context(_lang.root_scope_id, _root)
-            .synthesize_ty();
+        .make_lexical_context(_lang.root_scope_id, _root)
+        .synthesize_ty();
         $crate::assert_lang_ok!(_lang);
         _ty
     }};

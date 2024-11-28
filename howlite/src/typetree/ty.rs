@@ -3,7 +3,7 @@
 use std::rc::Rc;
 
 use howlite_syntax::{
-    ast::{self},
+    ast::{self, TyNamed},
     AstNodeData,
 };
 use howlite_typecheck::{
@@ -53,6 +53,26 @@ impl SynthesizeTy for ast::TySlice {
                 index_set: len_ty,
                 element_ty,
             }))
+        }
+    }
+}
+
+impl SynthesizeTy for TyNamed {
+    fn synthesize_ty(&self, ctx: &LexicalContext<'_, '_>) -> Rc<Ty<Symbol>> {
+        let name_sym = ctx.sym_intern(&self.name);
+        let params = self
+            .parameters
+            .iter()
+            .map(|p| ctx.child(*p).synthesize_ty())
+            .collect::<Vec<_>>();
+        match ctx.ty_get(name_sym) {
+            Some(v) => v.instantiate(ctx, &params),
+            None => {
+                ctx.error(CompilationErrorKind::UnknownType {
+                    name: self.name.clone(),
+                });
+                Rc::new(Ty::Hole)
+            }
         }
     }
 }
@@ -136,7 +156,11 @@ impl SynthesizeTy for ast::TyRef {
 mod test {
     use std::rc::Rc;
 
-    use howlite_typecheck::{Ty, TyReference, TySlice};
+    use howlite_syntax::{
+        ast::{BoxAstNode, TyNamed},
+        Span,
+    };
+    use howlite_typecheck::{t_int, Ty, TyReference, TySlice};
     use proptest::proptest;
 
     use crate::{
@@ -179,4 +203,16 @@ mod test {
             assert_eq!(ty.clone(), Ty::Reference(TyReference { referenced_ty, }).into());
         }
     );
+
+    #[test]
+    fn retrieve_named_ty_simple() {
+        let ty = get_node_type!(boxed
+            TyNamed {
+                name: "test".into(),
+                parameters: Default::default()
+            },
+            type test = t_int!(0..5)
+        );
+        assert_eq!(ty, t_int!(0..5))
+    }
 }
