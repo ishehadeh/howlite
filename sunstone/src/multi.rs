@@ -449,7 +449,7 @@ impl<'a, I: SetElement> Union<DynSet<I>> for &'a mut DynSet<I> {
             (DynSetData::Contiguous, DynSetData::Contiguous) => {
                 let s1 = self.range.clone();
                 let s2 = rhs_range;
-                self.range = Range::new(s1.lo().min(s2.lo()).clone(), s1.hi().max(s1.hi()).clone());
+                self.range = Range::new(s1.lo().min(s2.lo()).clone(), s1.hi().max(s2.hi()).clone());
                 // first check if the two ranges overlap - if so we can create a new contiguous range.
                 if (s1.lo() < s2.hi() && s2.hi() < s1.hi())
                     || (s2.lo() < s1.hi() && s1.hi() < s2.hi())

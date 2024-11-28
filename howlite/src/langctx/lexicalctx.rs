@@ -2,10 +2,11 @@ use std::rc::Rc;
 
 use howlite_syntax::{tree::DefaultLinearTreeId, AstNode};
 use howlite_typecheck::Ty;
+use smol_str::SmolStr;
 
 use crate::{symtab::Symbol, typetree::SynthesizeTy, CompilationError, CompilationErrorKind};
 
-use super::{LangCtx, ScopeId, TyDef, VarDef};
+use super::{FuncDef, LangCtx, ScopeId, TyDef, VarDef};
 
 #[derive(Debug, Clone)]
 pub struct LexicalContext<'a, 'b> {
@@ -56,6 +57,10 @@ impl<'a, 'b> LexicalContext<'a, 'b> {
 
     pub fn sym_intern(&self, name: &str) -> Symbol {
         self.parent.symbols.intern(name)
+    }
+
+    pub fn sym_stringify(&self, sym: Symbol) -> SmolStr {
+        self.parent.symbols.stringify(sym).unwrap()
     }
 
     pub fn var_get(&self, name: Symbol) -> Option<VarDef> {
@@ -113,5 +118,34 @@ impl<'a, 'b> LexicalContext<'a, 'b> {
 
     pub fn ty_def(&self, def: TyDef) {
         self.parent.ty_def(self.scope, def);
+    }
+
+    pub fn func_get(&self, name: Symbol) -> Option<FuncDef> {
+        self.parent.func_get(self.scope, name)
+    }
+
+    pub fn func_get_or_err(&self, name: Symbol) -> FuncDef {
+        match self.func_get(name) {
+            Some(v) => v,
+            None => {
+                self.error(CompilationErrorKind::UnknownVariable {
+                    name: self
+                        .parent
+                        .symbols
+                        .stringify(name)
+                        .expect("symbol table lookup failed"),
+                });
+                FuncDef {
+                    name,
+                    params: vec![],
+                    ty_params: vec![],
+                    returns: Ty::Hole.into(),
+                }
+            }
+        }
+    }
+
+    pub fn func_def(&self, def: FuncDef) {
+        self.parent.func_def(self.scope, def);
     }
 }

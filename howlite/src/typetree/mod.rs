@@ -92,11 +92,11 @@ impl SynthesizeTy for AstNodeData {
 
             // definitions
             AstNodeData::DefType(dt) => dt.synthesize_ty(ctx),
-            AstNodeData::TyParam(_) => unreachable!("TyParam nodes should be handled by there parent directly and not passed to the  generic type dispatcher"),
+            AstNodeData::TyParam(_) => unreachable!("TyParam nodes should be handled by their parent directly, not passed to the generic tc dispatcher"),
             AstNodeData::DefExternFunc(_) => todo!(),
             AstNodeData::DefExternVar(_) => todo!(),
-            AstNodeData::DefFunc(_) => todo!(),
-            AstNodeData::DefParam(_) => todo!(),
+            AstNodeData::DefFunc(df) => df.synthesize_ty(ctx),
+            AstNodeData::DefParam(_) => unreachable!("DefParam nodes should be handled by their parent directly, not passed to the generic tc dispatcher"),
             AstNodeData::DefImport(_) => todo!(),
 
             // types

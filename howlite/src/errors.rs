@@ -117,11 +117,26 @@ pub enum CompilationErrorKind {
         ty: Symbol,
     },
 
+    #[error("function '{func}': expcted {expected} type parameters, got {got}")]
+    IncorrectParamCount {
+        expected: usize,
+        got: usize,
+        func: SmolStr,
+    },
+
     #[error("Type {:?}, parameter {:?}: {source}", ty, param)]
     InvalidTyParam {
         param: Symbol,
         source: IncompatibleError<Symbol>,
         ty: Symbol,
+    },
+
+    #[error("function '{func}' invalid parameter {got:?}: {source}")]
+    InvalidParam {
+        #[source]
+        source: IncompatibleError<Symbol>,
+        got: Rc<Ty<Symbol>>,
+        func: SmolStr,
     },
 
     #[error("cannot construct type {:?} from {:?}: {source}", ty, value)]
@@ -140,6 +155,9 @@ pub enum CompilationErrorKind {
     #[error("unknown variable '{name}'")]
     UnknownVariable { name: SmolStr },
 
+    #[error("unknown function '{name}'")]
+    UnknownFunction { name: SmolStr },
+
     #[error("unknown type '{name}'")]
     UnknownType { name: SmolStr },
 
@@ -152,6 +170,14 @@ pub enum CompilationErrorKind {
         field: SmolStr,
         #[source]
         source: AccessError,
+    },
+
+    #[error("return type mismatch in function '{name:?}': expected {return_ty:?}, {source}")]
+    BadReturn {
+        return_ty: Rc<Ty<Symbol>>,
+        name: SmolStr,
+        #[source]
+        source: IncompatibleError<Symbol>,
     },
 
     #[error("array access may be out of bounds: indexing with a value of type '{index:?}', on an array of type {base:?}")]

@@ -66,6 +66,75 @@ pub struct FuncDef {
     pub returns: Rc<Ty<Symbol>>,
 }
 
+impl FuncDef {
+    /// check the given params after instaitiating ty_params, then return the instantiated return ty
+    pub fn check_params(
+        &self,
+        ctx: &LexicalContext,
+        ty_params: &[Rc<Ty<Symbol>>],
+        params: &[Rc<Ty<Symbol>>],
+    ) -> Rc<Ty<Symbol>> {
+        if ty_params.len() != self.ty_params.len() {
+            ctx.error(CompilationErrorKind::IncorrectTyParamCount {
+                expected: self.params.len(),
+                got: params.len(),
+                ty: self.name,
+            });
+        };
+
+        if params.len() != self.params.len() {
+            ctx.error(CompilationErrorKind::IncorrectParamCount {
+                expected: self.params.len(),
+                got: params.len(),
+                func: ctx.sym_stringify(self.name),
+            });
+        };
+
+        let mut mapped_params: SmallVec<[(Symbol, Rc<Ty<Symbol>>); 4]> =
+            SmallVec::with_capacity(self.params.len());
+        for (i, given_ty) in ty_params.iter().enumerate() {
+            if i >= self.ty_params.len() {
+                break;
+            }
+            if let Err(e) = given_ty.is_assignable_to(&*self.ty_params[i].1) {
+                ctx.error(CompilationErrorKind::InvalidTyParam {
+                    param: self.ty_params[i].0,
+                    source: e,
+                    ty: self.name,
+                });
+                debug!(param_ty = ?self.ty_params[i].1, ?given_ty, "bad type parameter: given_ty not assignable to param_ty");
+                mapped_params.push((self.ty_params[i].0, Rc::new(Ty::Hole)))
+            } else {
+                debug!(name_sym = ?self.ty_params[i].0, ?given_ty, "adding mapped type param");
+                mapped_params.push((self.ty_params[i].0, given_ty.clone()))
+            }
+        }
+
+        let mut bound_params = Vec::with_capacity(self.params.len() + 1);
+        for param in self.params.iter().chain([&self.returns]) {
+            let mut binder = TyBinder::new(&mapped_params);
+            let bound = binder.bind(param.clone());
+            for err in binder.errors() {
+                ctx.error(err.clone().into());
+            }
+            bound_params.push(bound)
+        }
+
+        let bound_returns = bound_params.pop().unwrap();
+        for (bound_param, param) in bound_params.iter().zip(params) {
+            if let Err(e) = param.is_assignable_to(bound_param) {
+                ctx.error(CompilationErrorKind::InvalidParam {
+                    source: e,
+                    got: param.clone(),
+                    func: ctx.sym_stringify(self.name),
+                });
+            }
+        }
+
+        bound_returns
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct VarDef {
     pub assumed_ty: Rc<Ty<Symbol>>,
