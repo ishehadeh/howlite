@@ -15,10 +15,55 @@ pub struct Scope {
     /// the list MUST be in the order variables are defined
     pub locals: Vec<(Symbol, VarDef)>,
 
-    /// List of local variable definitions.
+    /// List of local type definitions.
     /// There can be duplicate symbols if a symbol is redefined
     /// the list MUST be in the order variables are defined
     pub tys: Vec<TyDef>,
+
+    /// List of local function definitions
+    pub funcs: Vec<FuncDef>,
+}
+
+impl Scope {
+    pub fn get_local(&self, name: Symbol) -> Option<&VarDef> {
+        self.locals
+            .iter()
+            .rev()
+            .find(|(l_name, _)| *l_name == name)
+            .map(|(_, var)| var)
+    }
+
+    pub fn get_local_mut(&mut self, name: Symbol) -> Option<&mut VarDef> {
+        self.locals
+            .iter_mut()
+            .rev()
+            .find(|(l_name, _)| *l_name == name)
+            .map(|(_, var)| var)
+    }
+
+    pub fn get_ty(&self, name: Symbol) -> Option<&TyDef> {
+        self.tys.iter().rev().find(|ty| ty.name == name)
+    }
+
+    pub fn get_ty_mut(&mut self, name: Symbol) -> Option<&mut TyDef> {
+        self.tys.iter_mut().rev().find(|ty| ty.name == name)
+    }
+
+    pub fn get_func(&self, name: Symbol) -> Option<&FuncDef> {
+        self.funcs.iter().rev().find(|f| f.name == name)
+    }
+
+    pub fn get_func_mut(&mut self, name: Symbol) -> Option<&mut FuncDef> {
+        self.funcs.iter_mut().rev().find(|f| f.name == name)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct FuncDef {
+    pub name: Symbol,
+    pub params: Vec<Rc<Ty<Symbol>>>,
+    pub ty_params: Vec<(Symbol, Rc<Ty<Symbol>>)>,
+    pub returns: Rc<Ty<Symbol>>,
 }
 
 #[derive(Debug, Clone)]
@@ -75,31 +120,5 @@ impl TyDef {
         }
 
         bound
-    }
-}
-
-impl Scope {
-    pub fn get_local(&self, name: Symbol) -> Option<&VarDef> {
-        self.locals
-            .iter()
-            .rev()
-            .find(|(l_name, _)| *l_name == name)
-            .map(|(_, var)| var)
-    }
-
-    pub fn get_local_mut(&mut self, name: Symbol) -> Option<&mut VarDef> {
-        self.locals
-            .iter_mut()
-            .rev()
-            .find(|(l_name, _)| *l_name == name)
-            .map(|(_, var)| var)
-    }
-
-    pub fn get_ty(&self, name: Symbol) -> Option<&TyDef> {
-        self.tys.iter().rev().find(|ty| ty.name == name)
-    }
-
-    pub fn get_ty_mut(&mut self, name: Symbol) -> Option<&mut TyDef> {
-        self.tys.iter_mut().rev().find(|ty| ty.name == name)
     }
 }

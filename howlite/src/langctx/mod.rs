@@ -156,7 +156,7 @@ impl<'a> LangCtx<'a> {
             }
         } else {
             panic!(
-                "LangCtx::VarGet(): Scope is not associated with this LangCtx (scope={:?})",
+                "LangCtx::var_get(): Scope is not associated with this LangCtx (scope={:?})",
                 scope_id
             )
         }
@@ -171,7 +171,7 @@ impl<'a> LangCtx<'a> {
             scope.locals.push((var, def));
         } else {
             panic!(
-                "LangCtx::VarGet(): Scope is not associated with this LangCtx (scope={:?})",
+                "LangCtx::var_def(): Scope is not associated with this LangCtx (scope={:?})",
                 scope_id
             )
         }
@@ -194,7 +194,7 @@ impl<'a> LangCtx<'a> {
             }
         } else {
             panic!(
-                "LangCtx::VarGet(): Scope is not associated with this LangCtx (scope={:?})",
+                "LangCtx::ty_get(): Scope is not associated with this LangCtx (scope={:?})",
                 scope_id
             )
         }
@@ -210,6 +210,44 @@ impl<'a> LangCtx<'a> {
         } else {
             panic!(
                 "LangCtx::ty_def(): Scope is not associated with this LangCtx (scope={:?})",
+                scope_id
+            )
+        }
+    }
+
+    /// Recursively search for a function up the scope heirarchy
+    ///
+    /// # Panics
+    /// - Scope does not belong to this LangCtx
+    /// - Any panics associated with `self.scope_parent()`
+    pub fn func_get(&self, scope_id: ScopeId, ty: Symbol) -> Option<FuncDef> {
+        if let Some(scope) = self.scopes.get(&scope_id) {
+            if let Some(def) = scope.get_func(ty) {
+                Some(def.clone())
+            } else if let Some(parent) = self.scope_parent(scope_id) {
+                self.func_get(parent, ty)
+            } else {
+                // we're at the root scope
+                None
+            }
+        } else {
+            panic!(
+                "LangCtx::func_get(): Scope is not associated with this LangCtx (scope={:?})",
+                scope_id
+            )
+        }
+    }
+
+    /// Define a function in the given scope
+    ///
+    /// # Panics
+    /// - Scope does not belong to this LangCtx
+    pub fn func_def(&self, scope_id: ScopeId, def: FuncDef) {
+        if let Some(mut scope) = self.scopes.get_mut(&scope_id) {
+            scope.funcs.push(def);
+        } else {
+            panic!(
+                "LangCtx::func_def(): Scope is not associated with this LangCtx (scope={:?})",
                 scope_id
             )
         }
