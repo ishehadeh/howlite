@@ -1,6 +1,6 @@
 use std::{
     hash::{BuildHasher, DefaultHasher},
-    num::NonZeroU32,
+    num::{NonZeroU32, NonZeroUsize},
     sync::RwLock,
 };
 
@@ -87,20 +87,19 @@ impl<H: BuildHasher> OwnedSymbolTable<H> {
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Symbol {
     /// reserve zero for enum variants
-    seq: NonZeroU32,
-    hash: u32,
+    seq: NonZeroUsize,
 } // store the hash and sequence number of the symbol
 
 impl std::fmt::Debug for Symbol {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "<Symbol {:08x}.{:08x}>", self.seq, self.hash)
+        write!(f, "<Symbol {:016x}>", self.seq)
     }
 }
 
 pub struct SymbolTable<'a, H: BuildHasher = DefaultHashBuilder> {
     hasher_builder: H,
-    sequence: NonZeroU32,
-    symbols: HashTable<(Symbol, &'a str)>,
+    strings: Vec<&'a str>,
+    symbols: HashTable<Symbol>,
 }
 
 impl<'a> Default for SymbolTable<'a, DefaultHashBuilder> {
@@ -119,38 +118,35 @@ impl<'a, H: BuildHasher> SymbolTable<'a, H> {
     pub fn new_with_hasher_builder(hasher_builder: H) -> Self {
         Self {
             hasher_builder,
-            sequence: NonZeroU32::new(1).expect("1 == 0?"),
             symbols: Default::default(),
+            strings: Vec::new(),
         }
     }
 
     pub fn stringify(&self, sym: Symbol) -> Result<&'a str, SymbolTableError> {
-        let Symbol { hash, seq } = sym;
-        self.symbols
-            .find(hash as u64, move |(s, _)| s.hash == hash && s.seq == seq)
-            .map(|(_, s)| *s)
+        self.strings
+            .get(sym.seq.get() - 1)
+            .map(|s| *s)
             .ok_or(SymbolTableError::InvalidSymbol { symbol: sym })
     }
 
     pub fn intern(&mut self, s: &'a str) -> Symbol {
-        let hash = self.hasher_builder.hash_one(s) & u32::MAX as u64;
+        let hash = self.hasher_builder.hash_one(s);
+
         let existing = self
             .symbols
-            .find(hash, |(sym, t)| sym.hash == hash as u32 && *t == s);
-        if let Some((sym, _)) = existing {
+            .find(hash, |sym| self.strings[sym.seq.get() - 1] == s);
+        if let Some(sym) = existing {
             *sym
         } else {
-            let seq = self.sequence;
-            self.sequence = self
-                .sequence
-                .checked_add(1)
-                .expect("symbol table ran out of symbols! (there are > u32::MAX total symbols)");
-            let sym = Symbol {
-                seq,
-                hash: hash as u32,
-            };
-            self.symbols
-                .insert_unique(hash, (sym, s), |(_, t)| self.hasher_builder.hash_one(t));
+            self.strings.push(s);
+            let seq = NonZeroUsize::new(self.strings.len()).expect(
+                "Array of strings for symbol table had a length < 1 after inserting an element",
+            );
+            let sym = Symbol { seq };
+            self.symbols.insert_unique(hash, sym, |s| {
+                self.hasher_builder.hash_one(self.strings[s.seq.get() - 1])
+            });
             sym
         }
     }
