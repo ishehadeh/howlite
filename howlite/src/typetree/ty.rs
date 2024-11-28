@@ -8,7 +8,7 @@ use howlite_syntax::{
 };
 use howlite_typecheck::{
     types::{StructField, TyInt, TyStruct},
-    Ty, TyArray,
+    Ty, TyArray, TyReference,
 };
 use preseli::IntegerSet;
 use smallvec::SmallVec;
@@ -103,15 +103,22 @@ impl SynthesizeTy for ast::TyNumberRange {
     }
 }
 
+impl SynthesizeTy for ast::TyRef {
+    fn synthesize_ty(&self, ctx: &LexicalContext) -> Rc<Ty<Symbol>> {
+        let referenced_ty = ctx.child(self.referenced_ty).synthesize_ty();
+        Rc::new(Ty::Reference(TyReference { referenced_ty }))
+    }
+}
+
 #[cfg(test)]
 mod test {
-    use howlite_syntax::ast::BoxAstNode;
-    use proptest::{prelude::Strategy, proptest};
+    use howlite_typecheck::{Ty, TyReference};
+    use proptest::proptest;
 
     use crate::{
         get_node_type,
         typetree::test_helpers::{
-            any_ty_number_range_with_literal, any_ty_struct_with_literal_scalars,
+            any_ty_number_range_with_literal, any_ty_struct_with_literal_scalars, make_reference_ty,
         },
     };
 
@@ -126,6 +133,14 @@ mod test {
         fn synthesize_ty_struct_succeedes(program in any_ty_struct_with_literal_scalars()) {
             let ty = get_node_type!(program);
             assert!(ty.as_struct().is_some(), "expected struct type, got: {:?}", ty);
+        }
+
+        #[test]
+        fn synthesize_ty_ref_sanity(referenced_ty_node in any_ty_number_range_with_literal()) {
+            let referenced_ty = get_node_type!(referenced_ty_node.clone());
+            let ty_ref_node = make_reference_ty(referenced_ty_node);
+            let ty = get_node_type!(ty_ref_node);
+            assert_eq!(ty.clone(), Ty::Reference(TyReference { referenced_ty, }).into());
         }
     );
 }

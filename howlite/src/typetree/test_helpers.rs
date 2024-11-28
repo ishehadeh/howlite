@@ -1,7 +1,8 @@
 use howlite_syntax::{
     ast::{
         BoxAstNode, ExprLet, HigherOrderNode, LiteralArray, LiteralChar, LiteralInteger,
-        LiteralString, LiteralStruct, LiteralStructMember, TyNumberRange, TyStruct, TyStructMember,
+        LiteralString, LiteralStruct, LiteralStructMember, TyNumberRange, TyRef, TyStruct,
+        TyStructMember,
     },
     tree::{DefaultLinearTreeId, Tree, TreeBuilder},
     AstNode, AstNodeData, Span,
@@ -173,6 +174,10 @@ pub fn any_literal() -> impl Strategy<Value = BoxAstNode> {
 
 pub fn any_ty_struct_with_literal_scalars() -> impl Strategy<Value = BoxAstNode> {
     literal_struct(any_ident(), any_ty_number_range_with_literal(), 0..12)
+}
+
+pub fn make_reference_ty(referenced_ty: BoxAstNode) -> BoxAstNode {
+    BoxAstNode::new(Span::new(0, 0), TyRef { referenced_ty })
 }
 
 pub fn make_expr_let(name: impl Into<SmolStr>, ty: BoxAstNode, value: BoxAstNode) -> BoxAstNode {
