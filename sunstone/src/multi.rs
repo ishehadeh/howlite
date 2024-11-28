@@ -407,7 +407,11 @@ impl<'a, I: SetElement> Union<DynSet<I>> for &'a mut DynSet<I> {
                             s1.elements =
                                 Box::new(std::mem::take(&mut s1.elements).union(offset_s2_elems));
                         } else {
-                            todo!()
+                            self.upgrade_from_small();
+                            return self.union(DynSet {
+                                data: DynSetData::Small(s2),
+                                range: rhs_range,
+                            });
                         }
                     }
 
@@ -423,7 +427,11 @@ impl<'a, I: SetElement> Union<DynSet<I>> for &'a mut DynSet<I> {
                             );
                             s1.offset = s2.offset;
                         } else {
-                            todo!()
+                            self.upgrade_from_small();
+                            return self.union(DynSet {
+                                data: DynSetData::Small(s2),
+                                range: rhs_range,
+                            });
                         }
                     }
 
