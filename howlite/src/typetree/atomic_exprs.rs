@@ -4,7 +4,7 @@ use howlite_syntax::ast::{
     Ident, LiteralArray, LiteralChar, LiteralInteger, LiteralString, LiteralStruct,
 };
 use howlite_typecheck::{
-    types::{self, StorageClass, TyInt, TyUnion},
+    types::{self, StorageClass, TyInt},
     Ty, TyArray,
 };
 use preseli::IntegerSet;

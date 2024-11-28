@@ -15,8 +15,7 @@ use aries::{
 use howlite_syntax::ast::InfixOp;
 use preseli::IntegerSet;
 use sunstone::{
-    multi::DynSet,
-    ops::{ArithmeticSet, Bounded, PartialBounded, SetSubtract, Union},
+    ops::{Bounded, PartialBounded},
     step_range::StepRange,
 };
 
@@ -171,8 +170,8 @@ impl ModelBuilder {
                 options.push(self.model.reify(eq(var, *step_range.lo())));
             } else if *step_range.step() == 1i128 {
                 options.push(self.model.reify(expr::and([
-                    var.geq(step_range.lo().clone()),
-                    var.leq(step_range.hi().clone()),
+                    var.geq(*step_range.lo()),
+                    var.leq(*step_range.hi()),
                 ])))
             } else {
                 let next_var_index = self.next_var_index();

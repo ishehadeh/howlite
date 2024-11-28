@@ -1,3 +1,4 @@
+#![allow(unused, reason = "I don't mind dead test helpers")]
 use howlite_syntax::{
     ast::{
         self, BoxAstNode, ExprLet, HigherOrderNode, LiteralArray, LiteralChar, LiteralInteger,
