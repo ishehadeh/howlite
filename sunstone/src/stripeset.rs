@@ -71,21 +71,31 @@ where
         }
     }
 
+    #[instrument(skip(self, other))]
     pub fn arith_add(&self, other: &StripeSet<I>) -> Self {
         let mut new = StripeSet::new(vec![]);
         for a in &self.ranges {
+            debug!("lhs_range={a:?}");
             for other_range in &other.ranges {
+                debug!("rhs_range={other_range:?}");
                 if &other_range.size() >= a.step() && other_range.step().is_one() {
-                    new.add_range(StepRange::new(
+                    let merged = StepRange::new(
                         a.lo().clone() + other_range.lo().clone(),
                         a.hi().clone() + other_range.hi().clone(),
                         I::one(),
-                    ))
+                    );
+                    debug!(
+                        ?merged,
+                        "rhs_range is larger than lhs step, merging into single range"
+                    );
+                    new.add_range(merged);
                 } else {
                     // range  that we have to expand
                     let (explode_range, base_range) = if a.size() < other_range.size() {
+                        debug!("exploding LHS over RHS");
                         (a, other_range)
                     } else {
+                        debug!("exploding RHS over LHS");
                         (other_range, a)
                     };
                     for el in explode_range {
@@ -372,11 +382,15 @@ impl<'a, I> Subset<&'a StripeSet<I>> for &'a StripeSet<I>
 where
     I: SetElement + std::fmt::Debug,
 {
+    #[instrument(skip(self, rhs))]
     fn subset_of(self, rhs: Self) -> bool {
         for r in &self.ranges {
             let mut lo = r.lo().clone();
             let mut excl = vec![];
+
+            debug!("lhs_range={r:?}");
             for s in &rhs.ranges {
+                debug!("rhs_range={s:?}");
                 if s.includes(&lo) {
                     if r.step().is_multiple_of(s.step()) {
                         lo = r.first_element_after(s.hi().clone());
@@ -385,7 +399,6 @@ where
                     } else {
                         lo = lo + r.step().clone()
                     }
-                    // dbg!(&r, &s, &lo);
                 }
             }
 
@@ -398,20 +411,16 @@ where
                                 continue 'a;
                             }
                         }
-                        dbg!("1");
                         return false;
                     }
 
-                    dbg!("4");
                     continue;
                 }
 
-                dbg!("2", &lo, r.hi(), &lo < r.hi());
                 return false;
             }
         }
 
-        dbg!("3");
         true
     }
 
@@ -788,20 +797,20 @@ mod test {
         let a = StripeSet::new(vec![StepRange::new(0, 5, 1)]);
         let b = StripeSet::new(vec![StepRange::new(0, 100, 10)]);
         let c = a.arith_sub(&b);
-        assert_eq!(
-            c.ranges,
-            vec![
-                StepRange::new(-100, 0, 10),
-                StepRange::new(-99, 1, 10),
-                StepRange::new(-98, 2, 10),
-                StepRange::new(-97, 3, 10),
-                StepRange::new(-96, 4, 10),
-                StepRange::new(-95, 5, 10)
-            ]
-        );
+
+        let expected = StripeSet::new(vec![
+            StepRange::new(-100, 0, 10),
+            StepRange::new(-99, 1, 10),
+            StepRange::new(-98, 2, 10),
+            StepRange::new(-97, 3, 10),
+            StepRange::new(-96, 4, 10),
+            StepRange::new(-95, 5, 10),
+        ]);
+        assert!(c.subset_of(&expected));
+        assert!(expected.subset_of(&c));
 
         let d = c.arith_add(&a);
-        assert_eq!(d, StripeSet::new(vec![StepRange::new(-105, 5, 1)]))
+        assert_eq!(d, StripeSet::new(vec![StepRange::new(-100, 10, 1)]))
     }
 
     #[test]
