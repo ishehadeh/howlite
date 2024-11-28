@@ -246,6 +246,20 @@ pub fn must_parse_expr(src: &str) -> (DefaultLinearTreeId, Tree<AstNode>) {
     (expr_root, tree)
 }
 
+pub fn must_parse(src: &str) -> (DefaultLinearTreeId, Tree<AstNode>) {
+    let lexerdef = howlite_syntax::lexerdef();
+    let lexer = lexerdef.lexer(src);
+    let tree_builder: TreeBuilder<_> = TreeBuilder::default();
+    let (root, errs) = howlite_syntax::parse(&lexer, &tree_builder);
+    for e in &errs {
+        println!("{}", e.pp(&lexer, &howlite_syntax::token_epp));
+    }
+    assert!(errs.is_empty());
+    let root_node = root.unwrap().unwrap();
+
+    (root_node, tree_builder.finalize())
+}
+
 pub fn any_ty_number_range_with_literal() -> impl Strategy<Value = BoxAstNode> {
     (0..u64::MAX as i128, 0..u64::MAX as i128).prop_map(|(a, b)| make_ty_number_range(a, b))
 }

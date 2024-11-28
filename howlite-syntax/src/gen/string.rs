@@ -139,9 +139,9 @@ impl CharFormat {
     pub fn can_repr(&self, string: bool, c: char) -> bool {
         match self {
             CharFormat::Literal => {
-                if string && matches!(c, '\"' | '\n' | '\t' | '\r') {
-                    false
-                } else if !string && matches!(c, '\'' | '\n' | '\t' | '\r') {
+                if (!string && matches!(c, '\'' | '\n' | '\t' | '\r'))
+                    || (string && matches!(c, '\"' | '\n' | '\t' | '\r'))
+                {
                     false
                 } else {
                     let categ_group = c.general_category_group();
@@ -310,10 +310,7 @@ impl<const IS_STRING: bool> ValueTree for CharReprValueTree<IS_STRING> {
     }
 
     fn simplify(&mut self) -> bool {
-        if self.case_matters_for_format() && self.case.simplify() {
-            self.update_buf();
-            true
-        } else if self.simplify_format() {
+        if (self.case_matters_for_format() && self.case.simplify()) || self.simplify_format() {
             self.update_buf();
             true
         } else {

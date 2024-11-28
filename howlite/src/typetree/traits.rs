@@ -2,8 +2,6 @@ use crate::{langctx::lexicalctx::LexicalContext, symtab::Symbol};
 use howlite_typecheck::Ty;
 use std::rc::Rc;
 
-use super::constraint_term::ConstraintTerm;
-
 /// Trait implemented on AST nodes to perform type synthesis, within the context of a program.
 /// Type synthesis is the process of determining the smallest possible type that encapsulates all possible values of an expression.
 /// For example:
@@ -22,9 +20,4 @@ impl<T: SynthesizeTyPure> SynthesizeTy for T {
     fn synthesize_ty(&self, _: &LexicalContext<'_, '_>) -> Rc<Ty<Symbol>> {
         self.synthesize_ty_pure()
     }
-}
-
-pub trait ToContraintTerm {
-    #[allow(dead_code)]
-    fn to_constraint_term(self) -> ConstraintTerm;
 }

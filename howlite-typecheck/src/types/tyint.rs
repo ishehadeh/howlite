@@ -48,6 +48,14 @@ impl TyInt {
         Self::from_set(DynSet::new_from_range(0i128, u64::MAX as i128))
     }
 
+    pub fn i32() -> Self {
+        Self::from_set(DynSet::new_from_range(i32::MIN as i128, i32::MAX as i128))
+    }
+
+    pub fn u32() -> Self {
+        Self::from_set(DynSet::new_from_range(0i128, u32::MAX as i128))
+    }
+
     /// Use the default storage class for value val.
     /// assumes val fits within a u64 if unsigned, and an i64 if signed
     pub fn single(val: Scalar) -> Self {

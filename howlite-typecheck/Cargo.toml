@@ -13,3 +13,7 @@ num-traits = "*"
 elsa = { version = "*", features = ["indexmap"] }
 lazy_static = "*"
 aries = { path = "../../aries/solver", features = ["i128"] }
+tracing = "*"
+
+[dev-dependencies]
+tracing-test = "=0.2.5"

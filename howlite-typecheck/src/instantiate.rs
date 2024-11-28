@@ -1,6 +1,7 @@
 use std::rc::Rc;
 
 use thiserror::Error;
+use tracing::debug;
 
 use crate::{types::TyStruct, AccessPath, Symbol, Ty, TyArray, TyReference, TySlice};
 
@@ -34,10 +35,8 @@ impl<'params, SymbolT: Symbol> TyBinder<'params, SymbolT> {
                     self.current_path.push_field(field.name.clone());
                     let bound = self.bind(field.ty.clone());
                     self.current_path.pop();
-                    if !Rc::ptr_eq(&bound, &field.ty) {
-                        if newstruc.is_none() {
-                            newstruc = Some(s.clone());
-                        }
+                    if !Rc::ptr_eq(&bound, &field.ty) && newstruc.is_none() {
+                        newstruc = Some(s.clone());
                     }
 
                     if let Some(newstruc) = &mut newstruc {
@@ -87,10 +86,8 @@ impl<'params, SymbolT: Symbol> TyBinder<'params, SymbolT> {
                 let mut newunion = None;
                 for (i, sub_ty) in u.tys.iter().enumerate() {
                     let bound = self.bind(sub_ty.clone());
-                    if !Rc::ptr_eq(&bound, &sub_ty) {
-                        if newunion.is_none() {
-                            newunion = Some(u.clone());
-                        }
+                    if !Rc::ptr_eq(&bound, sub_ty) && newunion.is_none() {
+                        newunion = Some(u.clone());
                     }
 
                     if let Some(newunion) = &mut newunion {
@@ -99,18 +96,21 @@ impl<'params, SymbolT: Symbol> TyBinder<'params, SymbolT> {
                 }
                 newunion.map(|u| Rc::new(Ty::Union(u))).unwrap_or(ty)
             }
-            Ty::LateBound(sym) => {
+            Ty::LateBound(lb) => {
                 if let Some(param) =
                     self.params
                         .iter()
-                        .find_map(|(p_sym, ty)| if p_sym == sym { Some(ty) } else { None })
+                        .find_map(|(p_sym, ty)| if *p_sym == lb.name { Some(ty) } else { None })
                 {
+                    debug!(symbol = ?lb.name, bound_ty = ?&param, "binding type parameter");
+                    // TODO: should we check the lb.super_ty?
                     param.clone()
                 } else {
                     self.errors.push(BindError::UnboundIdentifier {
                         path: self.current_path.clone(),
-                        symbol: sym.clone(),
+                        symbol: lb.name.clone(),
                     });
+                    debug!(symbol = ?lb.name, known = ?&self.params, "unknown late bound type name");
                     Rc::new(Ty::Hole)
                 }
             }

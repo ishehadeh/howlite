@@ -65,6 +65,7 @@ impl SynthesizeTy for TyNamed {
             .iter()
             .map(|p| ctx.child(*p).synthesize_ty())
             .collect::<Vec<_>>();
+
         match ctx.ty_get(name_sym) {
             Some(v) => v.instantiate(ctx, &params),
             None => {
@@ -124,7 +125,7 @@ impl SynthesizeTy for ast::TyNumberRange {
                 .next()
         };
         let lo_ty = ctx.child(self.lo).synthesize_ty();
-        let hi_ty = ctx.child(self.lo).synthesize_ty();
+        let hi_ty = ctx.child(self.hi).synthesize_ty();
 
         let lo = validate_bound(&lo_ty);
         let hi = validate_bound(&hi_ty);
@@ -156,10 +157,7 @@ impl SynthesizeTy for ast::TyRef {
 mod test {
     use std::rc::Rc;
 
-    use howlite_syntax::{
-        ast::{BoxAstNode, TyNamed},
-        Span,
-    };
+    use howlite_syntax::ast::TyNamed;
     use howlite_typecheck::{t_int, Ty, TyReference, TySlice};
     use proptest::proptest;
 

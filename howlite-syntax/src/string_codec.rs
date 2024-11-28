@@ -312,9 +312,7 @@ mod test {
     use proptest::{prop_assert_eq, proptest};
 
     use super::StringDecoder;
-    use crate::gen::string::{
-        any_char_literal_content, any_string_literal_content, any_string_literal_content_char,
-    };
+    use crate::gen::string::{any_char_literal_content, any_string_literal_content_char};
 
     proptest! {
         #[test]

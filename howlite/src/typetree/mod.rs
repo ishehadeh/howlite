@@ -17,6 +17,7 @@ mod stmts;
 mod traits;
 mod ty;
 mod prefix;
+mod defs;
 
 // pub use infix::*;
 
@@ -90,8 +91,8 @@ impl SynthesizeTy for AstNodeData {
             AstNodeData::Repaired(_) => todo!(),
 
             // definitions
-            AstNodeData::DefType(_) => todo!(),
-            AstNodeData::TyParam(_) => todo!(), // despite the name this node specifically occurs in type defs
+            AstNodeData::DefType(dt) => dt.synthesize_ty(ctx),
+            AstNodeData::TyParam(_) => unreachable!("TyParam nodes should be handled by there parent directly and not passed to the  generic type dispatcher"),
             AstNodeData::DefExternFunc(_) => todo!(),
             AstNodeData::DefExternVar(_) => todo!(),
             AstNodeData::DefFunc(_) => todo!(),

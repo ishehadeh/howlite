@@ -2,6 +2,7 @@ use std::rc::Rc;
 
 use howlite_typecheck::{Ty, TyBinder};
 use smallvec::SmallVec;
+use tracing::debug;
 
 use crate::{symtab::Symbol, CompilationErrorKind};
 
@@ -43,6 +44,9 @@ impl TyDef {
                 ty: self.name,
             });
         };
+        if params.is_empty() {
+            return self.ty.clone();
+        }
 
         let mut mapped_params: SmallVec<[(Symbol, Rc<Ty<Symbol>>); 4]> =
             SmallVec::with_capacity(self.params.len());
@@ -56,8 +60,10 @@ impl TyDef {
                     source: e,
                     ty: self.name,
                 });
+                debug!(param_ty = ?self.params[i].1, ?given_ty, "bad type parameter: given_ty not assignable to param_ty");
                 mapped_params.push((self.params[i].0, Rc::new(Ty::Hole)))
             } else {
+                debug!(name_sym = ?self.params[i].0, ?given_ty, "adding mapped type param");
                 mapped_params.push((self.params[i].0, given_ty.clone()))
             }
         }

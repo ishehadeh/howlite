@@ -31,7 +31,7 @@ pub mod errors;
 pub mod types;
 mod util;
 use sunstone::ops::{SetOpIncludes, Subset, Union};
-use types::{StructField, TyInt, TyStruct, TyUnion};
+use types::{StructField, TyInt, TyLateBound, TyStruct, TyUnion};
 use util::try_collect::TryCollect;
 
 pub use access_path::{AccessPath, AccessPathElem};
@@ -78,7 +78,7 @@ pub enum Ty<SymbolT: Symbol> {
     Slice(TySlice<SymbolT>),
     Reference(TyReference<SymbolT>),
     Union(TyUnion<SymbolT>),
-    LateBound(SymbolT),
+    LateBound(TyLateBound<SymbolT>),
 }
 
 impl<SymbolT: Symbol> Clone for Ty<SymbolT> {
@@ -176,7 +176,7 @@ impl<SymbolT: Symbol> Ty<SymbolT> {
     _impl_as!(as_slice(&Ty::Slice) => &TySlice<SymbolT>);
     _impl_as!(as_union(&Ty::Union) => &TyUnion<SymbolT>);
     _impl_as!(as_reference(&Ty::Reference) => &TyReference<SymbolT>);
-    _impl_as!(as_late_bound(&Ty::LateBound) => &SymbolT);
+    _impl_as!(as_late_bound(&Ty::LateBound) => &TyLateBound<SymbolT>);
 
     /// Get the size of this type in bytes
     ///
@@ -357,7 +357,7 @@ impl<SymbolT: Symbol> Ty<SymbolT> {
 
     pub fn is_assignable_to(&self, other: &Ty<SymbolT>) -> Result<(), IncompatibleError<SymbolT>> {
         match (self, other) {
-            (Ty::Int(superset), Ty::Int(subset)) => {
+            (Ty::Int(subset), Ty::Int(superset)) => {
                 if subset.values.subset_of(&superset.values) {
                     Ok(())
                 } else {

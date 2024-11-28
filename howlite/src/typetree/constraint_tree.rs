@@ -1,9 +1,9 @@
 use hashbrown::HashMap;
-use howlite_syntax::{ast::InfixOp, tree::DefaultLinearTreeId, AstNodeData};
+use howlite_syntax::{tree::DefaultLinearTreeId, AstNodeData};
 
 use crate::{langctx::lexicalctx::LexicalContext, symtab::Symbol};
 
-use super::{BinaryConstraintRelation, ConstraintOp, ConstraintTerm, ModelBuilder, Term};
+use super::{ModelBuilder, Term};
 
 pub struct ConstraintTree<'b, 'c> {
     lexical_context: LexicalContext<'b, 'c>,
@@ -118,28 +118,5 @@ impl<'b, 'c> ConstraintTree<'b, 'c> {
         }
 
         nodes
-    }
-
-    fn apply_infix(lhs: &ConstraintTerm, infix: InfixOp, rhs: &ConstraintTerm) -> ConstraintTerm {
-        match infix {
-            InfixOp::Add => lhs.apply_term(ConstraintOp::Add, rhs),
-            InfixOp::Mul => lhs.apply_term(ConstraintOp::Mul, rhs),
-            InfixOp::Sub => todo!("to_constraint_term: InfixOp::Sub"),
-            InfixOp::Div => todo!("to_constraint_term: InfixOp::Div"),
-            InfixOp::Assign => todo!(),
-            InfixOp::CmpNe => lhs.compare_term(BinaryConstraintRelation::Ne, rhs),
-            InfixOp::CmpEq => lhs.compare_term(BinaryConstraintRelation::Eq, rhs),
-            InfixOp::CmpGt => lhs.compare_term(BinaryConstraintRelation::Gt, rhs),
-            InfixOp::CmpLt => lhs.compare_term(BinaryConstraintRelation::Lt, rhs),
-            InfixOp::CmpGtEq => todo!(">= constraint"),
-            InfixOp::CmpLtEq => todo!("<= constraint"),
-            InfixOp::BitOr => todo!("bit-wise constraints"),
-            InfixOp::BitAnd => todo!("bit-wise constraints"),
-            InfixOp::BitXor => todo!("bit-wise constraints"),
-            InfixOp::BitLShift => todo!("bit-wise constraints"),
-            InfixOp::BitRShift => todo!("bit-wise constraints"),
-            InfixOp::LogicalOr => todo!("constraint groups"),
-            InfixOp::LogicalAnd => todo!("constraint groups"),
-        }
     }
 }

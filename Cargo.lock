@@ -463,6 +463,8 @@ dependencies = [
  "smallvec",
  "sunstone",
  "thiserror 2.0.3",
+ "tracing",
+ "tracing-test",
 ]
 
 [[package]]
