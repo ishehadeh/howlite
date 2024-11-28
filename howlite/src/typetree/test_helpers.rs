@@ -1,7 +1,7 @@
 use howlite_syntax::{
     ast::{
         BoxAstNode, ExprLet, HigherOrderNode, LiteralArray, LiteralChar, LiteralInteger,
-        LiteralString, LiteralStruct, LiteralStructMember, TyNumberRange,
+        LiteralString, LiteralStruct, LiteralStructMember, TyNumberRange, TyStruct, TyStructMember,
     },
     tree::{DefaultLinearTreeId, Tree, TreeBuilder},
     AstNode, AstNodeData, Span,
@@ -72,6 +72,39 @@ pub fn make_ty_number_range(a: i128, b: i128) -> BoxAstNode {
     )
 }
 
+pub fn ty_struct_member<K, V>(k: K, v: V) -> impl Strategy<Value = BoxAstNode>
+where
+    K: Strategy<Value = String>,
+    V: Strategy<Value = BoxAstNode>,
+{
+    (k, v).prop_map(|(field, ty)| {
+        BoxAstNode::new(
+            Span::new(0, 0),
+            TyStructMember {
+                name: field.into(),
+                ty,
+                mutable: true,
+            },
+        )
+    })
+}
+
+pub fn ty_struct<K, V, S>(k: K, v: V, length: S) -> impl Strategy<Value = BoxAstNode>
+where
+    K: Strategy<Value = String>,
+    V: Strategy<Value = BoxAstNode>,
+    S: Into<SizeRange>,
+{
+    proptest::collection::vec(ty_struct_member(k, v), length).prop_map(|members| {
+        BoxAstNode::new(
+            Span::new(0, 0),
+            TyStruct {
+                members: members.into_iter().collect(),
+            },
+        )
+    })
+}
+
 /// Any literal that cannot contain arbirary data
 pub fn any_atomic_literal() -> impl Strategy<Value = BoxAstNode> {
     prop_oneof![
@@ -138,6 +171,10 @@ pub fn any_literal() -> impl Strategy<Value = BoxAstNode> {
     })
 }
 
+pub fn any_ty_struct_with_literal_scalars() -> impl Strategy<Value = BoxAstNode> {
+    literal_struct(any_ident(), any_ty_number_range_with_literal(), 0..12)
+}
+
 pub fn make_expr_let(name: impl Into<SmolStr>, ty: BoxAstNode, value: BoxAstNode) -> BoxAstNode {
     BoxAstNode::new(
         Span::new(0, 0),
@@ -164,7 +201,6 @@ pub fn simple_scalar_let() -> impl Strategy<Value = BoxAstNode> {
 
 pub fn must_parse_expr(src: &str) -> (DefaultLinearTreeId, Tree<AstNode>) {
     let full_src = format!("func main(): {{ }} {{ {}; }}", src);
-    dbg!(&full_src);
     let lexerdef = howlite_syntax::lexerdef();
     let lexer = lexerdef.lexer(&full_src);
     let tree_builder: TreeBuilder<_> = TreeBuilder::default();
@@ -184,6 +220,10 @@ pub fn must_parse_expr(src: &str) -> (DefaultLinearTreeId, Tree<AstNode>) {
         _ => unreachable!(),
     };
     (expr_root, tree)
+}
+
+pub fn any_ty_number_range_with_literal() -> impl Strategy<Value = BoxAstNode> {
+    (0..u64::MAX as i128, 0..u64::MAX as i128).prop_map(|(a, b)| make_ty_number_range(a, b))
 }
 
 pub fn any_ident() -> impl Strategy<Value = String> {

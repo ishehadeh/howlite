@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc a359f585165debd2a7f2f07fb03255723e752401d0a368e6e5ccc3b9c374dced # shrinks to program = BoxAstNode(AstNode { span: Span { start: 0, end: 0 }, data: TyNumberRange(TyNumberRange { lo: BoxAstNode(AstNode { span: Span { start: 0, end: 0 }, data: LiteralInteger(LiteralInteger { value: 0 }) }), hi: BoxAstNode(AstNode { span: Span { start: 0, end: 0 }, data: LiteralInteger(LiteralInteger { value: 0 }) }) }) })

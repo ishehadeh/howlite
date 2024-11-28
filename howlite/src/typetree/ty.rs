@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use howlite_syntax::{
     ast::{self},
-    AstNode, AstNodeData,
+    AstNodeData,
 };
 use howlite_typecheck::{
     types::{StructField, TyInt, TyStruct},
@@ -32,6 +32,14 @@ impl SynthesizeTy for ast::TyArray {
             length: self.length as usize,
             element_ty,
         }))
+    }
+}
+
+impl SynthesizeTy for ast::TyExprUnion {
+    fn synthesize_ty(&self, ctx: &LexicalContext<'_, '_>) -> Rc<Ty<Symbol>> {
+        let lhs_ty = ctx.child(self.lhs).synthesize_ty();
+        let rhs_ty = ctx.child(self.rhs).synthesize_ty();
+        Ty::union(&[lhs_ty, rhs_ty])
     }
 }
 
@@ -100,7 +108,12 @@ mod test {
     use howlite_syntax::ast::BoxAstNode;
     use proptest::{prelude::Strategy, proptest};
 
-    use crate::{get_node_type, typetree::test_helpers::make_ty_number_range};
+    use crate::{
+        get_node_type,
+        typetree::test_helpers::{
+            any_ty_number_range_with_literal, any_ty_struct_with_literal_scalars,
+        },
+    };
 
     proptest!(
         #[test]
@@ -108,9 +121,11 @@ mod test {
             let ty = get_node_type!(program);
             assert!(ty.as_int().is_some(), "expected int type, got: {:?}", ty);
         }
-    );
 
-    fn any_ty_number_range_with_literal() -> impl Strategy<Value = BoxAstNode> {
-        (0..u64::MAX as i128, 0..u64::MAX as i128).prop_map(|(a, b)| make_ty_number_range(a, b))
-    }
+        #[test]
+        fn synthesize_ty_struct_succeedes(program in any_ty_struct_with_literal_scalars()) {
+            let ty = get_node_type!(program);
+            assert!(ty.as_struct().is_some(), "expected struct type, got: {:?}", ty);
+        }
+    );
 }
