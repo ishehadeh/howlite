@@ -105,7 +105,7 @@ impl ValueTree for CharFormatCase {
     type Value = Self;
 
     fn current(&self) -> Self::Value {
-        self.clone()
+        *self
     }
 
     fn simplify(&mut self) -> bool {

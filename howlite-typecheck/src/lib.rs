@@ -21,14 +21,16 @@ use preseli::integer::Scalar;
 pub use preseli::IntegerSet;
 mod instantiate;
 pub use instantiate::{BindError, TyBinder};
+pub mod shape;
 mod symbol;
+use shape::TypeShape;
 
 mod access_path;
 mod construct_macros;
 pub mod errors;
 pub mod types;
 mod util;
-use sunstone::ops::{SetOpIncludeExclude, SetOpIncludes, Subset, Union};
+use sunstone::ops::{SetOpIncludes, Subset, Union};
 use types::{StructField, TyInt, TyStruct, TyUnion};
 use util::try_collect::TryCollect;
 
@@ -119,6 +121,23 @@ impl<SymbolT: Symbol> Ty<SymbolT> {
         Ty::Struct(TyStruct {
             fields: SmallVec::new_const(),
         })
+    }
+
+    pub fn shape(&self) -> TypeShape {
+        match self {
+            Ty::Hole => TypeShape::HOLE,
+            Ty::Int(_) => TypeShape::INTEGER,
+            Ty::Struct(struc) if struc.fields.is_empty() => TypeShape::UNIT,
+            Ty::Struct(_) => TypeShape::STRUCT,
+            Ty::Array(_) => TypeShape::ARRAY,
+            Ty::Slice(_) => TypeShape::SLICE,
+            Ty::Reference(_) => TypeShape::REFERENCE,
+            Ty::Union(u) => u
+                .tys
+                .iter()
+                .fold(u.tys[0].shape(), |shape, ty| shape.include(ty.shape())),
+            Ty::LateBound(_) => panic!("cannot produce type shape for late bound identifier"),
+        }
     }
 
     pub const fn is_hole(&self) -> bool {

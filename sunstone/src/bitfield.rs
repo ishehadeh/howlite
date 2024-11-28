@@ -336,6 +336,13 @@ impl<const BLOCKS: usize> BitField<BLOCKS> {
         self
     }
 
+    pub fn reverse(&mut self) {
+        self.field.reverse();
+        for i in 0..BLOCKS {
+            self.field[i] = self.field[i].reverse_bits();
+        }
+    }
+
     pub fn arith_sub_scalar_mut(&mut self, n: usize) {
         #[cfg(debug_assertions)]
         {

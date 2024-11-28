@@ -3,11 +3,11 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
-use aries::utils::input::Sym;
 use dashmap::DashMap;
-use howlite_syntax::Span;
+use howlite_syntax::{ast::PrefixOp, Span};
 use howlite_typecheck::{
     errors::{IncompatibleError, OperationError},
+    shape::TypeShape,
     AccessError, BindError, Ty,
 };
 use preseli::IntegerSet;
@@ -92,6 +92,15 @@ pub enum CompilationErrorKind {
     #[error("slice lengths must always be an integer. recieved: {:?}", _0)]
     InvalidSliceLengthTy(Rc<Ty<Symbol>>),
 
+    #[error(
+        "prefix operator '{prefix}' expected a type conforming to {expected}. recieved: {got:?}"
+    )]
+    PrefixOpNotApplicable {
+        prefix: PrefixOp,
+        expected: TypeShape,
+        got: Rc<Ty<Symbol>>,
+    },
+
     #[error("invalid arithmetic operation: {}", _0)]
     InvalidArithmetic(#[from] OperationError<Symbol>),
 
@@ -113,6 +122,13 @@ pub enum CompilationErrorKind {
         param: Symbol,
         source: IncompatibleError<Symbol>,
         ty: Symbol,
+    },
+
+    #[error("cannot construct type {:?} from {:?}: {source}", ty, value)]
+    CannotConstruct {
+        value: Rc<Ty<Symbol>>,
+        source: IncompatibleError<Symbol>,
+        ty: Rc<Ty<Symbol>>,
     },
 
     #[error("failed while trying to instantiate type: {source}")]

@@ -14,7 +14,7 @@ macro_rules! t_struct {
     (
         $($field:expr => $ty:expr),*
     ) => {
-        std::rc::Rc::new($crate::Ty::Struct($crate::TyStruct {
+        std::rc::Rc::new($crate::Ty::Struct($crate::types::TyStruct {
             fields: smallvec::smallvec![
                 $($crate::types::StructField {
                     name: $field,

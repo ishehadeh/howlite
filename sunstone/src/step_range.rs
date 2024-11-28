@@ -1,3 +1,5 @@
+use std::ops::Neg;
+
 use num_integer::Integer;
 use tracing::warn;
 
@@ -300,6 +302,14 @@ where
         } else {
             None
         }
+    }
+}
+
+impl<I: SetElement + Neg<Output = I>> StepRange<I> {
+    pub fn neg_mut(&mut self) {
+        let lo_neg = -self.lo.clone();
+        self.lo = -self.hi.clone();
+        self.hi = lo_neg
     }
 }
 

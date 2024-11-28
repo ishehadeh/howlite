@@ -13,9 +13,10 @@ mod atomic_exprs;
 mod constraint_term;
 mod constraint_tree;
 mod infix;
-mod original;
+mod stmts;
 mod traits;
 mod ty;
+mod prefix;
 
 // pub use infix::*;
 
@@ -64,12 +65,12 @@ impl SynthesizeTy for AstNodeData {
             AstNodeData::FieldAccess(f) => f.synthesize_ty(ctx),
             AstNodeData::ArrayAccess(a) => a.synthesize_ty(ctx),
             AstNodeData::ExprCall(_) => todo!(),
-            AstNodeData::ExprPrefix(_) => todo!(),
-            AstNodeData::ExprTypeConstruction(_) => todo!(),
+            AstNodeData::ExprPrefix(ep) => ep.synthesize_ty(ctx),
+            AstNodeData::ExprTypeConstruction(etc) => etc.synthesize_ty(ctx),
 
             // statement-like expressions
             AstNodeData::ExprLet(n) => n.synthesize_ty(ctx),
-            AstNodeData::ExprWhile(_) => todo!(),
+            AstNodeData::ExprWhile(ew) => ew.synthesize_ty(ctx),
             AstNodeData::ExprIf(v) => v.synthesize_ty(ctx),
             AstNodeData::Block(n) => {
                 let child_scope_ctx = ctx.new_with_scope();
@@ -90,6 +91,7 @@ impl SynthesizeTy for AstNodeData {
 
             // definitions
             AstNodeData::DefType(_) => todo!(),
+            AstNodeData::TyParam(_) => todo!(), // despite the name this node specifically occurs in type defs
             AstNodeData::DefExternFunc(_) => todo!(),
             AstNodeData::DefExternVar(_) => todo!(),
             AstNodeData::DefFunc(_) => todo!(),
@@ -104,7 +106,6 @@ impl SynthesizeTy for AstNodeData {
             AstNodeData::TyStruct(ts) => ts.synthesize_ty(ctx),
             AstNodeData::TyArray(ta) => ta.synthesize_ty(ctx),
             AstNodeData::TyUnit(tu) => tu.synthesize_ty(ctx),
-            AstNodeData::TyParam(_) => todo!(),
             AstNodeData::TySlice(ts) => ts.synthesize_ty(ctx),
 
             // unreachable nodes

@@ -1,6 +1,9 @@
 use num_traits::FromPrimitive;
 use preseli::{integer::Scalar, IntegerRange, IntegerSet};
-use sunstone::ops::{ArithmeticSet, Bounded, PartialBounded, Union};
+use sunstone::{
+    multi::DynSet,
+    ops::{ArithmeticSet, Bounded, PartialBounded, Union},
+};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TyInt {
     pub values: IntegerSet,
@@ -35,6 +38,14 @@ impl TyInt {
                 bits,
             },
         }
+    }
+
+    pub fn i64() -> Self {
+        Self::from_set(DynSet::new_from_range(i64::MIN as i128, i64::MAX as i128))
+    }
+
+    pub fn u64() -> Self {
+        Self::from_set(DynSet::new_from_range(0i128, u64::MAX as i128))
     }
 
     /// Use the default storage class for value val.

@@ -1,4 +1,4 @@
-use std::cmp::Ordering;
+use std::{cmp::Ordering, ops::Neg};
 
 use tracing::{debug, debug_span, instrument, trace};
 
@@ -440,6 +440,15 @@ where
     }
 }
 
+impl<I: Neg<Output = I> + SetElement> StripeSet<I> {
+    pub fn neg_mut(&mut self) {
+        for stripe in &mut self.ranges {
+            stripe.neg_mut()
+        }
+        self.normalize();
+    }
+}
+
 impl<'a, I> Union<StripeSet<I>> for &'a mut StripeSet<I>
 where
     I: SetElement,
@@ -762,12 +771,12 @@ mod test {
     #[traced_test]
     #[test]
     fn subtraction3() {
-        let mut a = StripeSet::new(vec![StepRange::new(0 as i128, 10, 1)]);
+        let mut a = StripeSet::new(vec![StepRange::new(0, 10, 1)]);
         let b = StripeSet::new(vec![StepRange::new(6, 10, 1)]);
         dbg!(&a, &b);
         a.set_subtract_mut(&b);
         dbg!(&a);
-        assert_eq!(a, StripeSet::new(vec![StepRange::new(0 as i128, 5, 1)]));
+        assert_eq!(a, StripeSet::new(vec![StepRange::new(0, 5, 1)]));
     }
 
     #[test]

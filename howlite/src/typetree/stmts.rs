@@ -3,91 +3,25 @@ use std::rc::Rc;
 use crate::{
     langctx::{lexicalctx::LexicalContext, VarDef},
     symtab::Symbol,
-    typetree::{BinaryConstraintRelation, ModelVarRef},
+    typetree::ModelVarRef,
 };
 use aries::{
     backtrack::Backtrack,
     core::Lit,
-    model::{
-        extensions::Shaped,
-        lang::{
-            expr::{self, eq, gt, lt, or},
-            IVar,
-        },
-        Model,
-    },
+    model::{extensions::Shaped, lang::IVar},
     solver::Solver,
 };
-use howlite_syntax::ast::{ExprIf, ExprLet};
+use howlite_syntax::ast::{ExprIf, ExprLet, ExprWhile};
 use howlite_typecheck::{types::TyInt, Ty};
-use preseli::{constraints::OffsetLtConstraint, IntegerSet};
-use sunstone::{
-    multi::DynSet,
-    ops::{Bounded, IntersectMut, PartialBounded, SetOpIncludeExclude, SetSubtract, Union},
-    step_range::StepRange,
-};
-use tracing::debug;
-
-fn constrain_via_stripes<Lbl>(
-    model: &mut Model<Lbl>,
-    var: IVar,
-    stripes: impl Iterator<Item = StepRange<i128>>,
-    mut lbl_gen: impl FnMut() -> Lbl,
-) where
-    Lbl: std::fmt::Display + std::fmt::Debug + Clone + Eq + std::hash::Hash + Send + Sync + 'static,
-{
-    let mut options = Vec::new();
-
-    for step_range in stripes {
-        if step_range.is_size_one() {
-            options.push(model.reify(eq(var, *step_range.lo())));
-        } else if *step_range.step() == 1i128 {
-            options.push(model.reify(expr::and([
-                var.geq(step_range.lo().clone()),
-                var.leq(step_range.hi().clone()),
-            ])))
-        } else {
-            let step_var = model.new_ivar(0, step_range.size(), lbl_gen());
-            options.push(model.reify(eq(
-                var,
-                (step_var * *step_range.step()).var() + *step_range.lo(),
-            )))
-        }
-    }
-
-    model.enforce(or(options), []);
-}
-
-pub fn set_to_expr<Lbl>(
-    model: &mut Model<Lbl>,
-    name: Lbl,
-    set: &IntegerSet,
-    lbl_gen: impl FnMut() -> Lbl,
-) -> IVar
-where
-    Lbl: std::fmt::Display + std::fmt::Debug + Clone + Eq + std::hash::Hash + Send + Sync + 'static,
-{
-    let var = model.new_ivar(*set.get_range().lo(), *set.get_range().hi(), name);
-    match set.inner() {
-        sunstone::multi::DynSetData::Empty => todo!(),
-        sunstone::multi::DynSetData::Small(s) => {
-            constrain_via_stripes(model, var, s.stripes(), lbl_gen);
-        }
-        sunstone::multi::DynSetData::Contiguous => (),
-        sunstone::multi::DynSetData::Stripe(stripe_set) => {
-            constrain_via_stripes(model, var, stripe_set.stripes().cloned(), lbl_gen);
-        }
-    }
-
-    var
-}
+use preseli::IntegerSet;
+use sunstone::{multi::DynSet, ops::Union};
 
 pub fn determine_all_values<Lbl>(solver: &mut Solver<Lbl>, vars: &[IVar]) -> Vec<IntegerSet>
 where
     Lbl: std::fmt::Display + std::fmt::Debug + Clone + Eq + std::hash::Hash + Send + Sync + 'static,
 {
     let mut sets: Vec<IntegerSet> = Vec::with_capacity(vars.len());
-    sets.resize_with(vars.len(), || IntegerSet::empty());
+    sets.resize_with(vars.len(), IntegerSet::empty);
     while let Some(sol) = solver.solve().unwrap() {
         let mut clause = Vec::with_capacity(vars.len() * 2);
 
@@ -128,6 +62,49 @@ impl SynthesizeTy for ExprLet {
         );
 
         var_value_ty
+    }
+}
+
+impl SynthesizeTy for ExprWhile {
+    fn synthesize_ty(&self, ctx: &LexicalContext<'_, '_>) -> Rc<Ty<Symbol>> {
+        let cond_ctx = ctx.child(self.condition);
+        let mut constraints = ConstraintTree::new(cond_ctx);
+        let cond_term = constraints.get_constraint_term(self.condition);
+        let body_ctx = ctx.new_with_scope().child(self.body);
+
+        let cond_lit = constraints.model_builder.reify_term(cond_term.unwrap());
+        let model = constraints.model_builder.model.clone();
+
+        let modified_vars_model: Vec<IVar> = constraints
+            .modified_vars
+            .iter()
+            .map(|s| model.get_int_var(&ModelVarRef::HltVar(*s)).unwrap())
+            .collect();
+
+        let mut solver = Solver::new(model);
+        solver.reasoners.sat.add_clause([cond_lit]);
+
+        let new_values = determine_all_values(&mut solver, &modified_vars_model);
+        for (i, true_var_value) in new_values.into_iter().enumerate() {
+            let name = constraints.modified_vars[i];
+            let original_def = ctx.var_get_or_err(name);
+            let original_int_def = original_def.last_assignment.as_int().unwrap();
+            ctx.var_def(
+                name,
+                VarDef {
+                    assumed_ty: original_def.assumed_ty.clone(),
+                    last_assignment: Rc::new(Ty::Int(TyInt {
+                        values: true_var_value,
+                        storage: original_int_def.storage.clone(),
+                    })),
+                    is_mutable: original_def.is_mutable,
+                },
+            );
+        }
+
+        let _ = body_ctx.synthesize_ty();
+
+        Ty::unit().into()
     }
 }
 
@@ -192,7 +169,7 @@ mod test {
         typetree::test_helpers::{must_parse_expr, simple_scalar_let},
     };
 
-    use howlite_typecheck::t_int;
+    use howlite_typecheck::{shape::TypeShape, t_int};
     use proptest::prelude::*;
     use tracing_test::traced_test;
 
@@ -298,6 +275,28 @@ mod test {
             ctx.make_lexical_context(ctx.root_scope_id, block_node_id)
                 .synthesize_ty(),
             t_int!(2..11, 15)
+        )
+    }
+
+    #[test]
+    fn while_incrementing() {
+        let (block_node_id, ast) = must_parse_expr(
+            r#"{
+                let mut i : 0..10 = 0;
+                while i < 10 {
+                    // assignment not implemented...
+                    let j: 0..10 = i + 1;
+                }
+            }
+            "#,
+        );
+        let ctx = LangCtx::new(&ast);
+
+        assert_eq!(
+            ctx.make_lexical_context(ctx.root_scope_id, block_node_id)
+                .synthesize_ty()
+                .shape(),
+            TypeShape::UNIT
         )
     }
 }

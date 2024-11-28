@@ -5,7 +5,7 @@ pub mod range;
 pub mod step_range;
 pub mod stripeset;
 
-use std::fmt::Debug;
+use std::{fmt::Debug, ops::Neg};
 
 use num::CheckedAdd;
 use num_traits::{FromPrimitive, RefNum, ToPrimitive};

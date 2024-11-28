@@ -1,4 +1,4 @@
-use std::cmp::Ordering;
+use std::{cmp::Ordering, ops::Neg};
 
 use crate::{
     bitfield::BitField,
@@ -900,6 +900,23 @@ impl<I: SetElement> DynSet<I> {
                     }
                 }
             }
+        }
+    }
+}
+
+impl<I: SetElement + Neg<Output = I>> DynSet<I> {
+    pub fn neg_mut(&mut self) {
+        match &mut self.data {
+            DynSetData::Empty => (),
+            DynSetData::Small(s) => {
+                s.offset = -s.offset.clone() - I::from_usize(SMALL_SET_MAX_RANGE).unwrap();
+                s.elements.reverse();
+            }
+            DynSetData::Contiguous => {
+                let (lo, hi) = self.range.clone().into_tuple();
+                self.range = Range::new(-hi, -lo);
+            }
+            DynSetData::Stripe(s) => s.neg_mut(),
         }
     }
 }
