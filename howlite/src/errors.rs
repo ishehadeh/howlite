@@ -7,25 +7,18 @@ use dashmap::DashMap;
 use howlite_syntax::Span;
 use howlite_typecheck::{
     errors::{IncompatibleError, OperationError},
-    BindError, Ty,
+    AccessError, BindError, Ty,
 };
+use preseli::IntegerSet;
 use smol_str::SmolStr;
 use thiserror::Error;
 
 use crate::symtab::Symbol;
 
 /* #region ErrorSet */
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct ErrorSet {
     pub errors: DashMap<ErrorId, CompilationError>,
-}
-
-impl Default for ErrorSet {
-    fn default() -> Self {
-        Self {
-            errors: Default::default(),
-        }
-    }
 }
 
 impl ErrorSet {
@@ -70,7 +63,7 @@ pub struct ErrorEntry<'a> {
 
 impl<'a> ErrorEntry<'a> {
     pub fn id(&self) -> ErrorId {
-        self.inner.key().clone()
+        *self.inner.key()
     }
 
     pub fn error(&self) -> &CompilationError {
@@ -97,6 +90,12 @@ pub struct CompilationError {
 pub enum CompilationErrorKind {
     #[error("invalid arithmetic operation: {}", _0)]
     InvalidArithmetic(#[from] OperationError<Symbol>),
+
+    #[error("expected integer when accessing array, found: {:?}", _0)]
+    UnexpectedArrayAccessIndexTy(Rc<Ty<Symbol>>),
+
+    #[error("index may only be applied to array or slice, found: {:?}", _0)]
+    UnexpectedArrayAccessTy(Rc<Ty<Symbol>>),
 
     #[error("Type {:?}: expcted {} type parameters, got {}", ty, expected, got)]
     IncorrectTyParamCount {
@@ -126,6 +125,20 @@ pub enum CompilationErrorKind {
 
     #[error("expected integer bound to be a single Int, found: {got:?}")]
     InvalidIntegerBound { got: Rc<Ty<Symbol>> },
+
+    #[error("failed to access field '{field}' on type {base:?}: {source}")]
+    FieldDoesNotExists {
+        base: Rc<Ty<Symbol>>,
+        field: SmolStr,
+        #[source]
+        source: AccessError,
+    },
+
+    #[error("array access may be out of bounds: indexing with a value of type '{index:?}', on an array of type {base:?}")]
+    IndexDoesNotExists {
+        base: Rc<Ty<Symbol>>,
+        index: IntegerSet,
+    },
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]

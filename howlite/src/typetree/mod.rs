@@ -8,6 +8,7 @@
 //! On the other hand, most expressions are mapped to the type representing the set of possible values
 //! that would result from the given expression.
 
+mod access;
 mod atomic_exprs;
 mod constraint_term;
 mod constraint_tree;
@@ -69,9 +70,12 @@ impl SynthesizeTy for AstNodeData {
             }
 
             AstNodeData::ExprIf(v) => v.synthesize_ty(ctx),
-            AstNodeData::LiteralStructMember(_) => todo!(),
-            AstNodeData::FieldAccess(_) => todo!(),
-            AstNodeData::ArrayAccess(_) => todo!(),
+            AstNodeData::LiteralStructMember(_) => {
+                unreachable!("literal struct member should never appear in the AST")
+            }
+
+            AstNodeData::FieldAccess(f) => f.synthesize_ty(ctx),
+            AstNodeData::ArrayAccess(a) => a.synthesize_ty(ctx),
             AstNodeData::Repaired(_) => todo!(),
             AstNodeData::DefFunc(_) => todo!(),
             AstNodeData::DefParam(_) => todo!(),
@@ -86,7 +90,7 @@ impl SynthesizeTy for AstNodeData {
             AstNodeData::Program(_) => todo!(),
             AstNodeData::TyRef(_) => todo!(),
             AstNodeData::TyExprUnion(_) => todo!(),
-            AstNodeData::TyStruct(_) => todo!(),
+            AstNodeData::TyStruct(ts) => ts.synthesize_ty(ctx),
             AstNodeData::TyStructMember(_) => todo!(),
             AstNodeData::TyArray(_) => todo!(),
             AstNodeData::TyUnit(_) => todo!(),
