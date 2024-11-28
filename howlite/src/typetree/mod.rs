@@ -44,17 +44,33 @@ pub struct Implication {
 impl SynthesizeTy for AstNodeData {
     fn synthesize_ty(&self, ctx: &LexicalContext) -> Rc<Ty<Symbol>> {
         match self {
+            AstNodeData::Program(p) => {
+                for &def in &p.definitions {
+                    ctx.child(def).synthesize_ty();
+                }
+                Rc::new(Ty::unit())
+            }
+
+            // literals
             AstNodeData::LiteralInteger(n) => n.synthesize_ty(ctx),
             AstNodeData::LiteralString(n) => n.synthesize_ty(ctx),
             AstNodeData::LiteralChar(n) => n.synthesize_ty(ctx),
-            AstNodeData::ExprInfix(n) => n.synthesize_ty(ctx),
             AstNodeData::LiteralStruct(n) => n.synthesize_ty(ctx),
             AstNodeData::LiteralArray(n) => n.synthesize_ty(ctx),
-            AstNodeData::ExprLet(n) => n.synthesize_ty(ctx),
 
-            AstNodeData::TyNumberRange(n) => n.synthesize_ty(ctx),
+            // expression
+            AstNodeData::ExprInfix(n) => n.synthesize_ty(ctx),
             AstNodeData::Ident(n) => n.synthesize_ty(ctx),
-            AstNodeData::TyNamed(_) => todo!(),
+            AstNodeData::FieldAccess(f) => f.synthesize_ty(ctx),
+            AstNodeData::ArrayAccess(a) => a.synthesize_ty(ctx),
+            AstNodeData::ExprCall(_) => todo!(),
+            AstNodeData::ExprPrefix(_) => todo!(),
+            AstNodeData::ExprTypeConstruction(_) => todo!(),
+
+            // statement-like expressions
+            AstNodeData::ExprLet(n) => n.synthesize_ty(ctx),
+            AstNodeData::ExprWhile(_) => todo!(),
+            AstNodeData::ExprIf(v) => v.synthesize_ty(ctx),
             AstNodeData::Block(n) => {
                 let child_scope_ctx = ctx.new_with_scope();
 
@@ -69,23 +85,20 @@ impl SynthesizeTy for AstNodeData {
                 }
             }
 
-            AstNodeData::ExprIf(v) => v.synthesize_ty(ctx),
             
-
-            AstNodeData::FieldAccess(f) => f.synthesize_ty(ctx),
-            AstNodeData::ArrayAccess(a) => a.synthesize_ty(ctx),
             AstNodeData::Repaired(_) => todo!(),
-            AstNodeData::DefFunc(_) => todo!(),
-            AstNodeData::DefParam(_) => todo!(),
-            AstNodeData::DefImport(_) => todo!(),
-            AstNodeData::ExprCall(_) => todo!(),
-            AstNodeData::ExprPrefix(_) => todo!(),
-            AstNodeData::ExprTypeConstruction(_) => todo!(),
-            AstNodeData::ExprWhile(_) => todo!(),
+
+            // definitions
             AstNodeData::DefType(_) => todo!(),
             AstNodeData::DefExternFunc(_) => todo!(),
             AstNodeData::DefExternVar(_) => todo!(),
-            AstNodeData::Program(_) => todo!(),
+            AstNodeData::DefFunc(_) => todo!(),
+            AstNodeData::DefParam(_) => todo!(),
+            AstNodeData::DefImport(_) => todo!(),
+
+            // types
+            AstNodeData::TyNumberRange(n) => n.synthesize_ty(ctx),
+            AstNodeData::TyNamed(_) => todo!(),
             AstNodeData::TyRef(tr) => tr.synthesize_ty(ctx),
             AstNodeData::TyExprUnion(tu) => tu.synthesize_ty(ctx),
             AstNodeData::TyStruct(ts) => ts.synthesize_ty(ctx),
@@ -94,6 +107,7 @@ impl SynthesizeTy for AstNodeData {
             AstNodeData::TyParam(_) => todo!(),
             AstNodeData::TySlice(ts) => ts.synthesize_ty(ctx),
 
+            // unreachable nodes
             AstNodeData::TyStructMember(_) => unreachable!("TyStruct handles its children, we should never try to synthesize a TyStructMember directly"),
             AstNodeData::LiteralStructMember(_) => {
                 unreachable!("literal struct member should never appear in the AST")
