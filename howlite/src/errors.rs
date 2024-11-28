@@ -3,6 +3,7 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
+use aries::utils::input::Sym;
 use dashmap::DashMap;
 use howlite_syntax::Span;
 use howlite_typecheck::{
@@ -88,6 +89,9 @@ pub struct CompilationError {
 
 #[derive(Error, Debug, Clone)]
 pub enum CompilationErrorKind {
+    #[error("slice lengths must always be an integer. recieved: {:?}", _0)]
+    InvalidSliceLengthTy(Rc<Ty<Symbol>>),
+
     #[error("invalid arithmetic operation: {}", _0)]
     InvalidArithmetic(#[from] OperationError<Symbol>),
 

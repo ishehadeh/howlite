@@ -92,7 +92,7 @@ impl SynthesizeTy for AstNodeData {
             AstNodeData::TyArray(ta) => ta.synthesize_ty(ctx),
             AstNodeData::TyUnit(tu) => tu.synthesize_ty(ctx),
             AstNodeData::TyParam(_) => todo!(),
-            AstNodeData::TySlice(_) => todo!(),
+            AstNodeData::TySlice(ts) => ts.synthesize_ty(ctx),
 
             AstNodeData::TyStructMember(_) => unreachable!("TyStruct handles its children, we should never try to synthesize a TyStructMember directly"),
             AstNodeData::LiteralStructMember(_) => {

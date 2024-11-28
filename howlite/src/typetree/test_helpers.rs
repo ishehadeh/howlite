@@ -1,6 +1,6 @@
 use howlite_syntax::{
     ast::{
-        BoxAstNode, ExprLet, HigherOrderNode, LiteralArray, LiteralChar, LiteralInteger,
+        self, BoxAstNode, ExprLet, HigherOrderNode, LiteralArray, LiteralChar, LiteralInteger,
         LiteralString, LiteralStruct, LiteralStructMember, TyNumberRange, TyRef, TyStruct,
         TyStructMember,
     },
@@ -188,6 +188,16 @@ pub fn make_expr_let(name: impl Into<SmolStr>, ty: BoxAstNode, value: BoxAstNode
             ty,
             mutable: true,
             value,
+        },
+    )
+}
+
+pub fn make_ty_slice(element_ty: BoxAstNode, length_ty: BoxAstNode) -> BoxAstNode {
+    BoxAstNode::new(
+        Span::new(0, 0),
+        ast::TySlice {
+            element_ty,
+            length_ty,
         },
     )
 }

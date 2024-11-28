@@ -8,7 +8,7 @@ use howlite_syntax::{
 };
 use howlite_typecheck::{
     types::{StructField, TyInt, TyStruct},
-    Ty, TyArray, TyReference,
+    Ty, TyArray, TyReference, TySlice,
 };
 use preseli::IntegerSet;
 use smallvec::SmallVec;
@@ -32,6 +32,28 @@ impl SynthesizeTy for ast::TyArray {
             length: self.length as usize,
             element_ty,
         }))
+    }
+}
+
+impl SynthesizeTy for ast::TySlice {
+    fn synthesize_ty(&self, ctx: &LexicalContext<'_, '_>) -> Rc<Ty<Symbol>> {
+        let element_ty = ctx.child(self.element_ty).synthesize_ty();
+        let len_ty = ctx.child(self.length_ty).synthesize_ty();
+        if len_ty.as_int().is_none() {
+            ctx.error(CompilationErrorKind::InvalidSliceLengthTy(len_ty));
+            Rc::new(Ty::Slice(TySlice {
+                index_set: Rc::new(Ty::Int(TyInt::from_set(IntegerSet::new_from_range(
+                    0i128,
+                    u64::MAX as i128,
+                )))),
+                element_ty,
+            }))
+        } else {
+            Rc::new(Ty::Slice(TySlice {
+                index_set: len_ty,
+                element_ty,
+            }))
+        }
     }
 }
 
@@ -112,13 +134,16 @@ impl SynthesizeTy for ast::TyRef {
 
 #[cfg(test)]
 mod test {
-    use howlite_typecheck::{Ty, TyReference};
+    use std::rc::Rc;
+
+    use howlite_typecheck::{Ty, TyReference, TySlice};
     use proptest::proptest;
 
     use crate::{
         get_node_type,
         typetree::test_helpers::{
-            any_ty_number_range_with_literal, any_ty_struct_with_literal_scalars, make_reference_ty,
+            any_ty_number_range_with_literal, any_ty_struct_with_literal_scalars,
+            make_reference_ty, make_ty_slice,
         },
     };
 
@@ -128,6 +153,17 @@ mod test {
             let ty = get_node_type!(program);
             assert!(ty.as_int().is_some(), "expected int type, got: {:?}", ty);
         }
+
+        #[test]
+        fn synthesize_ty_slice_sanity(element_ty_node in any_ty_number_range_with_literal(), length_ty_node in any_ty_number_range_with_literal()) {
+            let element_ty = get_node_type!(element_ty_node.clone());
+            let length_ty = get_node_type!(length_ty_node.clone());
+            let slice_ty_node = make_ty_slice(element_ty_node, length_ty_node);
+            let slice_ty = get_node_type!(slice_ty_node);
+            assert_eq!(slice_ty, Rc::new(Ty::Slice(TySlice { index_set: length_ty, element_ty })));
+
+        }
+
 
         #[test]
         fn synthesize_ty_struct_succeedes(program in any_ty_struct_with_literal_scalars()) {
