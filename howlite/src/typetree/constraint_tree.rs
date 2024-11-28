@@ -1,6 +1,5 @@
 use hashbrown::HashMap;
 use howlite_syntax::{ast::InfixOp, tree::DefaultLinearTreeId, AstNodeData};
-use preseli::IntegerSet;
 
 use crate::{langctx::lexicalctx::LexicalContext, symtab::Symbol};
 

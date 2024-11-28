@@ -1,21 +1,16 @@
-use std::{cmp::Ordering, collections::HashMap, ops, path::Display, rc::Weak};
+use std::ops;
 
 use crate::symtab::Symbol;
 use aries::{
-    backtrack::Backtrack,
-    core::{Lit, VarRef},
+    core::Lit,
     model::{
         lang::{
-            self,
-            expr::{self, eq, gt, lt, or},
+            expr::{self, eq, or},
             linear::{LinearLeq, LinearSum},
-            IAtom, IVar, SAtom, SVar,
+            IAtom, IVar,
         },
         Model,
     },
-    reif::Reifiable,
-    solver::Solver,
-    utils::input::Sym,
 };
 use howlite_syntax::ast::InfixOp;
 use preseli::IntegerSet;
