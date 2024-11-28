@@ -40,7 +40,7 @@ impl<'a, 'b> LexicalContext<'a, 'b> {
     }
 
     pub fn get_scope(&self) -> ScopeId {
-        self.scope.clone()
+        self.scope
     }
 
     pub fn synthesize_ty(&self) -> Rc<Ty<Symbol>> {
@@ -49,7 +49,7 @@ impl<'a, 'b> LexicalContext<'a, 'b> {
 
     pub fn error(&self, err: CompilationErrorKind) {
         self.parent.error(CompilationError {
-            location: self.node_data().span.clone(),
+            location: self.node_data().span,
             kind: err,
         });
     }
