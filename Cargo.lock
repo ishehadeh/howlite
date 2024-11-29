@@ -421,6 +421,7 @@ dependencies = [
  "proptest",
  "rand",
  "rustc-hash",
+ "serde",
  "slotmap",
  "smallvec",
  "smol_str",

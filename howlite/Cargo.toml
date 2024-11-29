@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+tracing-subscriber = { version = "*", optional = true }
 howlite-syntax = { path = "../howlite-syntax", features = ["proptest"] }
 howlite-typecheck = { path = "../howlite-typecheck" }
 preseli = { path = "../preseli" }
@@ -20,7 +21,7 @@ rustc-hash = { version = "=2.0", default-features = false }
 tracing = "=0.1.40"
 aries = { path = "../../aries/solver", features = ["i128"] }
 clap = { version = "*", optional = true }
-tracing-subscriber = "*"
+serde = { version = "*", optional = true }
 
 
 [dev-dependencies]
@@ -30,7 +31,8 @@ proptest = { version = "=1.5.0" }
 tracing-test = "=0.2.5"
 
 [features]
-cli = ["dep:clap"]
+cli = ["dep:clap", "dep:tracing-subscriber"]
+serde = ["dep:serde"]
 
 [[bin]]
 name = "hlt-typecheck"
