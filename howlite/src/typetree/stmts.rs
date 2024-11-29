@@ -211,7 +211,7 @@ mod test {
         assert_eq!(
             ctx.make_lexical_context(ctx.root_scope_id, block_node_id)
                 .synthesize_ty(),
-            t_int!(5..10)
+            t_int!(5i128..0xffffffff)
         )
     }
 
