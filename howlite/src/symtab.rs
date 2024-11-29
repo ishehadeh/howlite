@@ -1,8 +1,4 @@
-use std::{
-    hash::{BuildHasher, DefaultHasher},
-    num::{NonZeroU32, NonZeroUsize},
-    sync::RwLock,
-};
+use std::{hash::BuildHasher, num::NonZeroUsize, sync::RwLock};
 
 use hashbrown::{DefaultHashBuilder, HashTable};
 use smol_str::SmolStr;
@@ -126,7 +122,7 @@ impl<'a, H: BuildHasher> SymbolTable<'a, H> {
     pub fn stringify(&self, sym: Symbol) -> Result<&'a str, SymbolTableError> {
         self.strings
             .get(sym.seq.get() - 1)
-            .map(|s| *s)
+            .copied()
             .ok_or(SymbolTableError::InvalidSymbol { symbol: sym })
     }
 
