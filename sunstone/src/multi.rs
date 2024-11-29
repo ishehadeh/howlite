@@ -1,5 +1,7 @@
 use std::{cmp::Ordering, ops::Neg};
 
+use tracing::{debug, instrument};
+
 use crate::{
     bitfield::BitField,
     ops::{
@@ -93,6 +95,7 @@ impl<I: SetElement> DynSet<I> {
     }
 
     // remove all elements above `n` and return them in a new set. (n is still in self)
+    #[instrument]
     pub fn take_above(&mut self, n: &I) -> Self {
         let lower = self.take_below(&(I::one() + n));
         // I love std::mem::replace :)
@@ -100,12 +103,15 @@ impl<I: SetElement> DynSet<I> {
     }
 
     /// Remove elements below `n`, and return them in a new set
+    #[instrument]
     pub fn take_below(&mut self, n: &I) -> Self {
         if self.is_empty() || self.range.lo() > n {
+            debug!(?n, lo = ?self.range.lo(), is_empty = self.is_empty(), "set is empty, or entirely under limit. Returning Self::empty()");
             return Self::empty();
         }
 
         if n > self.range.hi() {
+            debug!(?n, hi = ?self.range.hi(), "n > hi, swapping self with empty");
             return std::mem::replace(self, Self::empty());
         }
 
@@ -156,10 +162,14 @@ impl<I: SetElement> DynSet<I> {
                 }
             }
             DynSetData::Contiguous => {
+                let split_around_range = Range::new(n.clone() - I::one(), n.clone());
                 let (lo, hi) = self
                     .range
                     .clone()
                     .split_around(Range::new(n.clone() - I::one(), n.clone()));
+
+                debug!(?lo, ?hi, "splitting around range: {split_around_range:?}");
+
                 if let Some(hi) = hi {
                     self.range = hi
                 } else {
@@ -792,7 +802,7 @@ impl<'a, I: SetElement> ArithmeticSet<&'a Self, &'a I> for DynSet<I> {
                 self.sub_all(rhs);
             }
             (DynSetData::Contiguous, DynSetData::Contiguous) => {
-                self.range = rhs.range.clone() + self.range.clone();
+                self.range = self.range.clone() - rhs.range.clone();
             }
             (DynSetData::Contiguous, _) => {
                 self.upgrade_from_contiguous();

@@ -4,6 +4,7 @@ use sunstone::{
     multi::DynSet,
     ops::{ArithmeticSet, Bounded, PartialBounded, Union},
 };
+use tracing::{debug, instrument};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TyInt {
     pub values: IntegerSet,
@@ -97,6 +98,7 @@ impl TyInt {
         })
     }
 
+    #[instrument(skip(self, op))]
     pub fn apply_wrapping<F>(&self, rhs: &TyInt, op: F) -> Self
     where
         F: FnOnce(&IntegerSet, &IntegerSet) -> IntegerSet,
@@ -105,7 +107,9 @@ impl TyInt {
             values: op(&self.values, &rhs.values),
             storage: self.storage.clone(),
         };
+        debug!(?result, "operation applied, no normalization");
         result.storage.normalize(&mut result.values);
+        debug!(?result, "operation applied, normalized");
         result
     }
 }
@@ -133,21 +137,26 @@ impl StorageClass {
         }
     }
 
+    #[instrument()]
     pub fn normalize(&self, set: &mut IntegerSet) {
         // sanity checks, if this the follow isn't true we'll have problems...
         assert!(self.bits <= 64);
-        assert!(self.min_value() <= 0); // this is implied by the follow, but just in case...
+        assert!(self.min_value() <= 0); // this is implied by the following, but just in case...
         assert!(!self.is_signed || self.max_value() == (-self.min_value()) as u64 - 1);
         assert!(self.is_signed || self.min_value() == 0);
 
+        debug!(max = self.max_value(), min = self.min_value());
+
         // if the set has no bounds then it is empty, so there's nothing to do
         if let Some(range) = set.partial_bounds().map(|r| r.clone_endpoints()) {
-            // TODO: don't hard i128 here, instead use preseli::Scalar, or better yet make it generic
             let big_min = self.min_value() as i128;
             let big_max = self.max_value() as i128;
 
+            debug!(?set);
             let mut too_lo = set.take_below(&big_min);
             let mut too_hi = set.take_above(&big_max);
+
+            debug!(?too_lo, ?too_hi,);
 
             if let Some(too_lo_range) = too_lo.partial_bounds().map(|a| a.clone_endpoints()) {
                 too_lo.add_scalar(too_lo_range.lo());

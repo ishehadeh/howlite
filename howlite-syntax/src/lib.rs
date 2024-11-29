@@ -17,6 +17,7 @@ use allocator_api2::alloc::Allocator;
 use allocator_api2::alloc::Global;
 use allocator_api2::vec::Vec;
 use howlite_y::AstRef;
+pub use lrpar;
 use std::{env, error::Error};
 use tree::{Tree, TreeBuilder};
 

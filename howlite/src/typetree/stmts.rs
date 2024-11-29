@@ -15,18 +15,21 @@ use howlite_syntax::ast::{ExprIf, ExprLet, ExprWhile};
 use howlite_typecheck::{types::TyInt, Ty};
 use preseli::IntegerSet;
 use sunstone::{multi::DynSet, ops::Union};
+use tracing::{debug, instrument};
 
+#[instrument(skip(solver))]
 pub fn determine_all_values<Lbl>(solver: &mut Solver<Lbl>, vars: &[IVar]) -> Vec<IntegerSet>
 where
     Lbl: std::fmt::Display + std::fmt::Debug + Clone + Eq + std::hash::Hash + Send + Sync + 'static,
 {
     let mut sets: Vec<IntegerSet> = Vec::with_capacity(vars.len());
     sets.resize_with(vars.len(), IntegerSet::empty);
-    while let Some(sol) = solver.solve().unwrap() {
+    while solver.propagate_and_backtrack_to_consistent() {
         let mut clause = Vec::with_capacity(vars.len() * 2);
 
         for (var, set) in vars.iter().zip(&mut sets) {
-            let (lower, upper) = sol.bounds((*var).into());
+            let (lower, upper) = solver.model.state.bounds((*var).into());
+            debug!(?var, ?lower, ?upper);
 
             set.union(DynSet::new_from_range(lower, upper));
 
@@ -169,8 +172,9 @@ mod test {
         typetree::test_helpers::{must_parse_expr, simple_scalar_let},
     };
 
-    use howlite_typecheck::{shape::TypeShape, t_int};
+    use howlite_typecheck::{shape::TypeShape, t_int, types::TyInt, Ty};
     use proptest::prelude::*;
+    use tracing::instrument;
     use tracing_test::traced_test;
 
     proptest! {
@@ -182,6 +186,7 @@ mod test {
         }
     }
 
+    #[instrument]
     #[test]
     fn narrowing_eq_unary() {
         let (block_node_id, ast) = must_parse_expr(
@@ -198,8 +203,8 @@ mod test {
             ctx.root_scope_id,
             ctx.symbols.intern("a"),
             VarDef {
-                assumed_ty: t_int!(0..10),
-                last_assignment: t_int!(0..10),
+                assumed_ty: Ty::Int(TyInt::u32()).into(),
+                last_assignment: Ty::Int(TyInt::u32()).into(),
                 is_mutable: true,
             },
         );

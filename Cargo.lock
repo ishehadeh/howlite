@@ -412,6 +412,7 @@ dependencies = [
  "allocator-api2",
  "aries",
  "bumpalo",
+ "clap",
  "dashmap",
  "hashbrown 0.15.1",
  "howlite-syntax",
@@ -426,6 +427,7 @@ dependencies = [
  "sunstone",
  "thiserror 2.0.3",
  "tracing",
+ "tracing-subscriber",
  "tracing-test",
 ]
 

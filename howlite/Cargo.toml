@@ -19,11 +19,19 @@ smol_str = "=0.3.2"
 rustc-hash = { version = "=2.0", default-features = false }
 tracing = "=0.1.40"
 aries = { path = "../../aries/solver", features = ["i128"] }
+clap = { version = "*", optional = true }
+tracing-subscriber = "*"
+
+
 [dev-dependencies]
 # used for stress-testing symbol table
 rand = { version = "=0.8.5" }
 proptest = { version = "=1.5.0" }
 tracing-test = "=0.2.5"
 
+[features]
+cli = ["dep:clap"]
+
 [[bin]]
 name = "hlt-typecheck"
+required-features = ["cli"]

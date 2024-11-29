@@ -1,5 +1,6 @@
 use hashbrown::HashMap;
 use howlite_syntax::{tree::DefaultLinearTreeId, AstNodeData};
+use tracing::instrument;
 
 use crate::{langctx::lexicalctx::LexicalContext, symtab::Symbol};
 
@@ -22,6 +23,7 @@ impl<'b, 'c> ConstraintTree<'b, 'c> {
         }
     }
 
+    #[instrument(skip(self))]
     fn gen_constraint_term(&mut self, node_id: DefaultLinearTreeId) -> Option<Term> {
         let child_node = self.lexical_context.get_node(node_id);
         match &child_node.data {

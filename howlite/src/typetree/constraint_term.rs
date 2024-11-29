@@ -5,7 +5,7 @@ use aries::{
     core::Lit,
     model::{
         lang::{
-            expr::{self, eq, or},
+            expr::{self, eq, geq, gt, leq, lt, neq, or},
             linear::{LinearLeq, LinearSum},
             IAtom, IVar,
         },
@@ -18,6 +18,7 @@ use sunstone::{
     ops::{Bounded, PartialBounded},
     step_range::StepRange,
 };
+use tracing::{instrument, trace};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ConstraintOp {
@@ -47,6 +48,7 @@ impl std::fmt::Display for ModelVarRef {
 pub enum Term {
     Linear(LinearSum),
     Cond(Vec<Lit>),
+    Atom(IAtom),
 }
 
 pub enum Cmp {
@@ -72,16 +74,34 @@ impl Term {
     fn cmp(self, rhs: Self, cmp: Cmp, model: &mut Model<ModelVarRef>) -> Self {
         let (lhs, rhs) = match (self, rhs) {
             (Term::Linear(lhs), Term::Linear(rhs)) => (lhs, rhs),
+            (Term::Linear(lhs), Term::Atom(rhs)) => (lhs, LinearSum::of(vec![rhs])),
+            (Term::Atom(lhs), Term::Linear(rhs)) => (LinearSum::of(vec![lhs]), rhs),
+            (Term::Atom(lhs), Term::Atom(rhs)) => {
+                trace!(?lhs, ?rhs, "reifying atom comparison");
+
+                let lit = match cmp {
+                    Cmp::Leq => model.reify(leq(lhs, rhs)),
+                    Cmp::Lt => model.reify(lt(lhs, rhs)),
+                    Cmp::Geq => model.reify(geq(lhs, rhs)),
+                    Cmp::Gt => model.reify(gt(lhs, rhs)),
+                    Cmp::Eq => model.reify(eq(lhs, rhs)),
+                    Cmp::Ne => model.reify(neq(lhs, rhs)),
+                };
+                return Self::Cond(vec![lit]);
+            }
+
             _ => todo!(),
         };
-        rhs.simplify();
-        lhs.simplify();
+
+        let diff = (lhs.simplify() - rhs.simplify()).simplify();
+
+        trace!(?diff, "simplified lhs - rhs");
 
         let linear_leq = match cmp {
-            Cmp::Gt => LinearLeq::new(lhs - rhs, 1),
-            Cmp::Lt => LinearLeq::new(lhs - rhs, -1),
-            Cmp::Geq => LinearLeq::new(-(lhs - rhs), 0),
-            Cmp::Leq => LinearLeq::new(lhs - rhs, 0),
+            Cmp::Gt => LinearLeq::new(diff, 1),
+            Cmp::Lt => LinearLeq::new(diff, -1),
+            Cmp::Geq => LinearLeq::new(-diff, 0),
+            Cmp::Leq => LinearLeq::new(diff, 0),
             _ => todo!(),
         };
         Self::Cond(vec![model.reify(linear_leq)])
@@ -95,6 +115,9 @@ impl ops::Add<Term> for Term {
         match (self, rhs) {
             (Term::Linear(lhs), Term::Linear(rhs)) => Self::Linear(lhs + rhs),
             (Term::Cond(_), _) | (_, Term::Cond(_)) => todo!(),
+            (Term::Linear(lhs), Term::Atom(rhs)) => Self::Linear(lhs + rhs),
+            (Term::Atom(lhs), Term::Linear(rhs)) => Self::Linear(rhs + lhs),
+            (Term::Atom(lhs), Term::Atom(rhs)) => Self::Linear(LinearSum::of(vec![lhs, rhs])),
         }
     }
 }
@@ -106,6 +129,9 @@ impl ops::Sub<Term> for Term {
         match (self, rhs) {
             (Term::Linear(lhs), Term::Linear(rhs)) => Self::Linear(lhs - rhs),
             (Term::Cond(_), _) | (_, Term::Cond(_)) => todo!(),
+            (Term::Linear(lhs), Term::Atom(rhs)) => Self::Linear(lhs - rhs),
+            (Term::Atom(lhs), Term::Linear(rhs)) => Self::Linear(-rhs + lhs),
+            (Term::Atom(lhs), Term::Atom(rhs)) => Self::Linear(LinearSum::of(vec![lhs, rhs])),
         }
     }
 }
@@ -128,7 +154,9 @@ impl ops::Mul<Term> for Term {
                     None
                 }
             }
+
             (Term::Cond(_), _) | (_, Term::Cond(_)) => todo!(),
+            _ => todo!(),
         }
     }
 }
@@ -154,18 +182,22 @@ impl ModelBuilder {
 
     pub fn reify_term(&mut self, term: Term) -> Lit {
         match term {
+            Term::Atom(a) => self.model.reify(a.ge_lit(1)),
             Term::Linear(linear_sum) => {
                 linear_sum.simplify();
                 self.model.reify(linear_sum.geq(1))
             }
+
             Term::Cond(vec) => self.model.reify(expr::and(vec)),
         }
     }
 
+    #[instrument(skip(self, stripes))]
     fn constrain_via_stripes(&mut self, var: IVar, stripes: impl Iterator<Item = StepRange<i128>>) {
         let mut options = Vec::new();
 
         for step_range in stripes {
+            trace!(?step_range, "handling stripe");
             if step_range.is_size_one() {
                 options.push(self.model.reify(eq(var, *step_range.lo())));
             } else if *step_range.step() == 1i128 {
@@ -205,7 +237,7 @@ impl ModelBuilder {
             }
         }
 
-        Term::Linear(IAtom::new(var, 0).into())
+        Term::Atom(IAtom::new(var, 0))
     }
 
     pub fn add_lit(&mut self, set: &IntegerSet) -> Term {
@@ -213,7 +245,7 @@ impl ModelBuilder {
         let bounds = set.partial_bounds().unwrap();
 
         if bounds.len() == 1 {
-            Term::Linear(IAtom::new(IVar::ZERO, **bounds.lo()).into())
+            Term::Atom(IAtom::new(IVar::ZERO, **bounds.lo()))
         } else {
             let next_var = self.next_var_index();
             self.add_set_to_model(ModelVarRef::Lit(next_var), set)
@@ -221,13 +253,16 @@ impl ModelBuilder {
     }
 
     pub fn add_lit_single(&mut self, set: i128) -> Term {
-        Term::Linear(IAtom::new(IVar::ZERO, set).into())
+        trace!(value = set, "adding constant ivar");
+        Term::Atom(IAtom::new(IVar::ZERO, set))
     }
 
     pub fn add_var(&mut self, name: Symbol, ty: &IntegerSet) -> Term {
+        trace!(value = ?ty, ?name, "adding variable");
         self.add_set_to_model(ModelVarRef::HltVar(name), ty)
     }
 
+    #[instrument(skip(self))]
     pub fn do_infix(&mut self, lhs: Term, op: InfixOp, rhs: Term) -> Option<Term> {
         match op {
             InfixOp::Add => Some(lhs + rhs),

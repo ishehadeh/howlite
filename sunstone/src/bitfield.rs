@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use num::ToPrimitive;
-use tracing::{debug, field::debug};
+use tracing::{debug, field::debug, instrument};
 
 use crate::{
     ops::{self, ArithmeticSet, Bounded, IntersectMut, SetOpIncludes, SetSubtract, UnionMut},
@@ -717,6 +717,7 @@ impl<const WIDTH: usize> ArithmeticSet<&Self, usize> for BitField<WIDTH> {
         todo!("div_scalar");
     }
 
+    #[instrument]
     fn mod_scalar(&mut self, rhs: usize) {
         // divide the set into n slices:
         //  M_1 = [rhs, 2*rhs)
@@ -728,9 +729,10 @@ impl<const WIDTH: usize> ArithmeticSet<&Self, usize> for BitField<WIDTH> {
 
         let mut split_point = rhs;
 
-        while split_point <= WIDTH * Self::block_width() {
+        while split_point < WIDTH * Self::block_width() {
             let mut lo_block_ind = 0;
             let end: usize = (split_point + rhs - 1).min(Self::block_width() * WIDTH - 1);
+
             let len = end - split_point;
             let num_blocks = len / Self::block_width();
             for i in 0..num_blocks {

@@ -219,7 +219,7 @@ where
 
         // first, if some ranges are entirely above the split, get those
         for (i, range) in self.ranges.iter().enumerate().rev() {
-            if range.lo() > num {
+            if range.lo() >= num {
                 first_el_to_remove = Some(i);
                 break;
             }
@@ -241,14 +241,12 @@ where
         Self::new(new)
     }
 
+    #[instrument]
     pub fn modulo(&mut self, n: &I) {
         while self.get_range().is_some_and(|r| r.hi() >= n) {
             let mut hi = self.split_at_exclusive(n);
-            dbg!(&hi);
             hi.arith_sub_scalar(n);
-            dbg!(&hi);
             self.union(hi);
-            dbg!(&self);
         }
     }
 

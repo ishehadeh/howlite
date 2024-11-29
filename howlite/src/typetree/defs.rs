@@ -123,6 +123,12 @@ impl SynthesizeTy for ast::DefFunc {
             "TyBinder errors while instantiating defaults = {:?}",
             ty_binder.errors()
         );
+        ctx.func_def(FuncDef {
+            name: name_sym,
+            params,
+            ty_params,
+            returns: return_ty.clone(),
+        });
         let body_ty = body_ctx.synthesize_ty();
 
         if let Err(e) = body_ty.is_assignable_to(&instantiated_return_ty) {
@@ -132,12 +138,7 @@ impl SynthesizeTy for ast::DefFunc {
                 source: e,
             });
         }
-        ctx.func_def(FuncDef {
-            name: name_sym,
-            params,
-            ty_params,
-            returns: return_ty,
-        });
+
         Ty::unit().into()
     }
 }

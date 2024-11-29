@@ -48,39 +48,23 @@ impl<T: std::cmp::Ord> Range<T> {
         // you could do this much easier with two `if` trees
         // This stupid match is to convince the compiler I wont use-after-move
         // there's likely an easier way, but this works ok.
-        match (
-            inner_lo.cmp(&abs_hi),
-            inner_hi.cmp(&abs_lo),
-            inner_hi.cmp(&abs_hi),
-            inner_lo.cmp(&abs_lo),
-        ) {
-            // inner exceeds the self:
-            //   > self
-            (Ordering::Greater, _, _, _) => (Some(Self::new(abs_lo, abs_hi)), None),
-
-            //   < self
-            (_, Ordering::Less, _, _) => (None, Some(Self::new(abs_lo, abs_hi))),
-
-            // inner is entirely within self
-            (_, _, Ordering::Less, Ordering::Greater) => (
-                Some(Self::new(abs_lo, inner_lo)),
-                Some(Self::new(inner_hi, abs_hi)),
-            ),
-
-            // inner covers self completely
-            (_, _, Ordering::Greater | Ordering::Equal, Ordering::Less | Ordering::Equal) => {
-                (None, None)
-            }
-
-            // partial cover:
-            //   self.lo covered by inner
-            (_, _, Ordering::Greater | Ordering::Equal, Ordering::Greater) => {
-                (None, Some(Self::new(inner_hi, abs_hi)))
-            }
-
-            (_, _, Ordering::Less, Ordering::Less | Ordering::Equal) => {
-                (Some(Self::new(abs_lo, inner_hi)), None)
-            }
+        if inner_hi <= abs_lo {
+            (None, Some(Range::new(abs_lo, abs_hi)))
+        } else if inner_lo >= abs_hi {
+            (Some(Range::new(abs_lo, abs_hi)), None)
+        } else if inner_hi >= abs_hi && inner_lo <= abs_lo {
+            (Some(Range::new(abs_lo, abs_hi)), None)
+        } else if inner_hi <= abs_hi && inner_lo >= abs_lo {
+            (
+                Some(Range::new(abs_lo, inner_lo)),
+                Some(Range::new(inner_hi, abs_hi)),
+            )
+        } else if inner_hi > abs_hi && inner_lo >= abs_lo {
+            (Some(Range::new(abs_lo, inner_lo)), None)
+        } else if inner_lo < abs_lo && inner_hi <= abs_hi {
+            (None, Some(Range::new(inner_hi, abs_hi)))
+        } else {
+            panic!("seems like we forgot a case");
         }
     }
 }

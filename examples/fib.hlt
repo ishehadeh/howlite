@@ -1,0 +1,31 @@
+type AlmostU32 = 0..0x0fffffff;
+
+
+func fib(n: AlmostU32): AlmostU32 {
+    if n < 2 {
+        n
+    } else {
+        let a: AlmostU32 = fib(n - 1);
+        let b: AlmostU32 = fib(n - 2);
+        
+        if 0x0fffffff - b + 1 > a {
+            a + b // uh-oh overflow
+        } else {
+            0
+        }
+    }
+}
+
+type u32 = 0..0xffffffff;
+
+
+func fib2(n: u32): u32 {
+    if n < 2 {
+        n
+    } else {
+        let a: u32 = fib2(n - 1);
+        let b: u32 = fib2(n - 2);
+        // overflow ok, since we'd wrap around to a value within u32
+        a + b
+    }
+}
