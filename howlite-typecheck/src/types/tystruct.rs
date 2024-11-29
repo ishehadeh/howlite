@@ -20,6 +20,16 @@ impl<SymbolT: Symbol> TyStruct<SymbolT> {
     pub fn iter(&self) -> impl DoubleEndedIterator<Item = &StructField<SymbolT>> {
         self.fields.iter()
     }
+
+    pub fn offset_of_field(&self, field: SymbolT) -> usize {
+        assert!(self.fields.iter().any(|f| f.name == field));
+
+        self.fields
+            .iter()
+            .take_while(|f| f.name != field)
+            .map(|f| f.ty.sizeof())
+            .sum()
+    }
 }
 
 impl<SymbolT: Symbol> TyStruct<SymbolT> {

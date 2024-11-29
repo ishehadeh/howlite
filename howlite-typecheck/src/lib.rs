@@ -189,8 +189,8 @@ impl<SymbolT: Symbol> Ty<SymbolT> {
             // TODO: (array/struct) will we pad at all?
             Ty::Struct(s) => s.fields.iter().map(|f| f.ty.sizeof()).sum(),
             Ty::Array(arr) => arr.element_ty.sizeof() * arr.length,
-            Ty::Slice(_) => 8, // TODO: depends on ptr size...
-            Ty::Reference(_) => 4,
+            Ty::Slice(_) => 16, // TODO: depends on ptr size...
+            Ty::Reference(_) => 8,
             Ty::Union(u) => u.tys.iter().map(|f| f.sizeof()).max().unwrap_or(0),
             Ty::LateBound(binding) => {
                 panic!("late bound type wasn't resolved: binding={:?}", binding)

@@ -22,7 +22,7 @@ tracing = "=0.1.40"
 aries = { path = "../../aries/solver", features = ["i128"] }
 clap = { version = "*", optional = true }
 serde = { version = "*", optional = true }
-
+bitvec = "*"
 
 [dev-dependencies]
 # used for stress-testing symbol table
