@@ -8,6 +8,18 @@ pub struct RegisterSet {
     bits: NonZeroU32,
 }
 
+impl std::fmt::Debug for RegisterSet {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for (i, reg) in self.into_iter().enumerate() {
+            f.write_str(&reg.to_abi_name())?;
+            if i != self.count() - 1 {
+                f.write_str(" | ")?
+            }
+        }
+        Ok(())
+    }
+}
+
 macro_rules! impl_register_set {
     (@impl_consts { index = $index:expr; registers = [$first_reg:ident, $($rest_reg:ident),*] } ) => {
         impl_register_set! {
@@ -227,6 +239,24 @@ impl RegisterSet {
                 "merge resulted in empty set, this should be impossible given well formed input"
             ),
         }
+    }
+
+    pub const fn count(&self) -> usize {
+        self.bits.get().count_ones() as usize
+    }
+
+    pub const fn first(&self) -> Register {
+        let Some(reg) = Register::from_raw(self.bits.get().trailing_zeros() as u8) else {
+            panic!("RegisterSet::first(): bit index could not be converted into a register",);
+        };
+        reg
+    }
+
+    pub const fn last(&self) -> Register {
+        let Some(reg) = Register::from_raw(self.bits.get().leading_zeros() as u8) else {
+            panic!("RegisterSet::first(): bit index could not be converted into a register");
+        };
+        reg
     }
 
     pub const fn include(self, other: Self) -> Self {

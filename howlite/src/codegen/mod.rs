@@ -1,9 +1,11 @@
 use howlite_syntax::{ast, tree::DefaultLinearTreeId};
-use riscv::{asmgen::AssemblyWriter, RegisterSet, Slot, Value};
+use regalloc::RegisterAllocator;
+use riscv::{asmgen::AssemblyWriter, Register, Slot, Value};
 use stack_state::StackState;
 
 use crate::langctx::ScopeId;
 
+pub mod regalloc;
 pub mod riscv;
 pub mod stack_state;
 
@@ -11,17 +13,29 @@ pub trait CodeGen {
     fn codegen(&self, ctx: &mut CodeGenCtx);
 }
 
-pub struct CodeGenCtx<'a> {
-    pub machine: &'a StackState,
+pub struct CodeGenCtx {
+    pub stack: StackState,
+    pub regs: RegisterAllocator,
+
     pub asm: AssemblyWriter,
-    pub free_registers: RegisterSet,
     pub scope: ScopeId,
     pub node: DefaultLinearTreeId,
     pub result: Option<Value>,
 }
 
-impl<'a> CodeGenCtx<'a> {
-    pub fn alloc_slot(&mut self, size: usize) -> Slot {}
+impl CodeGenCtx {
+    pub fn alloc_slot(&mut self, size: usize) -> Slot {
+        if size <= 8 {
+            if let Some(reg) = self.regs.allocate() {
+                return Slot::Register(reg);
+            }
+        }
+        let stack_offset = self.stack.alloc(size);
+        Slot::Indirect {
+            base: Box::new(Slot::Register(Register::Sp)),
+            offset: -stack_offset,
+        }
+    }
     pub fn write_slot(&mut self) -> Slot {
         todo!()
     }

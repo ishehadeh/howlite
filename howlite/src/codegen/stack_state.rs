@@ -38,9 +38,8 @@ impl StackState {
         }
 
         if let Some((offset, size)) = offset_size {
-            for i in offset..offset + size {
-                self.bytes.set(i, false);
-            }
+            self.bytes.as_mut_bitslice()[offset..offset + size].fill(false);
+
             offset as i32
         } else {
             let offset = self.bytes.len();
@@ -50,9 +49,7 @@ impl StackState {
     }
 
     pub fn free(&mut self, offset: usize, size: usize) {
-        for i in offset..offset + size {
-            self.bytes.set(i, true);
-        }
+        self.bytes.as_mut_bitslice()[offset..offset + size].fill(true);
     }
 
     fn size(&self) -> usize {
