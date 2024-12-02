@@ -238,7 +238,8 @@ If a synthesized type is not a subset of the assumed type, then a type error is 
 
 == Scalars<sc-scalars>
 
-There is a single scalar type in Howlite, this simplifies the type checking by condensing many cases into a single, generic case. There are no distinct enumerable types, true boolean types, or even a unit type in the language. Instead of distinct types, we have the scalar type "Integer" (floating point numbers are out of scope). A scalar type may be any set of Integers.
+There is a single scalar type in Howlite, this simplifies the type checking by condensing many cases into a single, generic case. There are no distinct enumerable types, true boolean types, or even a unit type in the language. Instead of distinct types, we have the scalar type "Integer" (floating point numbers are out of scope). 
+This collection of types contains any set of integers that can fit within a single general-purpose register on the target architecture.
 
 === Synthesis of Scalars
 
