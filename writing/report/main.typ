@@ -241,6 +241,9 @@ If a synthesized type is not a subset of the assumed type, then a type error is 
 There is a single scalar type in Howlite, this simplifies the type checking by condensing many cases into a single, generic case. There are no distinct enumerable types, true boolean types, or even a unit type in the language. Instead of distinct types, we have the scalar type "Integer" (floating point numbers are out of scope). 
 This collection of types contains any set of integers that can fit within a single general-purpose register on the target architecture.
 
+Going forward, integer types will be expressed using the language's syntax: `1 | 3 | 5` is a type which can be constructed from any of the integers `1`, `3`, or `5`.
+The type `1..10` can be constructed from `1`, `10`, or any integer between the two.
+
 === Synthesis of Scalars
 
 As seen above, a scalar may be synthesized from a single value, for example, the type of $-5$ is ${ -5 }$. We can also construct new scalars using arithmetic operations:
