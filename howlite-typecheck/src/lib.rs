@@ -114,12 +114,40 @@ macro_rules! _impl_as {
         }
     };
 }
+
+macro_rules! _impl_as_mut {
+    ($fn_name:ident($variant:path) => $t:ty) => {
+        pub fn $fn_name(&mut self) -> Option<$t> {
+            match self {
+                $variant(r) => Some(r.clone()),
+                _ => None,
+            }
+        }
+    };
+
+    ($fn_name:ident(& $variant:path) => $t:ty) => {
+        pub fn $fn_name(&mut self) -> Option<$t> {
+            match self {
+                $variant(r) => Some(r),
+                _ => None,
+            }
+        }
+    };
+}
 impl<SymbolT: Symbol> Ty<SymbolT> {
     /// A type with a single value
     pub const fn unit() -> Self {
         Ty::Struct(TyStruct {
             fields: SmallVec::new_const(),
         })
+    }
+
+    pub fn unwrap_late_bound(t: Rc<Ty<SymbolT>>) -> Rc<Ty<SymbolT>> {
+        if let Some(lb) = t.as_late_bound() {
+            lb.ty.clone()
+        } else {
+            t
+        }
     }
 
     pub fn shape(&self) -> TypeShape {
@@ -168,6 +196,8 @@ impl<SymbolT: Symbol> Ty<SymbolT> {
             Rc::new(Ty::Union(TyUnion { tys: values }))
         }
     }
+
+    _impl_as_mut!(as_struct_mut(&Ty::Struct) => &mut TyStruct<SymbolT>);
 
     _impl_as!(as_struct(&Ty::Struct) => &TyStruct<SymbolT>);
     _impl_as!(as_int(&Ty::Int) => &TyInt);
@@ -281,6 +311,109 @@ impl<SymbolT: Symbol> Ty<SymbolT> {
             }
 
             union_tys.push(struc_field.ty.clone())
+        }
+
+        if union_tys.len() == 1 {
+            Ok(union_tys[0].clone())
+        } else {
+            Ok(Rc::new(Ty::Union(TyUnion { tys: union_tys })))
+        }
+    }
+
+    pub fn access_path(
+        &self,
+        path: &[AccessPathElem<SymbolT>],
+    ) -> Result<Rc<Ty<SymbolT>>, AccessError> {
+        if path.is_empty() {
+            return Ok(Rc::new(self.clone()));
+        }
+
+        match &path[0] {
+            AccessPathElem::ArrayAccess(i) => self.access_index(*i)?.access_path(&path[1..]),
+            AccessPathElem::Deref => todo!(),
+            AccessPathElem::StructAccess(f) => {
+                self.access_field(f.clone())?.access_path(&path[1..])
+            }
+        }
+    }
+
+    pub fn assign_path(
+        &self,
+        path: &[AccessPathElem<SymbolT>],
+        val: Rc<Ty<SymbolT>>,
+    ) -> Result<Rc<Ty<SymbolT>>, AccessError> {
+        if path.is_empty() {
+            return Ok(val);
+        }
+
+        match self {
+            Ty::Hole => Ok(Rc::new(Ty::Hole)),
+            Ty::Int(_) => Err(AccessError::IllegalFieldAccess),
+            Ty::Struct(_) | Ty::Union(_) => match &path[0] {
+                AccessPathElem::StructAccess(f) => self.assign_field(
+                    f.clone(),
+                    self.access_field(f.clone())?.assign_path(&path[1..], val)?,
+                ),
+                _ => Err(AccessError::IllegalFieldAccess),
+            },
+            Ty::Array(_) => Ok(Rc::new(self.clone())),
+            Ty::Slice(_) => Ok(Rc::new(self.clone())),
+            Ty::Reference(r) => match path[0] {
+                AccessPathElem::Deref => Ok(Rc::new(Ty::Reference(TyReference {
+                    referenced_ty: self.assign_path(&path[1..], r.referenced_ty.clone())?,
+                }))),
+                _ => todo!("gracefully handle deref"),
+            },
+            Ty::LateBound(l) => Ok(Rc::new(Ty::LateBound(TyLateBound {
+                name: l.name.clone(),
+                ty: self.assign_path(&path[1..], l.ty.clone())?,
+            }))),
+        }
+    }
+
+    pub fn assign_field(
+        &self,
+        access_symbol: SymbolT,
+        val: Rc<Ty<SymbolT>>,
+    ) -> Result<Rc<Ty<SymbolT>>, AccessError> {
+        let mut strucs = match self {
+            Ty::Struct(s) => vec![s],
+            Ty::Union(u) => u
+                .tys
+                .iter()
+                .map(|t| t.as_struct().ok_or(AccessError::NonStructUnionVariant))
+                .try_collect_poly()?,
+            Ty::Hole => return Ok(Rc::new(Ty::Hole)),
+            _ => return Result::Err(AccessError::IllegalFieldAccess),
+        };
+        let field_idx_with_offset: Vec<(usize, usize)> = strucs
+            .iter_mut()
+            .map(|s| {
+                let mut offset = 0;
+                for (i, field) in s.fields.iter().enumerate() {
+                    if field.name == access_symbol {
+                        return Ok((offset, i));
+                    }
+                    offset += field.ty.sizeof();
+                }
+
+                Err(AccessError::FieldMissingInUnionVariant)
+            })
+            .try_collect_poly()?;
+
+        let req_offset = field_idx_with_offset[0].0;
+        let mut union_tys: SmallVec<[Rc<Ty<SymbolT>>; 8]> = SmallVec::new();
+        for (i, (offset, struc_field)) in field_idx_with_offset.iter().enumerate() {
+            if *offset != req_offset {
+                return Err(AccessError::FieldMisaligned);
+            } else if val
+                .is_assignable_to(&strucs[i].fields[*struc_field].ty)
+                .is_ok()
+            {
+                let mut new_struc = strucs[i].clone();
+                new_struc.fields[i].ty = val.clone();
+                union_tys.push(Rc::new(Ty::Struct(new_struc)));
+            }
         }
 
         if union_tys.len() == 1 {

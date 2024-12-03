@@ -29,7 +29,7 @@ pub enum ConstraintOp {
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 
 pub enum ModelVarRef {
-    HltVar(Symbol),
+    HltVar(usize),
     StepRange(usize),
     Lit(usize),
 }
@@ -180,6 +180,10 @@ impl ModelBuilder {
         i
     }
 
+    pub fn hlt_var_id(&mut self) -> ModelVarRef {
+        ModelVarRef::HltVar(self.next_var_index())
+    }
+
     pub fn reify_term(&mut self, term: Term) -> Lit {
         match term {
             Term::Atom(a) => self.model.reify(a.ge_lit(1)),
@@ -257,9 +261,9 @@ impl ModelBuilder {
         Term::Atom(IAtom::new(IVar::ZERO, set))
     }
 
-    pub fn add_var(&mut self, name: Symbol, ty: &IntegerSet) -> Term {
+    pub fn add_var(&mut self, name: ModelVarRef, ty: &IntegerSet) -> Term {
         trace!(value = ?ty, ?name, "adding variable");
-        self.add_set_to_model(ModelVarRef::HltVar(name), ty)
+        self.add_set_to_model(name, ty)
     }
 
     #[instrument(skip(self))]
@@ -269,8 +273,8 @@ impl ModelBuilder {
             InfixOp::Sub => Some(lhs - rhs),
 
             InfixOp::Mul => lhs * rhs,
-            InfixOp::CmpNe => todo!(),
-            InfixOp::CmpEq => todo!(),
+            InfixOp::CmpNe => Some(lhs.cmp(rhs, Cmp::Ne, &mut self.model)),
+            InfixOp::CmpEq => Some(lhs.cmp(rhs, Cmp::Eq, &mut self.model)),
             InfixOp::CmpGt => Some(lhs.cmp(rhs, Cmp::Gt, &mut self.model)),
             InfixOp::CmpLt => Some(lhs.cmp(rhs, Cmp::Lt, &mut self.model)),
             InfixOp::CmpGtEq => Some(lhs.cmp(rhs, Cmp::Geq, &mut self.model)),

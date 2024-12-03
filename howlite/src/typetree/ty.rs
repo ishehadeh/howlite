@@ -7,12 +7,16 @@ use howlite_syntax::{
     AstNodeData,
 };
 use howlite_typecheck::{
-    types::{StructField, TyInt, TyStruct},
+    types::{StorageClass, StructField, TyInt, TyStruct},
     Ty, TyArray, TyReference, TySlice,
 };
 use preseli::IntegerSet;
 use smallvec::SmallVec;
-use sunstone::ops::{Bounded, PartialBounded};
+use sunstone::{
+    multi::DynSet,
+    ops::{Bounded, PartialBounded},
+};
+use tracing::debug;
 
 use crate::{langctx::lexicalctx::LexicalContext, symtab::Symbol, CompilationErrorKind};
 
@@ -39,7 +43,7 @@ impl SynthesizeTy for ast::TySlice {
     fn synthesize_ty(&self, ctx: &LexicalContext<'_, '_>) -> Rc<Ty<Symbol>> {
         let element_ty = ctx.child(self.element_ty).synthesize_ty();
         let len_ty = ctx.child(self.length_ty).synthesize_ty();
-        if len_ty.as_int().is_none() {
+        if Ty::unwrap_late_bound(len_ty.clone()).as_int().is_none() {
             ctx.error(CompilationErrorKind::InvalidSliceLengthTy(len_ty));
             Rc::new(Ty::Slice(TySlice {
                 index_set: Rc::new(Ty::Int(TyInt::from_set(IntegerSet::new_from_range(
@@ -65,6 +69,42 @@ impl SynthesizeTy for TyNamed {
             .iter()
             .map(|p| ctx.child(*p).synthesize_ty())
             .collect::<Vec<_>>();
+        let special_ints = ["Max", "Min", "u32", "s32", "s16", "s8", "s16", "s8"];
+        if special_ints.contains(&self.name.as_str()) {
+            debug!(inner = ?params[0], name = ?self.name, "instantiating special int type");
+            let p0 = &params[0];
+            let int = match &**p0 {
+                Ty::Hole => return Rc::new(Ty::Hole),
+                Ty::Int(ty_int) => ty_int,
+                Ty::LateBound(ty_late_bound) => ty_late_bound.ty.as_int().unwrap(),
+                _ => panic!("TODO: nice error"),
+            };
+            if self.name == "Max" {
+                let hi = *int.values.partial_bounds().unwrap().hi();
+                return Rc::new(Ty::Int(TyInt {
+                    values: DynSet::new_from_range(*hi, *hi),
+                    storage: int.storage.clone(),
+                }));
+            } else if self.name == "Min" {
+                let lo = *int.values.partial_bounds().unwrap().lo();
+                return Rc::new(Ty::Int(TyInt {
+                    values: DynSet::new_from_range(*lo, *lo),
+                    storage: int.storage.clone(),
+                }));
+            } else {
+                let signed = self.name.chars().nth(0).unwrap() == 's';
+                let bits: usize = self.name[1..].parse().unwrap();
+                debug!(?bits, ?signed, "instantiating storage class type");
+
+                return Rc::new(Ty::Int(TyInt {
+                    values: int.values.clone(),
+                    storage: StorageClass {
+                        is_signed: signed,
+                        bits,
+                    },
+                }));
+            }
+        }
 
         match ctx.ty_get(name_sym) {
             Some(v) => v.instantiate(ctx, &params),

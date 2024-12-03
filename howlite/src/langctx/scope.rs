@@ -22,6 +22,9 @@ pub struct Scope {
 
     /// List of local function definitions
     pub funcs: Vec<FuncDef>,
+
+    pub catch_returns: bool,
+    pub return_tys: Vec<Rc<Ty<Symbol>>>,
 }
 
 impl Scope {

@@ -112,8 +112,11 @@ impl<'a> LangCtx<'a> {
             Some(parent)
         }
     }
-
     pub fn scope_new(&self, parent: ScopeId) -> ScopeId {
+        self.scope_new_catch(parent, false)
+    }
+
+    pub fn scope_new_catch(&self, parent: ScopeId, catch_returns: bool) -> ScopeId {
         let new_scope_id = Self::mint_scope_id();
         {
             let mut scope_parent = self
@@ -130,9 +133,11 @@ impl<'a> LangCtx<'a> {
                 "LangCtx::scope_new(): new scope IDs should always be increasing, but inserting at the end of the array did not maintain sort order"
             );
         }
+        let mut scope = Scope::default();
+        scope.catch_returns = catch_returns;
 
         debug_assert!(
-            self.scopes.insert(new_scope_id, Scope::default()).is_none(),
+            self.scopes.insert(new_scope_id, scope).is_none(),
             "LangCtx::scope_new(): scope exists, this should be impossible"
         );
 
@@ -153,6 +158,35 @@ impl<'a> LangCtx<'a> {
             } else {
                 // we're at the root scope
                 None
+            }
+        } else {
+            panic!(
+                "LangCtx::var_get(): Scope is not associated with this LangCtx (scope={:?})",
+                scope_id
+            )
+        }
+    }
+
+    /// Recursively search for a variable up the scope heirarchy
+    ///
+    /// # Panics
+    /// - Scope does not belong to this LangCtx
+    /// - Any panics associated with `self.scope_parent()`
+    pub fn var_update(
+        &self,
+        scope_id: ScopeId,
+        var: Symbol,
+        f: impl FnOnce(VarDef) -> VarDef,
+    ) -> bool {
+        if let Some(mut scope) = self.scopes.get_mut(&scope_id) {
+            if let Some(def) = scope.get_local_mut(var) {
+                *def = f(def.clone());
+                true
+            } else if let Some(parent) = self.scope_parent(scope_id) {
+                self.var_update(parent, var, f)
+            } else {
+                // we're at the root scope
+                false
             }
         } else {
             panic!(

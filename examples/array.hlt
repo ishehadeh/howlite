@@ -1,0 +1,16 @@
+type char = 0..127;
+type Uint32 = 0..0xffffffff;
+type NatI32 = s32[0..0x7fffffff];
+
+func index_of[LenT: NatI32](str: &[char; LenT], c: char): 0..Max[LenT] | -1 {
+  let i: Uint32 = 0;
+  while i < str.len {
+    if str[i] == c {
+        return i;
+    };
+
+    i = i + 1;
+  };
+
+  -1
+}

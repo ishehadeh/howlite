@@ -11,7 +11,7 @@ use aries::{
     model::{extensions::Shaped, lang::IVar},
     solver::Solver,
 };
-use howlite_syntax::ast::{ExprIf, ExprLet, ExprWhile};
+use howlite_syntax::ast::{ExprIf, ExprLet, ExprReturn, ExprWhile};
 use howlite_typecheck::{types::TyInt, Ty};
 use preseli::IntegerSet;
 use sunstone::{multi::DynSet, ops::Union};
@@ -48,6 +48,60 @@ where
     sets
 }
 
+fn narrow_cond(
+    ctx: &LexicalContext,
+    assumed_ty: bool,
+    true_ctx: LexicalContext,
+    false_ctx: Option<LexicalContext>,
+) {
+    let mut constraints = ConstraintTree::new(ctx.clone(), assumed_ty);
+    let cond_term = constraints.get_constraint_term(ctx.node());
+
+    if let Some(cond_term) = cond_term {
+        let cond_lit = constraints.model_builder.reify_term(cond_term);
+        let ctxs = std::iter::once((cond_lit, true_ctx))
+            .chain(false_ctx.into_iter().map(|ctx| (cond_lit.not(), ctx)));
+        for (clause, child_ctx) in ctxs {
+            let model = constraints.model_builder.model.clone();
+
+            let modified_vars_model: Vec<IVar> = constraints
+                .modified_vars
+                .iter()
+                .map(|(mv, _, _)| model.get_int_var(&mv).unwrap())
+                .collect();
+
+            let mut solver = Solver::new(model);
+            solver.reasoners.sat.add_clause([clause]);
+
+            let new_values = determine_all_values(&mut solver, &modified_vars_model);
+            for (i, true_var_value) in new_values.into_iter().enumerate() {
+                let (_, name, path) = &constraints.modified_vars[i];
+                let original_def = child_ctx.var_get_or_err(*name);
+                let original_ty = original_def
+                    .last_assignment
+                    .access_path(path.as_slice())
+                    .unwrap();
+                let value = Rc::new(Ty::Int(TyInt {
+                    values: true_var_value,
+                    storage: original_ty.as_int().unwrap().storage.clone(),
+                }));
+
+                child_ctx.var_def(
+                    *name,
+                    VarDef {
+                        assumed_ty: original_def.assumed_ty.clone(),
+                        last_assignment: original_def
+                            .last_assignment
+                            .assign_path(path.as_slice(), value)
+                            .unwrap(),
+                        is_mutable: original_def.is_mutable,
+                    },
+                );
+            }
+        }
+    }
+}
+
 use super::{constraint_tree::ConstraintTree, SynthesizeTy};
 
 impl SynthesizeTy for ExprLet {
@@ -71,40 +125,9 @@ impl SynthesizeTy for ExprLet {
 impl SynthesizeTy for ExprWhile {
     fn synthesize_ty(&self, ctx: &LexicalContext<'_, '_>) -> Rc<Ty<Symbol>> {
         let cond_ctx = ctx.child(self.condition);
-        let mut constraints = ConstraintTree::new(cond_ctx);
-        let cond_term = constraints.get_constraint_term(self.condition);
         let body_ctx = ctx.new_with_scope().child(self.body);
 
-        let cond_lit = constraints.model_builder.reify_term(cond_term.unwrap());
-        let model = constraints.model_builder.model.clone();
-
-        let modified_vars_model: Vec<IVar> = constraints
-            .modified_vars
-            .iter()
-            .map(|s| model.get_int_var(&ModelVarRef::HltVar(*s)).unwrap())
-            .collect();
-
-        let mut solver = Solver::new(model);
-        solver.reasoners.sat.add_clause([cond_lit]);
-
-        let new_values = determine_all_values(&mut solver, &modified_vars_model);
-        for (i, true_var_value) in new_values.into_iter().enumerate() {
-            let name = constraints.modified_vars[i];
-            let original_def = ctx.var_get_or_err(name);
-            let original_int_def = original_def.last_assignment.as_int().unwrap();
-            ctx.var_def(
-                name,
-                VarDef {
-                    assumed_ty: original_def.assumed_ty.clone(),
-                    last_assignment: Rc::new(Ty::Int(TyInt {
-                        values: true_var_value,
-                        storage: original_int_def.storage.clone(),
-                    })),
-                    is_mutable: original_def.is_mutable,
-                },
-            );
-        }
-
+        narrow_cond(&cond_ctx, true, body_ctx.clone(), None);
         let _ = body_ctx.synthesize_ty();
 
         Ty::unit().into()
@@ -114,53 +137,24 @@ impl SynthesizeTy for ExprWhile {
 impl SynthesizeTy for ExprIf {
     fn synthesize_ty(&self, ctx: &LexicalContext<'_, '_>) -> Rc<Ty<Symbol>> {
         let cond_ctx = ctx.child(self.condition);
-        let mut constraints = ConstraintTree::new(cond_ctx);
-        let cond_term = constraints.get_constraint_term(self.condition);
         let true_ctx = ctx.new_with_scope().child(self.success);
-        let false_ctx = ctx.new_with_scope().child(self.failure.unwrap());
-
-        let cond_lit = constraints.model_builder.reify_term(cond_term.unwrap());
-        let true_model = constraints.model_builder.model.clone();
-        let false_model = constraints.model_builder.model;
-
-        let modified_vars_model: Vec<IVar> = constraints
-            .modified_vars
-            .iter()
-            .map(|s| true_model.get_int_var(&ModelVarRef::HltVar(*s)).unwrap())
-            .collect();
-
-        let mut true_solver = Solver::new(true_model);
-        let mut false_solver = Solver::new(false_model);
-        true_solver.reasoners.sat.add_clause([cond_lit]);
-        false_solver.reasoners.sat.add_clause([cond_lit.not()]);
-
-        for (solver, ctx) in [
-            (&mut true_solver, &true_ctx),
-            (&mut false_solver, &false_ctx),
-        ] {
-            let new_values = determine_all_values(solver, &modified_vars_model);
-            for (i, true_var_value) in new_values.into_iter().enumerate() {
-                let name = constraints.modified_vars[i];
-                let original_def = ctx.var_get_or_err(name);
-                let original_int_def = original_def.last_assignment.as_int().unwrap();
-                ctx.var_def(
-                    name,
-                    VarDef {
-                        assumed_ty: original_def.assumed_ty.clone(),
-                        last_assignment: Rc::new(Ty::Int(TyInt {
-                            values: true_var_value,
-                            storage: original_int_def.storage.clone(),
-                        })),
-                        is_mutable: original_def.is_mutable,
-                    },
-                );
-            }
-        }
+        let false_ctx = self.failure.map(|else_| ctx.new_with_scope().child(else_));
+        narrow_cond(&cond_ctx, false, true_ctx.clone(), false_ctx.clone());
 
         let t_type = true_ctx.synthesize_ty();
-        let f_type = false_ctx.synthesize_ty();
+        let f_type = false_ctx
+            .map(|f| f.synthesize_ty())
+            .unwrap_or(Rc::new(Ty::unit()));
 
         Ty::union(&[t_type, f_type])
+    }
+}
+
+impl SynthesizeTy for ExprReturn {
+    fn synthesize_ty(&self, ctx: &LexicalContext<'_, '_>) -> Rc<Ty<Symbol>> {
+        let value_ty = ctx.child(self.value).synthesize_ty();
+        ctx.add_return_ty(value_ty);
+        Rc::new(Ty::unit())
     }
 }
 

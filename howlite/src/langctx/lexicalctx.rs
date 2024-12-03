@@ -24,6 +24,10 @@ impl<'a, 'b> LexicalContext<'a, 'b> {
         }
     }
 
+    pub fn node(&self) -> DefaultLinearTreeId {
+        self.node
+    }
+
     pub fn new_with_scope(&self) -> Self {
         Self {
             scope: self.parent.scope_new(self.scope),
@@ -32,8 +36,42 @@ impl<'a, 'b> LexicalContext<'a, 'b> {
         }
     }
 
+    pub fn new_with_scope_catch_returns(&self) -> Self {
+        Self {
+            scope: self.parent.scope_new_catch(self.scope, true),
+            parent: self.parent,
+            node: self.node,
+        }
+    }
+
     pub fn node_data(&self) -> &AstNode {
         self.get_node(self.node)
+    }
+
+    pub fn add_return_ty(&self, ty: Rc<Ty<Symbol>>) {
+        let mut scope_id = self.scope;
+        loop {
+            if self.parent.scopes.get(&scope_id).unwrap().catch_returns {
+                break;
+            }
+            if let Some(p) = self.parent.scope_parent(scope_id) {
+                scope_id = p;
+            } else {
+                todo!("gracefully handle out-of-context returns");
+            }
+        }
+
+        let mut scope = self.parent.scopes.get_mut(&scope_id).unwrap();
+        scope.return_tys.push(ty);
+    }
+
+    pub fn scope_return_tys(&self) -> Vec<Rc<Ty<Symbol>>> {
+        self.parent
+            .scopes
+            .get(&self.scope)
+            .unwrap()
+            .return_tys
+            .clone()
     }
 
     pub fn get_node(&self, id: DefaultLinearTreeId) -> &AstNode {
@@ -65,6 +103,10 @@ impl<'a, 'b> LexicalContext<'a, 'b> {
 
     pub fn var_get(&self, name: Symbol) -> Option<VarDef> {
         self.parent.var_get(self.scope, name)
+    }
+
+    pub fn var_update(&self, name: Symbol, f: impl FnOnce(VarDef) -> VarDef) -> bool {
+        self.parent.var_update(self.scope, name, f)
     }
 
     pub fn var_get_or_err(&self, name: Symbol) -> VarDef {

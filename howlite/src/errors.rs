@@ -92,6 +92,17 @@ pub enum CompilationErrorKind {
     #[error("slice lengths must always be an integer. recieved: {:?}", _0)]
     InvalidSliceLengthTy(Rc<Ty<Symbol>>),
 
+    #[error("invalid assignment: {_0}")]
+    InvalidAssignment(#[source] IncompatibleError<Symbol>),
+
+    #[error("deref non-reference type: {_0:?}")]
+    DerefNonReference(Rc<Ty<Symbol>>),
+
+    #[error(
+        "assignments may only be made to field access, array access, dereference or variables"
+    )]
+    CannotAssign,
+
     #[error(
         "prefix operator '{prefix}' expected a type conforming to {expected}. recieved: {got:?}"
     )]

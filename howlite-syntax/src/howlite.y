@@ -221,6 +221,7 @@ ExprTypeConstruction -> Result<AstRef>:
 Expr -> Result<AstRef>:
     ExprInfix { $1 }
   | ExprLet { $1 }
+  | ExprReturn { $1 }
   | ExprIf { $1 }
   | ExprBlock { $1 }
   | ExprWhile { $1 }
@@ -231,6 +232,12 @@ Expr -> Result<AstRef>:
 
 
 /// BEGIN: Block Expression
+
+ExprReturn -> Result<AstRef>:
+  'return' TriviaRequired Expr {
+    node!(tree, $span, ExprReturn { value: $3? })
+  }
+  ;
 
 ExprBlock -> Result<AstRef>:
     '{' Trivia ExprBlockStmtList ';' Trivia '}' Trivia {
@@ -388,7 +395,7 @@ ExprInfixLogic -> Result<AstRef>:
       infix!(tree, $span, $1, trivia!(right trivia_tree, $5, $4), InfixOp::LogicalAnd)
   }
   | ExprInfixLogic '||' Trivia ExprInfixCompare {
-      infix!(tree,  $span, $1, trivia!(right trivia_tree, $5, $4), InfixOp::LogicalAnd)
+      infix!(tree,  $span, $1, trivia!(right trivia_tree, $5, $4), InfixOp::LogicalOr)
     }
   | ExprInfixCompare { $1 }
   ;
@@ -514,6 +521,11 @@ Ident -> Result<AstRef>:
 LiteralInt -> Result<AstRef>:
     _UInt Trivia { 
       trivia!(right trivia_tree, $4, node!(tree, $span, LiteralInteger {value: $1? }))
+    }
+  ;
+LiteralIntNeg -> Result<AstRef>:
+    '-' Trivia _UInt Trivia { 
+      trivia!(right trivia_tree, $4, node!(tree, $span, LiteralInteger {value: -($3?) }))
     }
   ;
 
@@ -664,10 +676,16 @@ TyStructMember -> Result<AstRef>:
 
 TyIntegerRangeTerm -> Result<AstRef>:
     LiteralInt { $1 }
+  | LiteralIntNeg { $1  }
+  | TyNamed { $1 }
   ;
 
 TyIntegerRange -> Result<AstRef>:
-    TyIntegerRangeTerm { 
+    LiteralInt { 
+      let number = $1?;
+      node!(tree, $span, TyNumberRange { lo: number.clone(), hi: number })
+    }
+  | LiteralIntNeg { 
       let number = $1?;
       node!(tree, $span, TyNumberRange { lo: number.clone(), hi: number })
     }

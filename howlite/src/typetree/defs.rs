@@ -2,6 +2,7 @@ use std::rc::Rc;
 
 use howlite_syntax::{ast, tree::DefaultLinearTreeId, AstNodeData};
 use howlite_typecheck::{types::TyLateBound, Ty, TyBinder};
+use tracing::debug;
 
 use crate::{
     langctx::{lexicalctx::LexicalContext, FuncDef, TyDef, VarDef},
@@ -26,6 +27,7 @@ fn eval_ty_params(
             AstNodeData::TyParam(p) => {
                 let param_name_sym = param_ctx.sym_intern(&p.name);
                 let param_super_ty = param_ctx.child(p.super_ty).synthesize_ty();
+                debug!(param = ?p.name, super_ty = ?param_super_ty, "type param");
 
                 let late_bound_param_ty = Rc::new(Ty::LateBound( TyLateBound {
                     name: param_name_sym,
@@ -81,7 +83,7 @@ impl SynthesizeTy for ast::DefFunc {
         let param_ctx = ctx.new_with_scope();
 
         // scope for the body, includes params and type params (but their super type)
-        let body_ctx = ctx.child(self.body).new_with_scope();
+        let body_ctx = ctx.child(self.body).new_with_scope_catch_returns();
 
         let ty_params = eval_ty_params(&self.ty_params, ctx, &param_ctx, Some(&body_ctx));
 
@@ -115,9 +117,13 @@ impl SynthesizeTy for ast::DefFunc {
             );
         }
 
-        let return_ty = param_ctx.child(self.return_ty).synthesize_ty();
+        let block_return_ty = param_ctx.child(self.return_ty).synthesize_ty();
+        let mut return_tys = body_ctx.scope_return_tys();
+        return_tys.push(block_return_ty);
+        let return_union = Ty::union(&return_tys);
+
         let mut ty_binder = TyBinder::new(&ty_params);
-        let instantiated_return_ty = ty_binder.bind(return_ty.clone());
+        let instantiated_return_ty = ty_binder.bind(return_union.clone());
         assert!(
             ty_binder.errors().is_empty(),
             "TyBinder errors while instantiating defaults = {:?}",
@@ -127,13 +133,13 @@ impl SynthesizeTy for ast::DefFunc {
             name: name_sym,
             params,
             ty_params,
-            returns: return_ty.clone(),
+            returns: return_union.clone(),
         });
         let body_ty = body_ctx.synthesize_ty();
 
         if let Err(e) = body_ty.is_assignable_to(&instantiated_return_ty) {
             ctx.error(CompilationErrorKind::BadReturn {
-                return_ty: return_ty.clone(),
+                return_ty: return_union.clone(),
                 name: self.name.clone(),
                 source: e,
             });

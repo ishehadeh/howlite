@@ -12,7 +12,13 @@ use super::SynthesizeTy;
 impl SynthesizeTy for FieldAccess {
     fn synthesize_ty(&self, ctx: &LexicalContext<'_, '_>) -> Rc<Ty<Symbol>> {
         let base_ty = ctx.child(self.lhs).synthesize_ty();
+
         let field_symbol = ctx.sym_intern(&self.field);
+        if let Some(slice) = base_ty.as_slice() {
+            if self.field == "len" {
+                return slice.index_set.clone();
+            }
+        }
         match base_ty.access_field(field_symbol) {
             Ok(v) => v,
             Err(e) => {

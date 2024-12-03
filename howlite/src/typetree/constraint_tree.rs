@@ -1,25 +1,28 @@
 use hashbrown::HashMap;
-use howlite_syntax::{tree::DefaultLinearTreeId, AstNodeData};
+use howlite_syntax::{ast::PrefixOp, tree::DefaultLinearTreeId, AstNodeData};
+use howlite_typecheck::AccessPath;
 use tracing::instrument;
 
 use crate::{langctx::lexicalctx::LexicalContext, symtab::Symbol};
 
-use super::{ModelBuilder, Term};
+use super::{ModelBuilder, ModelVarRef, Term};
 
 pub struct ConstraintTree<'b, 'c> {
     lexical_context: LexicalContext<'b, 'c>,
     pub constraint_terms: HashMap<DefaultLinearTreeId, Option<Term>>,
     pub model_builder: ModelBuilder,
-    pub modified_vars: Vec<Symbol>,
+    pub modified_vars: Vec<(ModelVarRef, Symbol, AccessPath<Symbol>)>,
+    pub use_assumed_var_ty: bool,
 }
 
 impl<'b, 'c> ConstraintTree<'b, 'c> {
-    pub fn new(root: LexicalContext<'b, 'c>) -> Self {
+    pub fn new(root: LexicalContext<'b, 'c>, use_assumed_var_ty: bool) -> Self {
         Self {
             constraint_terms: Default::default(),
             lexical_context: root,
             model_builder: ModelBuilder::new(),
             modified_vars: Default::default(),
+            use_assumed_var_ty,
         }
     }
 
@@ -34,18 +37,63 @@ impl<'b, 'c> ConstraintTree<'b, 'c> {
             | AstNodeData::LiteralStruct(_)
             | AstNodeData::LiteralString(_) => None,
 
-            AstNodeData::Ident(ident) => {
-                let symbol = self.lexical_context.sym_intern(&ident.symbol);
-                let ty = self.lexical_context.var_get_or_err(symbol).last_assignment;
-                self.modified_vars.push(symbol);
-                Some(
-                    self.model_builder
-                        .add_var(symbol, &ty.as_int().unwrap().values),
-                )
-            }
+            AstNodeData::Ident(_) | AstNodeData::ArrayAccess(_) | AstNodeData::FieldAccess(_) => {
+                let mut top = node_id;
+                let ty = self.lexical_context.child(top).synthesize_ty();
+                ty.as_int()?;
 
-            // TODO: if we're accessing a variable here we can still infer things
-            AstNodeData::ArrayAccess(_) | AstNodeData::FieldAccess(_) => None,
+                let mut path = AccessPath::default();
+                loop {
+                    match &self.lexical_context.get_node(top).data {
+                        AstNodeData::Ident(ident) => {
+                            let symbol = self.lexical_context.sym_intern(&ident.symbol);
+
+                            let var = self.model_builder.hlt_var_id();
+                            self.modified_vars
+                                .push((var, symbol, AccessPath::default()));
+                            let hlt_var = self.lexical_context.var_get(symbol).unwrap();
+                            let ty = if self.use_assumed_var_ty {
+                                hlt_var.assumed_ty.access_path(path.as_slice())
+                            } else {
+                                hlt_var.last_assignment.access_path(path.as_slice())
+                            }
+                            .unwrap();
+                            return Some(
+                                self.model_builder
+                                    .add_var(var, &ty.as_int().unwrap().values),
+                            );
+                        }
+                        AstNodeData::ArrayAccess(_) => {
+                            // can't infer array types
+                            break;
+                        }
+                        AstNodeData::ExprPrefix(prefix) if prefix.op == PrefixOp::Deref => {
+                            top = prefix.rhs;
+                            path.push_deref();
+                        }
+                        AstNodeData::FieldAccess(field) => {
+                            if field.field == "len"
+                                && self
+                                    .lexical_context
+                                    .child(field.lhs)
+                                    .synthesize_ty()
+                                    .as_slice()
+                                    .is_some()
+                            {
+                                break;
+                            }
+                            path.push_field(self.lexical_context.sym_intern(&field.field));
+                            top = field.lhs
+                        }
+                        _ => break,
+                    }
+                }
+                if let Some(int_ty) = ty.as_int() {
+                    Some(self.model_builder.add_lit(&int_ty.values))
+                } else {
+                    None
+                }
+            }
 
             AstNodeData::Repaired(_) => None,
             AstNodeData::DefFunc(_) => todo!(),
@@ -86,6 +134,7 @@ impl<'b, 'c> ConstraintTree<'b, 'c> {
             AstNodeData::TyParam(_) => todo!(),
             AstNodeData::TySlice(_) => todo!(),
             AstNodeData::TyNamed(_) => todo!(),
+            AstNodeData::ExprReturn(_) => todo!(),
         }
     }
 

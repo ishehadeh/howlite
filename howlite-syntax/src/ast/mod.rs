@@ -52,6 +52,7 @@ pub enum AstNodeData<ChildT = DefaultLinearTreeId, A: Allocator = Global> {
     ExprInfix(ExprInfix<ChildT>),
     ExprPrefix(ExprPrefix<ChildT>),
     ExprTypeConstruction(ExprTypeConstruction<ChildT>),
+    ExprReturn(ExprReturn<ChildT>),
 
     ExprLet(ExprLet<ChildT>),
     ExprWhile(ExprWhile<ChildT>),
@@ -139,6 +140,20 @@ pub struct ExprCall<ChildT = DefaultLinearTreeId, A: Allocator = Global> {
     pub params: Vec<ChildT, A>,
 }
 gen_node_impls!(ExprCall<A> { callee, &ty_params*, &params*, });
+
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    feature = "serde",
+    serde(bound(
+        serialize = "ChildT: serde::Serialize",
+        deserialize = "ChildT: serde::Deserialize<'de>"
+    ))
+)]
+pub struct ExprReturn<ChildT = DefaultLinearTreeId> {
+    pub value: ChildT,
+}
+gen_node_impls!(ExprReturn { &value });
 
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -266,6 +281,7 @@ macro_rules! on_ast_node_pair {
             (Self::TyParam($p0), Self::TyParam($p1)) => $action,
             (Self::TySlice($p0), Self::TySlice($p1)) => $action,
             (Self::TyNamed($p0), Self::TyNamed($p1)) => $action,
+            (Self::ExprReturn($p0), Self::ExprReturn($p1)) => $action,
             _ => $otherwise,
         }
     };
@@ -282,6 +298,7 @@ macro_rules! on_any_node_variant {
             Self::LiteralStructMember($p0) => $action,
             Self::Ident($p0) => $action,
             Self::FieldAccess($p0) => $action,
+            Self::ExprReturn($p0) => $action,
             Self::ArrayAccess($p0) => $action,
             Self::Repaired($p0) => $action,
             Self::DefFunc($p0) => $action,

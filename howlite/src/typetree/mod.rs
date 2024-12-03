@@ -31,6 +31,7 @@ mod test_helpers;
 
 use howlite_syntax::AstNodeData;
 use howlite_typecheck::Ty;
+use tracing::trace;
 pub use traits::{SynthesizeTy, SynthesizeTyPure};
 
 use crate::{
@@ -42,6 +43,7 @@ use crate::{
 
 impl SynthesizeTy for AstNodeData {
     fn synthesize_ty(&self, ctx: &LexicalContext) -> Rc<Ty<Symbol>> {
+        trace!(?ctx, ?self, "synthesize node");
         match self {
             AstNodeData::Program(p) => {
                 for &def in &p.definitions {
@@ -73,12 +75,13 @@ impl SynthesizeTy for AstNodeData {
             AstNodeData::Block(n) => {
                 let child_scope_ctx = ctx.new_with_scope();
 
+                let last_ty =                     n.statements
+                .iter()
+                .map(|&stmt| child_scope_ctx.child(stmt).synthesize_ty())
+                .last()
+                .unwrap_or_else(|| Rc::new(Ty::unit()));
                 if n.returns {
-                    n.statements
-                        .iter()
-                        .map(|&stmt| child_scope_ctx.child(stmt).synthesize_ty())
-                        .last()
-                        .unwrap_or_else(|| Rc::new(Ty::unit()))
+                    last_ty
                 } else {
                     Rc::new(Ty::unit())
                 }
@@ -111,6 +114,7 @@ impl SynthesizeTy for AstNodeData {
             AstNodeData::LiteralStructMember(_) => {
                 unreachable!("literal struct member should never appear in the AST")
             }
+            AstNodeData::ExprReturn(n) => n.synthesize_ty(ctx),
         }
     }
 }

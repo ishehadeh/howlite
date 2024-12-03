@@ -1,8 +1,17 @@
 use std::rc::Rc;
 
-use howlite_syntax::ast::{ExprInfix, ExprTypeConstruction, InfixOp};
-use howlite_typecheck::Ty;
+use howlite_syntax::{
+    ast::{ExprInfix, ExprTypeConstruction, InfixOp, PrefixOp},
+    AstNodeData,
+};
+use howlite_typecheck::{
+    types::{StorageClass, TyInt},
+    Ty, TyArray, TyReference,
+};
+use preseli::IntegerSet;
 use sunstone::ops::ArithmeticSet;
+use tracing::debug;
+use tracing_subscriber::field::debug;
 
 use crate::{langctx::lexicalctx::LexicalContext, symtab::Symbol, CompilationErrorKind};
 
@@ -12,15 +21,105 @@ impl SynthesizeTy for ExprInfix {
     fn synthesize_ty(&self, ctx: &LexicalContext) -> Rc<Ty<Symbol>> {
         let lhs = ctx.child(self.lhs).synthesize_ty();
         let rhs = ctx.child(self.rhs).synthesize_ty();
+
         let op_result = match self.op {
-            InfixOp::Add => lhs.arithmetic_rec(&*rhs, |a, b| a.add_all(b)),
-            InfixOp::Mul => lhs.arithmetic_rec(&*rhs, |a, b| a.mul_all(b)),
-            InfixOp::Div => lhs.arithmetic_rec(&*rhs, |a, b| a.div_all(b)),
-            InfixOp::Sub => lhs.arithmetic_rec(&*rhs, |a, b| a.sub_all(b)),
+            InfixOp::CmpEq
+            | InfixOp::CmpGt
+            | InfixOp::CmpLt
+            | InfixOp::CmpGtEq
+            | InfixOp::CmpLtEq
+            | InfixOp::CmpNe => Ok(Rc::new(Ty::Int(TyInt {
+                values: IntegerSet::new_from_range(0, 1),
+                storage: StorageClass::signed(32),
+            }))),
+            InfixOp::Add => lhs.arithmetic_rec(&*rhs, |a, b| a.add_all(b)).map(Rc::new),
+            InfixOp::Mul => lhs.arithmetic_rec(&*rhs, |a, b| a.mul_all(b)).map(Rc::new),
+            InfixOp::Div => lhs.arithmetic_rec(&*rhs, |a, b| a.div_all(b)).map(Rc::new),
+            InfixOp::Sub => lhs.arithmetic_rec(&*rhs, |a, b| a.sub_all(b)).map(Rc::new),
+            InfixOp::Assign => {
+                let mut new_ty = rhs;
+                let mut top_node = self.lhs;
+                loop {
+                    match &ctx.get_node(top_node).data {
+                        AstNodeData::Ident(ident) => {
+                            let var_sym = ctx.sym_intern(&ident.symbol);
+                            debug!(?new_ty, var=?ctx.var_get(var_sym), "assign symbol");
+
+                            if let Some(Err(err)) = ctx
+                                .var_get(var_sym)
+                                .map(|v| new_ty.is_assignable_to(&v.assumed_ty))
+                            {
+                                ctx.error(CompilationErrorKind::InvalidAssignment(err))
+                            }
+
+                            if !ctx.var_update(var_sym, |mut d| {
+                                d.last_assignment = new_ty.clone();
+                                d
+                            }) {
+                                ctx.error(CompilationErrorKind::UnknownVariable {
+                                    name: ident.symbol.clone(),
+                                });
+                            }
+                            break;
+                        }
+                        AstNodeData::ArrayAccess(idx) => {
+                            let arr_ty = ctx.child(idx.lhs).synthesize_ty();
+                            if let Some(arr) = arr_ty.as_array() {
+                                if arr.length == 1 {
+                                    new_ty = Rc::new(Ty::Array(TyArray {
+                                        length: 1,
+                                        element_ty: new_ty.clone(),
+                                    }));
+                                    top_node = idx.lhs;
+                                    continue;
+                                }
+                            }
+                            break;
+                        }
+                        AstNodeData::ExprPrefix(prefix) if prefix.op == PrefixOp::Deref => {
+                            let operand_ty = ctx.child(prefix.rhs).synthesize_ty();
+                            if operand_ty.as_reference().is_none() {
+                                ctx.error(CompilationErrorKind::DerefNonReference(
+                                    operand_ty.clone(),
+                                ));
+                            }
+                            // even if its not just assume they intended it to be reference
+                            new_ty = Rc::new(Ty::Reference(TyReference {
+                                referenced_ty: new_ty,
+                            }));
+
+                            top_node = prefix.rhs;
+                        }
+                        AstNodeData::FieldAccess(field) => {
+                            let struc_ty = ctx.child(field.lhs).synthesize_ty();
+                            new_ty =
+                                match struc_ty.assign_field(ctx.sym_intern(&field.field), new_ty) {
+                                    Ok(v) => v,
+                                    Err(e) => {
+                                        ctx.error(CompilationErrorKind::FieldDoesNotExists {
+                                            base: struc_ty,
+                                            field: field.field.clone(),
+                                            source: e,
+                                        });
+                                        Rc::new(Ty::Hole)
+                                    }
+                                };
+                            top_node = field.lhs
+                        }
+                        _ => {
+                            ctx.error(CompilationErrorKind::CannotAssign);
+                            new_ty = Rc::new(Ty::Hole);
+                            break;
+                        }
+                    }
+                }
+
+                Ok(new_ty)
+            }
             op => todo!("infix op: {op:?}"),
         };
         match op_result {
-            Ok(v) => Rc::new(v),
+            Ok(v) => v,
             Err(e) => {
                 ctx.error(e.into());
                 Rc::new(Ty::Hole)

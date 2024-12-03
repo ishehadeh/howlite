@@ -244,10 +244,19 @@ This collection of types contains any set of integers that can fit within a sing
 Going forward, integer types will be expressed using the language's syntax: `1 | 3 | 5` is a type which can be constructed from any of the integers `1`, `3`, or `5`.
 The type `1..10` can be constructed from `1`, `10`, or any integer between the two.
 
-=== Synthesis of Scalars
+
+=== Storage Classes
+
+Scalar types belong to a _storage class_ that identifies how they are encoded in memory.
+A storage class defines how many bits the scalar may use, and if one of them is a sign bit.
+All integers are assumed to be two's complement.
+
+A consequence of this is that integer overflow and underflow is well defined to wrap. 
+
+=== Construction of Scalars
 
 As seen above, a scalar may be synthesized from a single value, for example, the type of $-5$ is ${ -5 }$. We can also construct new scalars using arithmetic operations:
-
+Operation
 
 #include "examples/scalar-addition.typ"
 
@@ -264,12 +273,6 @@ For example, given $T = { 1, 2, 3}$ and $U = { -5, -7 }$, we'd compute the follo
 - $T + U = { 1 + -5, 2 + -5, 3 + -5, 1 + -7 , 2 + -7, 3 + -7) = {-4, -3, -2, -6, -5, -4}$
 - $T - U = { 1 - (-5), 2 - (-5), 3 - (-5), 1 - (-7) , 2 - (-7), 3 - (-7)) = {6, 7, 8, 9,10}$
 - $T div U = { 1 div (-5), 2 div (-5), 3 div (-5), 1 div (-7) , 2 div (-7), 3 div (-7)) = { 0 }$
-
-=== Storage Classes
-
-Scalar types belong to a _storage class_ that identifies how they are encoded in memory. Storage classes are organized by size, whether or not they include a sign bit. The signed storage classes are `s8`, `s16`, `s32`, `s64`, and the unsigned are `u8`,`u16`,`u32`,`u64`. Going forward, we will identify the storage class of a scalar `T` using the notation `u32[T]`.
-
-The storage class of a number influences how arithmetic and bitwise operations behave on the inner type.
 
 ==== Unsigned Storage Classes
 

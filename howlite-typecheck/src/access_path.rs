@@ -5,6 +5,7 @@ use smallvec::SmallVec;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AccessPathElem<SymbolT: Symbol> {
     ArrayAccess(Scalar),
+    Deref,
     StructAccess(SymbolT),
 }
 
@@ -26,6 +27,14 @@ impl<SymbolT: Symbol> AccessPath<SymbolT> {
     pub fn field(mut self, name: SymbolT) -> Self {
         self.push_field(name);
         self
+    }
+
+    pub fn as_slice(&self) -> &[AccessPathElem<SymbolT>] {
+        self.elements.as_slice()
+    }
+
+    pub fn push_deref(&mut self) {
+        self.elements.push(AccessPathElem::Deref);
     }
 
     pub fn index(mut self, index: impl Into<Scalar>) -> Self {
