@@ -296,70 +296,26 @@ Literals can also be constructed from unsigned integers: `3 : 3`, `5 : 5`, `0b11
 
 The typechecker currently handles the prefix operators `!` (logical not) and `+`, and `-`.
 The `+` sign is a no-op, it's included in the language for cases where it might improve clarity.
-`-e` constructs the inverse negative of `e`: it's equivalent to the expression `0 - e`.
+`-e` constructs the negative of `e`: it's equivalent to the expression `0 - e`.
 `!` has three cases: `!a : 0` if the type of `a` does not contain `0`, `!a` is `1` if the type of `a` only contains `0`, and `!a : 0 | 1` otherwise.
 
+== Construction of Scalars from Arithmetic Operators
 
-#include "examples/scalar-addition.typ"
+Addition and subtraction operators (`+` and `-`) produce a type representing every possible sum of the operands' types, and no more.
+For example, given a variable `a: 1..3`, and a variable `b: -5 | -7`, then the expression `a + b` has the type `-6..-2`.
+#align(center)[
+  #include "examples/scalar-addition.typ"
+]
 
-Given a scalar type $T = {  t_1, t_2, t_3 ... t_n}$, where $forall i : t_i in ZZ$, and a scalar type $U = {  u_1, u_2, u_3 ... u_n}$ where $forall j:u_j in ZZ$. (i.e $T, U$ are subsets of the integers). We can construct the following types:
+For performance, multiplication and division produce only a contiguous range from the minimum possible result to the maximum.
+So, re-using the variables defined above, we find `a * b` has the type `-21..-5`, even if the expression can only produce $-21, -15, -14, -10, -7, " and " -5$.
 
-- $T times U = { t u : forall t in T, forall u in U }$
-- $T + U = { t + u : forall t in T, forall u in U }$
-- $T - U = { t - u : forall t in T, forall u in U }$
-- $T div U = { t div u : forall t in T, forall u in U }$
+== Future Work<sc-future-work>
 
-For example, given $T = { 1, 2, 3}$ and $U = { -5, -7 }$, we'd compute the following:
+The largest missing piece are bit-wise operations.
+Due to the internal representation of integer sets (discussed in @sc-disjoint-integer-sets), it is difficult to compute bit-wise XOR, and AND operations.
 
-- $T times U = { 1(-5), 2(-5), 3(-5), 1(-7), 2(-7), 3(-7))} = { -5, -10, -15, -7, -14, -21}$
-- $T + U = { 1 + -5, 2 + -5, 3 + -5, 1 + -7 , 2 + -7, 3 + -7) = {-4, -3, -2, -6, -5, -4}$
-- $T - U = { 1 - (-5), 2 - (-5), 3 - (-5), 1 - (-7) , 2 - (-7), 3 - (-7)) = {6, 7, 8, 9,10}$
-- $T div U = { 1 div (-5), 2 div (-5), 3 div (-5), 1 div (-7) , 2 div (-7), 3 div (-7)) = { 0 }$
-
-==== Unsigned Storage Classes
-
-given a storage class `uN`, where $N$ is the width in bits, and variables `a : uN[T]`, and `b : uN[T]`
-- $a + b = (a + b) mod 2^N$
-- $a - b = 2^N - |a - b| mod 2^N$
-- $a * b = (a * b) mod 2^N$
-- $a div b = (a - (a mod b)) div b$ (i.e. division is always rounded down)
-- $~a = (2^N - 1) - a$
-- TODO other bitwise ops defined in terms of the above operations
-- TODO except xor, maybe?
-
-==== Signed Storage Classes
-
-given a storage class `uN`, where $N$ is the width in bits, and variables `a : sN[T]`, and `b : sN[T]`
-- $a + b = (a + b) mod 2^N$
-- $a - b = 2^N - |a - b| mod 2^N$
-- $a * b = (a * b) mod 2^N$
-- $a div b = (a - (a mod b)) div b$
-- $~a = (2^N - 1) - a$
-- TODO other bitwise ops defined in terms of the above operations
-- TODO except xor, maybe?
-
-== Narrowing<sc-narrowing>
-
-A variable's type may be narrowed based on the result of a boolean expression.
-
-```hlt
-let x: UInt32 = /* ... */;
-let y: &[Char; 0..100] = /* ... */;
-
-if x <= 100 {
- print(y[x]);
-}
-```
-
-Within this if-statements body, the synthesized type of `x` has been narrowed to `0..100`.
-
-
-This is achieved by assigning _implications_ to values.
-Here, we have `(x <= 100) : 0 | 1`, the value `1` is assigned the implication `x : 0..100`, and the value `0` is assigned `x : 101..0xffffffff`.
-
-A type carrying implications appears in a conditional (at the time of writing, just `if` statements) then the implications of a value, $a$, are applied within a block if the conditional guarantees the expression had the value $a$ before entering the block.
-
-= Disjoint Integer Sets<section-disjoint-integer-sets>
+= Disjoint Integer Sets<sc-disjoint-integer-sets>
 
 Integer sets are used throughout the type checker. The semantics of our type system (see @sc-scalars) require these sets to implement arithmetic operations in addition to usual set operations like union, intersect, etc. 
 

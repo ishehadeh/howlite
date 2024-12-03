@@ -293,6 +293,11 @@ impl<const BLOCKS: usize> BitField<BLOCKS> {
 
     #[instrument(level=Level::TRACE)]
     pub fn arith_add_scalar_mut(&mut self, n: usize) {
+        if n == 0 {
+            warn!("addition by zero on underlying bitfield set, this usually suggests an issue somewhere else...");
+            return;
+        }
+
         #[cfg(debug_assertions)]
         {
             if let Some(hi) = self.hi() {
