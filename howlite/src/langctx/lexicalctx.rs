@@ -1,5 +1,6 @@
 use std::rc::Rc;
 
+use aries::utils::input::Sym;
 use howlite_syntax::{tree::DefaultLinearTreeId, AstNode};
 use howlite_typecheck::Ty;
 use smol_str::SmolStr;
@@ -21,6 +22,82 @@ impl<'a, 'b> LexicalContext<'a, 'b> {
             scope: self.scope,
             parent: self.parent,
             node: child_node_id,
+        }
+    }
+
+    pub fn narrow(&self, name: Symbol, ty: Rc<Ty<Symbol>>) {
+        let scope_id = self.get_scope();
+        self.parent
+            .scopes
+            .get_mut(&scope_id)
+            .unwrap()
+            .narrows
+            .insert(name, ty);
+    }
+
+    pub fn get_current_var_ty(&self, name: Symbol) -> Option<Rc<Ty<Symbol>>> {
+        let mut scope_id = self.get_scope();
+        loop {
+            if let Some(ty) = self
+                .parent
+                .scopes
+                .get(&scope_id)
+                .unwrap()
+                .narrows.get(&name)
+            {
+                return Some(ty.clone());
+            }
+            if let Some(def) = self.parent.scopes.get(&scope_id).unwrap().get_local(name) {
+                return Some(def.last_assignment.clone());
+            }
+            if let Some(p) = self.parent.scope_parent(scope_id) {
+                scope_id = p;
+            } else {
+                return None;
+            }
+        }
+    }
+
+    pub fn clear_assigned_tys(&self) {
+        let mut scope_id = self.get_scope();
+        loop {
+            let var_assumed_tys: Vec<_> = self
+                .parent
+                .scopes
+                .get(&scope_id)
+                .unwrap()
+                .locals
+                .iter()
+                .map(|f| (f.0, f.1.assumed_ty.clone()))
+                .collect();
+            let mut scope = self.parent
+                .scopes
+                .get_mut(&self.scope)
+                .unwrap();
+            for (var, ty) in var_assumed_tys.into_iter() {
+                scope.narrows.try_insert(var, ty);
+            }
+            if let Some(p) = self.parent.scope_parent(scope_id) {
+                scope_id = p;
+            } else {
+                break;
+            }
+        }
+    }
+
+    pub fn get_current_var_ty_or_err(&self, name: Symbol) -> Rc<Ty<Symbol>> {
+        match self.get_current_var_ty(name) {
+            Some(v) => v,
+            None => {
+                self.error(CompilationErrorKind::UnknownVariable {
+                    name: self
+                        .parent
+                        .symbols
+                        .stringify(name)
+                        .expect("symbol table lookup failed"),
+                });
+                Rc::new(Ty::Hole)
+            }
         }
     }
 

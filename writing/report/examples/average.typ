@@ -1,4 +1,3 @@
-
 #import "../templates/example.typ": *
 
 #code-example(caption: "Average Three Numbers",

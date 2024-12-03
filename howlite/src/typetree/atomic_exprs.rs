@@ -32,8 +32,8 @@ impl SynthesizeTy for ExprCall {
 
 impl SynthesizeTy for Ident {
     fn synthesize_ty(&self, ctx: &LexicalContext) -> Rc<Ty<Symbol>> {
-        ctx.var_get_or_err(ctx.sym_intern(&self.symbol))
-            .last_assignment
+        ctx.get_current_var_ty_or_err(ctx.sym_intern(&self.symbol))
+            
     }
 }
 

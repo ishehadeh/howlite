@@ -1,5 +1,6 @@
 use std::rc::Rc;
 
+use hashbrown::{HashMap, HashSet};
 use howlite_typecheck::{Ty, TyBinder};
 use smallvec::SmallVec;
 use tracing::debug;
@@ -14,6 +15,8 @@ pub struct Scope {
     /// There can be duplicate symbols if a symbol is redefined
     /// the list MUST be in the order variables are defined
     pub locals: Vec<(Symbol, VarDef)>,
+    pub mutates: Vec<Symbol>,
+    pub narrows: HashMap<Symbol, Rc<Ty<Symbol>>>,
 
     /// List of local type definitions.
     /// There can be duplicate symbols if a symbol is redefined

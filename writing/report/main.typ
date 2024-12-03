@@ -249,9 +249,33 @@ The type `1..10` can be constructed from `1`, `10`, or any integer between the t
 
 Scalar types belong to a _storage class_ that identifies how they are encoded in memory.
 A storage class defines how many bits the scalar may use, and if one of them is a sign bit.
-All integers are assumed to be two's complement.
 
-A consequence of this is that integer overflow and underflow is well defined to wrap. 
+All integers are assumed to be two's complement.
+Consequently all integer overflow and underflow is well defined to wrap.
+For example, assuming all numbers in the following expression have a signed, 8-bit storage class, we find `-128 + -128 = 1`.
+
+This mechanism plays well with our concept of scalar types: overflow is allowed, so it doesn't need to be policed if the programmer expects it.
+For example, consider a function which averages some set of numbers
+
+#include "examples/average-arbitrary.typ"
+
+It's trivial to overflow cause overflow when adding `acc + nums[i]` (for example, if `nums = [0xffffffff, 0xffffffff]`).
+But if the author is concerned more with rapid development, or performance, they may not want to handle this case.
+
+However, if overflow is known to be harmful then it can be explicitly forbidden. For example. Suppose we're reading a 64-bit ELF file, a common executable file format on Unix-like systems, we can read the address and size of a particular section from the $4^"th"$ and $5^"th"$ words of its _Section Heder_ entry (citation needed):
+
+```
+let sh_offset: Uint64 = sh_entry[3];
+let sh_size: Uint64 = sh_entry[4];
+```
+
+We know the file's headers take up at least 184 bytes, and Howlite enables this invariant to be encoded in the type system.
+
+```
+let sh_end: 0xB8..Max[Uint64] = sh_offset + sh_size;
+```
+
+This fails to compile, since `sh_offset + sh_size` might overflow, and wrap to a number less than both of them.
 
 === Construction of Scalars
 

@@ -343,7 +343,16 @@ impl<SymbolT: Symbol> Ty<SymbolT> {
         val: Rc<Ty<SymbolT>>,
     ) -> Result<Rc<Ty<SymbolT>>, AccessError> {
         if path.is_empty() {
-            return Ok(val);
+            let new_ty = if let Some(i) = val.as_int() {
+                dbg!(&i,&self); 
+                Rc::new(Ty::Int(TyInt {
+                    values: i.values.clone(),
+                    storage: self.as_int().unwrap().storage.clone(),
+                }))
+            } else {
+                val
+            };
+            return Ok(new_ty)
         }
 
         match self {

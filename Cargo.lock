@@ -87,6 +87,7 @@ dependencies = [
 [[package]]
 name = "aries"
 version = "0.0.6"
+source = "git+https://github.com/ishehadeh/aries?branch=feat%2Fint-type-features#5cdde5487b2f32217d06b7ce7a0b2038b9964d8f"
 dependencies = [
  "anyhow",
  "bit-set",
@@ -324,6 +325,7 @@ dependencies = [
 [[package]]
 name = "env_param"
 version = "0.1.0"
+source = "git+https://github.com/ishehadeh/aries?branch=feat%2Fint-type-features#5cdde5487b2f32217d06b7ce7a0b2038b9964d8f"
 dependencies = [
  "once_cell",
 ]

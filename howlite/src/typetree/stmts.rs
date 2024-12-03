@@ -3,7 +3,7 @@ use std::rc::Rc;
 use crate::{
     langctx::{lexicalctx::LexicalContext, VarDef},
     symtab::Symbol,
-    typetree::ModelVarRef,
+    typetree::ModelVarRef, CompilationErrorKind,
 };
 use aries::{
     backtrack::Backtrack,
@@ -76,9 +76,15 @@ fn narrow_cond(
             let new_values = determine_all_values(&mut solver, &modified_vars_model);
             for (i, true_var_value) in new_values.into_iter().enumerate() {
                 let (_, name, path) = &constraints.modified_vars[i];
-                let original_def = child_ctx.var_get_or_err(*name);
+                let original_def = match child_ctx.get_current_var_ty(*name) {
+                    Some(v) => v,
+                    None => {
+                        ctx.error(CompilationErrorKind::UnknownVariable { name: ctx.sym_stringify(*name) });
+                        Rc::new(Ty::Hole)
+                    }
+                };
+            
                 let original_ty = original_def
-                    .last_assignment
                     .access_path(path.as_slice())
                     .unwrap();
                 let value = Rc::new(Ty::Int(TyInt {
@@ -86,16 +92,11 @@ fn narrow_cond(
                     storage: original_ty.as_int().unwrap().storage.clone(),
                 }));
 
-                child_ctx.var_def(
+                child_ctx.narrow(
                     *name,
-                    VarDef {
-                        assumed_ty: original_def.assumed_ty.clone(),
-                        last_assignment: original_def
-                            .last_assignment
+                    original_def
                             .assign_path(path.as_slice(), value)
                             .unwrap(),
-                        is_mutable: original_def.is_mutable,
-                    },
                 );
             }
         }
@@ -109,16 +110,21 @@ impl SynthesizeTy for ExprLet {
         let var_symbol = ctx.sym_intern(self.name.as_str());
         let var_ty = ctx.child(self.ty).synthesize_ty();
         let var_value_ty = ctx.child(self.value).synthesize_ty();
+        if let Err(e) = var_value_ty.is_assignable_to(&var_ty) {
+            ctx.error(CompilationErrorKind::InvalidAssignment(e));
+        }
+
+        let assign_ty = var_ty.assign_path(&[], var_value_ty.clone()).unwrap();
         ctx.var_def(
             var_symbol,
             VarDef {
-                assumed_ty: var_ty,
-                last_assignment: var_value_ty.clone(),
+                assumed_ty: var_ty.clone(),
+                last_assignment: assign_ty.clone(),
                 is_mutable: self.mutable,
             },
         );
 
-        var_value_ty
+        assign_ty
     }
 }
 
@@ -128,6 +134,7 @@ impl SynthesizeTy for ExprWhile {
         let body_ctx = ctx.new_with_scope().child(self.body);
 
         narrow_cond(&cond_ctx, true, body_ctx.clone(), None);
+        body_ctx.clear_assigned_tys();
         let _ = body_ctx.synthesize_ty();
 
         Ty::unit().into()

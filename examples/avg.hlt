@@ -1,0 +1,13 @@
+type Uint32 = u32[0..0xffffffff];
+type NonZeroUint32 = u32[1..Max[Uint32]];
+
+func avg(nums: &[Uint32; NonZeroUint32]): Uint32 {
+  let i: Uint32 = 0;
+  let acc: Uint32 = 0;
+  while i < nums.len {
+    acc = acc + nums[i];
+    i = i + 1;
+  };
+
+  acc / i
+}
