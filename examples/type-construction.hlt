@@ -1,0 +1,20 @@
+func construct_literals(): unit {
+    let a: 65 = 'A';
+    let nl: 10 = '\n';
+    let emoji: 129327 = '🤯';
+
+    let one: 1 = 1;
+    let five: 5 = 5;
+    let seven: 7 = 7;
+    #{}
+}
+
+func construct_prefix(unknown: 0..1024): unit {
+    let neg_one: -1 = -1;
+    let neg_neg_one: 1 = 1;
+    let zero: 0 = !neg_one;
+    let one: 1 = !zero;
+    let unknown_but_smaller: 0 | 1 = !unknown;
+    #{}
+}
+

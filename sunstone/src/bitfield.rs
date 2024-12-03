@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use num::ToPrimitive;
-use tracing::{debug, field::debug, instrument};
+use tracing::{debug, instrument, trace, warn, Level};
 
 use crate::{
     ops::{self, ArithmeticSet, Bounded, IntersectMut, SetOpIncludes, SetSubtract, UnionMut},
@@ -291,6 +291,7 @@ impl<const BLOCKS: usize> BitField<BLOCKS> {
         self
     }
 
+    #[instrument(level=Level::TRACE)]
     pub fn arith_add_scalar_mut(&mut self, n: usize) {
         #[cfg(debug_assertions)]
         {
@@ -343,11 +344,17 @@ impl<const BLOCKS: usize> BitField<BLOCKS> {
         }
     }
 
+    #[instrument(level=Level::TRACE)]
     pub fn arith_sub_scalar_mut(&mut self, n: usize) {
+        if n == 0 {
+            warn!("subtraction by zero on underlying bitfield set, this usually suggests an issue somewhere else...");
+            return;
+        }
+
         #[cfg(debug_assertions)]
         {
             if let Some(lo) = self.lo() {
-                assert!(lo > n)
+                assert!(lo >= n)
             }
         }
 

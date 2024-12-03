@@ -236,7 +236,7 @@ If a synthesized type is not a subset of the assumed type, then a type error is 
 
 
 
-== Scalars<sc-scalars>
+= Scalars<sc-scalars>
 
 There is a single scalar type in Howlite, this simplifies the type checking by condensing many cases into a single, generic case. There are no distinct enumerable types, true boolean types, or even a unit type in the language. Instead of distinct types, we have the scalar type "Integer" (floating point numbers are out of scope). 
 This collection of types contains any set of integers that can fit within a single general-purpose register on the target architecture.
@@ -245,7 +245,7 @@ Going forward, integer types will be expressed using the language's syntax: `1 |
 The type `1..10` can be constructed from `1`, `10`, or any integer between the two.
 
 
-=== Storage Classes
+== Storage Classes
 
 Scalar types belong to a _storage class_ that identifies how they are encoded in memory.
 A storage class defines how many bits the scalar may use, and if one of them is a sign bit.
@@ -277,10 +277,28 @@ let sh_end: 0xB8..Max[Uint64] = sh_offset + sh_size;
 
 This fails to compile, since `sh_offset + sh_size` might overflow, and wrap to a number less than both of them.
 
-=== Construction of Scalars
+== Construction of Scalars from Literals
 
-As seen above, a scalar may be synthesized from a single value, for example, the type of $-5$ is ${ -5 }$. We can also construct new scalars using arithmetic operations:
-Operation
+#let cons_c(c, v: none) = {
+  let s = "'" + c + "' : 0x" + upper(str((if v == none { c } else {v}).codepoints().at(0).to-unicode(), base: 16))
+  raw(s)
+}
+
+A scalar is constructed by arithemtic operations, character literals or integer literals.
+We will use Howlites own type construction syntax going forward: the given an expression `e` and a type `T`, the expression `e : T` asserts `e` constructs the type `T`.
+
+A literal scalar can be constructed from the a character literal, like `'A'`, `'\n'`, or `'🤯'`. 
+The type constructed is a single value, equal to their unicode codepoint. So, #cons_c("A"), #cons_c("\\n", v: "\n"), #cons_c("🤯").
+
+Literals can also be constructed from unsigned integers: `3 : 3`, `5 : 5`, `0b111 : 7`.
+
+== Construction of Scalars from Prefix Operators
+
+The typechecker currently handles the prefix operators `!` (logical not) and `+`, and `-`.
+The `+` sign is a no-op, it's included in the language for cases where it might improve clarity.
+`-e` constructs the inverse negative of `e`: it's equivalent to the expression `0 - e`.
+`!` has three cases: `!a : 0` if the type of `a` does not contain `0`, `!a` is `1` if the type of `a` only contains `0`, and `!a : 0 | 1` otherwise.
+
 
 #include "examples/scalar-addition.typ"
 

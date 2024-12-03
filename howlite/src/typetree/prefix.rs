@@ -4,6 +4,7 @@ use howlite_syntax::ast::{ExprPrefix, PrefixOp};
 use howlite_typecheck::{shape::TypeShape, types::TyInt, Ty};
 use preseli::IntegerSet;
 use sunstone::ops::{PartialBounded, SetOpIncludeExclude, SetOpIncludes};
+use tracing::trace_span;
 
 use crate::{langctx::lexicalctx::LexicalContext, CompilationErrorKind};
 
@@ -32,6 +33,8 @@ impl SynthesizeTy for ExprPrefix {
             }));
         }
 
+        let span = trace_span!("ExprPrefix", op = ?self.op, ty = ?term_ty);
+        let _guard = span.enter();
         match self.op {
             PrefixOp::LogicalNot => {
                 let mut output = IntegerSet::empty();

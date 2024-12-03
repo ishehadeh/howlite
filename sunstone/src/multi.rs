@@ -1,6 +1,6 @@
 use std::{cmp::Ordering, ops::Neg};
 
-use tracing::{debug, instrument};
+use tracing::{debug, instrument, Level};
 
 use crate::{
     bitfield::BitField,
@@ -1089,6 +1089,7 @@ impl<I: SetElement> SetOpIncludeExclude<I> for DynSet<I> {
         self
     }
 
+    #[instrument(level=Level::TRACE)]
     fn include_mut(&mut self, element: I) {
         match &mut self.data {
             DynSetData::Empty => {
@@ -1097,28 +1098,40 @@ impl<I: SetElement> SetOpIncludeExclude<I> for DynSet<I> {
             }
             DynSetData::Small(small_set) => {
                 let max_range = I::from_usize(SMALL_SET_MAX_RANGE).unwrap();
+
                 if element < small_set.offset || (element.clone() - &small_set.offset) > max_range {
                     if let Some(r) = small_set.elements.range() {
-                        let lo = I::from_usize(*r.lo()).unwrap();
-                        let hi = I::from_usize(*r.hi()).unwrap();
-                        if lo.clone() + &small_set.offset + &max_range > element
-                            && element > lo.clone() + &small_set.offset
-                        {
-                            small_set.elements =
-                                Box::new(small_set.elements.clone().arith_sub_scalar(*r.lo()));
-                            small_set.offset = small_set.offset.clone() + lo;
+                        let local_lo = I::from_usize(*r.lo()).unwrap();
+                        let local_hi = I::from_usize(*r.hi()).unwrap();
+
+                        let abs_hi = local_hi.clone() + &small_set.offset;
+
+                        let can_shift_up = local_lo.clone();
+                        let can_shift_down = max_range - &local_hi - I::one();
+
+                        if element > abs_hi && element <= abs_hi + &can_shift_up {
+                            small_set.elements = Box::new(
+                                small_set
+                                    .elements
+                                    .clone()
+                                    .arith_sub_scalar(can_shift_up.to_usize().unwrap()),
+                            );
+                            small_set.offset = small_set.offset.clone() + can_shift_up;
                             small_set
                                 .elements
                                 .include_mut((element - &small_set.offset).to_usize().unwrap());
                             return;
-                        } else if small_set.offset.clone() - &max_range - &hi <= element
-                            && element < small_set.offset.clone() + &max_range - &hi
+                        } else if element < small_set.offset
+                            && element >= small_set.offset.clone() - &can_shift_down
                         {
-                            small_set.elements =
-                                Box::new(small_set.elements.clone().arith_add_scalar(
-                                    (max_range.clone() - &hi).to_usize().unwrap(),
-                                ));
-                            small_set.offset = small_set.offset.clone() - (max_range - hi);
+                            let min_shift_down = small_set.offset.clone() - &element;
+                            small_set.elements = Box::new(
+                                small_set
+                                    .elements
+                                    .clone()
+                                    .arith_add_scalar(min_shift_down.to_usize().unwrap()),
+                            );
+                            small_set.offset = small_set.offset.clone() - &min_shift_down;
 
                             small_set.elements = Box::new(
                                 small_set
