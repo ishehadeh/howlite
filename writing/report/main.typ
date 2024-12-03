@@ -262,7 +262,7 @@ For example, consider a function which averages some set of numbers
 It's trivial to overflow cause overflow when adding `acc + nums[i]` (for example, if `nums = [0xffffffff, 0xffffffff]`).
 But if the author is concerned more with rapid development, or performance, they may not want to handle this case.
 
-However, if overflow is known to be harmful then it can be explicitly forbidden. For example. Suppose we're reading a 64-bit ELF file, a common executable file format on Unix-like systems, we can read the address and size of a particular section from the $4^"th"$ and $5^"th"$ words of its _Section Heder_ entry (citation needed):
+However, if overflow is known to be harmful then it can be explicitly forbidden. For example. Suppose we're reading a 64-bit ELF file, a common executable file format on Unix-like systems, we can read the address and size of a particular section from the $4^"th"$ and $5^"th"$ words of its _Section Heder_ entry @SystemApplicationBinary2013a:
 
 ```
 let sh_offset: Uint64 = sh_entry[3];
@@ -352,6 +352,8 @@ and a stripe set $B = STEP(0, 100, 10) = #stripe((0, 100, 10))$.
 How do we add these, in such a way that the result has as few step ranges as possible?
 At present, we use one simple algorithm: For each combination action of step ranges $alpha, beta$, take the one with the fewest elements (say $alpha$, for this example). 
 For every element $a$ in $alpha$, create a new range $STEP("min"(beta) + a, "max"(beta) + a, "step"(beta))$. Issues quickly arise after several operations, so this representation should be avoided.
+
+= Narrowing <sc-narrowing>
 
 == Small Sets<sc-sm-set>
 
