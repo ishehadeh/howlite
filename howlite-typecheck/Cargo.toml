@@ -12,7 +12,7 @@ miette = "=7.2.0"
 num-traits = "*"
 elsa = { version = "*", features = ["indexmap"] }
 lazy_static = "*"
-aries = { path = "../../aries/solver", features = ["i128"] }
+aries = { git = "https://github.com/ishehadeh/aries", branch="feat/int-type-features", features = ["i128"] }
 tracing = "*"
 
 [dev-dependencies]

@@ -19,7 +19,7 @@ dashmap = "=6.1.0"
 smol_str = "=0.3.2"
 rustc-hash = { version = "=2.0", default-features = false }
 tracing = "=0.1.40"
-aries = { path = "../../aries/solver", features = ["i128"] }
+aries = { git = "https://github.com/ishehadeh/aries", branch="feat/int-type-features", features = ["i128"] }
 clap = { version = "*", optional = true }
 serde = { version = "*", optional = true }
 bitvec = "*"
