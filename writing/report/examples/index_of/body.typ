@@ -4,14 +4,14 @@
 #code-example(caption: "Expression",
 ```
 {
-  let mut i: u32 = 0;
+  let i: Uint32 = 0;
   while i < str.len {
-    if str[i] == chr {
-      return i;
-    }
+    if str[i] == c {
+        return i;
+    };
 
     i = i + 1;
-  }
+  };
 
   -1
 }
