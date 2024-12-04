@@ -335,17 +335,18 @@ There are many solutions for storing large disjoint sets of integers: in particu
 The set representation was developed with the intention of tracking the exact results of multiplication, and division not just addition and subtraction.
 To this end, we chose using a list of stepped ranges, instead of continuous ranges like Range Set Blaze. 
 However, this representation made simple operations, like subset difficult, so, to optimize cases where we have sets of arbitrary values, we also give the option of using a large uncompressed bit map.
-Finally, to optimize the typical case, where the programmer is performing arithmetic on a large continuous range, sets may be represented just usingthe two endpoints.
+Finally, to optimize the typical case, where the programmer is performing arithmetic on a large continuous range, sets may be represented just using the two endpoints.
 
 // Internally, we use 3 set representations, _Stripe Sets_, _Small Sets_ and _Continguous Sets_
 
+The following sections give a more detailed overview of the three representations.
 
 == Stripe Sets<sc-stripe-sets>
 
-A _Stripe Set_ is a collection of _Step Ranges_. 
+A _Stripe Set_ is a collection of _step ranges_. 
+A step range is some set which includes a minimum element $A$, a maximum element $B$, and every $N^"th"$ element between the two.
+For example, we could have a range with a step of $5$, from $0$ to $15$, which includes $0$, $5$, $10$, $15$
 
-A _Step Range_ is an integer set with minimum element $A$ and maximum element $B$, with some step $S$. 
-The set includes all elements $A + n(S)$, for any $n$, where $A + n(S) < n$.
 Formally, we define $"STEP"(A, B, S) := { n(S) + A : n in NN, n <= (B - A)\/S }$, where $A, B in ZZ, A <= B$ and $S in ZZ, S >= 1, (B - A mod S) equiv 0$.
 
 #let STEP = "STEP"
@@ -364,31 +365,40 @@ and a stripe set $B = STEP(0, 100, 10) = #stripe((0, 100, 10))$.
 
 How do we add these, in such a way that the result has as few step ranges as possible?
 At present, we use one simple algorithm: For each combination action of step ranges $alpha, beta$, take the one with the fewest elements (say $alpha$, for this example). 
-For every element $a$ in $alpha$, create a new range $STEP("min"(beta) + a, "max"(beta) + a, "step"(beta))$. Issues quickly arise after several operations, so this representation should be avoided.
+For every element $a$ in $alpha$, create a new range $STEP("min"(beta) + a, "max"(beta) + a, "step"(beta))$. 
 
-= Narrowing <sc-narrowing>
+Issues quickly arise after several operations, since the stripe set can become fragmented.
+So, generally we avoid this representation until it becomes necessary.
 
 == Small Sets<sc-sm-set>
 
-_Small Sets_ is a $1$ KiB uncompressed bit field, with an arbitrary offset.
-This is intended to be used for large enumerable values.
+A small set is a 1KiB array of bits, with an arbitrary offset.
+A value $N$ is included in the set if the bit at index $(N - "offset")$ is set.
 
-A _Small Set_ may be used as the backing store for keyboard scancodes like in SDL2's SDL_keyboard.h, @SDL2IncludeSDL_keyboardh.
+This was originally conceived as a way to help with bit-wise operations.
+Ideally, the small size, but quick set operations would be a good trade-off for representing enumerable types or bit flags.
+However, it is still difficult to compute every possible result of a particular bit-wise operation between two small sets, making them unfit for this use case.
+Since enumerable types and bit-flags typically only have a relatively small set of defined values, it would likely be more efficient to use an array of integers.
 
-== Contiguous Ranges<sc-contiguous-ranges>
 
-Ideally, most ranges we perform arithmetic on should be continuous.
-Addition is trivial, and multiplication with a constant just creates a new Step Range.
+== Continuous Ranges<sc-contiguous-ranges>
 
-== Dynamic Represntation
+A continuous range is a set with a minimum element $A$, and a maximum element $B$, which includes every integer between the two.
+This is the ideal representation, since addition and subtraction can be easily computed.
+To precisely compute the possible results of multiplication between two arbitrary ranges is more complicated, but as mentioned above we only get the smallest possible continuous range for multiplication, making the operation relatively cheap.
 
-The possible values of any scalar are kept as one of the above types, with a descriminator, this structure is called `DynSet`.
+== Dynamic Representation
+
+The possible values of any scalar are kept as one of the above types, with a discriminator, this structure is called `DynSet`.
 The type checker can construct a new `DynSet` in 2 ways:
 
 1. Using a single value, $a$, (e.g. synthesizing a literal). This creates a contiguous range from $a$ to $a$.
 2. Using a type range expression, `a..b`, this creates a contiguous range from `a` to `b`.
 
 From the start of its life as a contiguous range, these dynamic sets can be _upgraded_ to a more suitable representation. For example, after taking the union of two dynamic sets with no overlap, they'll be represented as a stripe set.
+In the current implementation, sets will never be _downgraded_, although it is theoretically possible.
+This can have odd effects on performance, since a simple set of integers may have an overly complex representation.
+For example, if we add `0..5` (a continuous range) to the set `0 | 5 | 10 | 15` (a stripe set), the result would be `0..20`, represented as a stripe set.
 
 = Constraints<sc-contraints>
 
@@ -419,6 +429,7 @@ From there, we build compound terms:
 
 
 A collection of unary and binary constraints, combined with the logical and operator (`&&`) form a constraint set. We reduce each of the variable's values to satisfy the constraint, or, warn the user that the consideration will never be satisfied if this fails. Because we only handle expressions involving two mutable variables, expressions that do not meet this criterion are ignored.
+= Narrowing<sc-narrowing>
 
 == Solving Constraints
 
