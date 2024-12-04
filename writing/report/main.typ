@@ -327,14 +327,17 @@ Due to the internal representation of integer sets (discussed in @sc-disjoint-in
 
 = Disjoint Integer Sets<sc-disjoint-integer-sets>
 
-Integer sets are used throughout the type checker. The semantics of our type system (see @sc-scalars) require these sets to implement arithmetic operations in addition to usual set operations like union, intersect, etc. 
+Integer sets are used throughout the type checker. 
+As described in @sc-scalars, these sets must be able to every possible result of addition, subtraction, and _at least_ determine the upper and lower bounds of other operations.
+Further, the type checker will often test subset relations between sets, and union a series of sets.
 
-Representations of sparse sets in memory is a well-studied topic, with efficient solutions for many use cases. /* TODO: cite: roaring bitmaps, other tree-based repr */
-Most of the work we found focuses on storing collections of integers, but performing operations on them isn't well optimized.
+There are many solutions for storing large disjoint sets of integers: in particular we investigated Roaring Bitmaps (@chambiBetterBitmapPerformance2016), and Range Set Blaze (@kadieCarlKCarlKRangesetblaze2024).
+The set representation was developed with the intention of tracking the exact results of multiplication, and division not just addition and subtraction.
+To this end, we chose using a list of stepped ranges, instead of continuous ranges like Range Set Blaze. 
+However, this representation made simple operations, like subset difficult, so, to optimize cases where we have sets of arbitrary values, we also give the option of using a large uncompressed bit map.
+Finally, to optimize the typical case, where the programmer is performing arithmetic on a large continuous range, sets may be represented just usingthe two endpoints.
 
-To date, we have not found an efficient method of computing the operations laid out in @sc-scalars in the general case. Instead, we've focused on optimizing operations often performed by the programmer, while offering them ways to bypass strict integer checks when required.
-
-Internally, we use 3 set representations, _Stripe Sets_, _Small Sets_ and _Continguous Sets_
+// Internally, we use 3 set representations, _Stripe Sets_, _Small Sets_ and _Continguous Sets_
 
 
 == Stripe Sets<sc-stripe-sets>

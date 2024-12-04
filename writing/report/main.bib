@@ -74,6 +74,27 @@
   file = {/home/ian/Zotero/storage/DQRLU35A/catppuccin.com.html}
 }
 
+@article{chambiBetterBitmapPerformance2016,
+  title = {Better Bitmap Performance with {{Roaring}} Bitmaps},
+  author = {Chambi, Samy and Lemire, Daniel and Kaser, Owen and Godin, Robert},
+  year = {2016},
+  month = may,
+  journal = {Software: Practice and Experience},
+  volume = {46},
+  number = {5},
+  eprint = {1402.6407},
+  primaryclass = {cs},
+  pages = {709--719},
+  issn = {0038-0644, 1097-024X},
+  doi = {10.1002/spe.2325},
+  urldate = {2024-12-04},
+  abstract = {Bitmap indexes are commonly used in databases and search engines. By exploiting bit-level parallelism, they can significantly accelerate queries. However, they can use much memory, and thus we might prefer compressed bitmap indexes. Following Oracle's lead, bitmaps are often compressed using run-length encoding (RLE). Building on prior work, we introduce the Roaring compressed bitmap format: it uses packed arrays for compression instead of RLE. We compare it to two high-performance RLE-based bitmap encoding techniques: WAH (Word Aligned Hybrid compression scheme) and Concise (Compressed `n' Composable Integer Set). On synthetic and real data, we find that Roaring bitmaps (1) often compress significantly better (e.g., 2{\texttimes}) and (2) are faster than the compressed alternatives (up to 900{\texttimes} faster for intersections). Our results challenge the view that RLE-based bitmap compression is best.},
+  archiveprefix = {arXiv},
+  langid = {english},
+  keywords = {Computer Science - Databases},
+  file = {/home/ian/Zotero/storage/QYAEGQL4/Chambi et al. - 2016 - Better bitmap performance with Roaring bitmaps.pdf}
+}
+
 @book{compilers,
   title = {Compilers: {{Principles}}, {{Techniques}}, and {{Tools}}},
   shorttitle = {Compilers},
@@ -363,6 +384,16 @@
   file = {/home/ian/Zotero/storage/MHD2785U/journal.stuffwithstuff.com.html}
 }
 
+@misc{kadieCarlKCarlKRangesetblaze2024,
+  title = {{{CarlKCarlK}}/Range-Set-Blaze},
+  author = {Kadie, Carl},
+  year = {2024},
+  month = nov,
+  urldate = {2024-12-04},
+  abstract = {Integer sets as fast, sorted, integer ranges with full set operations},
+  copyright = {Apache-2.0}
+}
+
 @article{kajiSolvingUnificationProblem,
   title = {Solving a {{Unification Problem}} under {{Constrained Substitutions Using Tree Automata}}},
   author = {Kaji, Yuichi and Fujiwara, Toru and Kasami, Tadao},
@@ -534,16 +565,6 @@
   urldate = {2024-11-10},
   langid = {english},
   file = {/home/ian/Zotero/storage/IZ4WKXEE/splash.html}
-}
-
-@misc{RangesetblazeCratesIo2024,
-  title = {Range-Set-Blaze - Crates.Io: {{Rust Package Registry}}},
-  shorttitle = {Range-Set-Blaze - Crates.Io},
-  year = {2024},
-  month = mar,
-  urldate = {2024-09-22},
-  abstract = {Integer sets as fast, sorted, integer ranges with full set operations},
-  howpublished = {https://crates.io/crates/range-set-blaze}
 }
 
 @misc{ReconstructingTypeScriptPart,
