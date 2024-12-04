@@ -284,17 +284,17 @@ This fails to compile, since `sh_offset + sh_size` might overflow, and wrap to a
   raw(s)
 }
 
-A scalar is constructed by arithemtic operations, character literals or integer literals.
-We will use Howlites own type construction syntax going forward: the given an expression `e` and a type `T`, the expression `e : T` asserts `e` constructs the type `T`.
+A scalar is constructed by arithmetic operations, character literals or integer literals.
+We will use Howlite's own type construction syntax going forward: the given an expression `e` and a type `T`, the expression `e : T` asserts `e` constructs the type `T`.
 
-A literal scalar can be constructed from the a character literal, like `'A'`, `'\n'`, or `'🤯'`. 
-The type constructed is a single value, equal to their unicode codepoint. So, #cons_c("A"), #cons_c("\\n", v: "\n"), #cons_c("🤯").
+A literal scalar can be constructed from a character literal, like `'A'`, `'\n'`, or `'🤯'`. 
+The type constructed is a single value, equal to their Unicode codepoint. So, #cons_c("A"), #cons_c("\\n", v: "\n"), #cons_c("🤯").
 
 Literals can also be constructed from unsigned integers: `3 : 3`, `5 : 5`, `0b111 : 7`.
 
 == Construction of Scalars from Prefix Operators
 
-The typechecker currently handles the prefix operators `!` (logical not) and `+`, and `-`.
+The type-checker currently handles the prefix operators `!` (logical not) and `+`, and `-`.
 The `+` sign is a no-op, it's included in the language for cases where it might improve clarity.
 `-e` constructs the negative of `e`: it's equivalent to the expression `0 - e`.
 `!` has three cases: `!a : 0` if the type of `a` does not contain `0`, `!a` is `1` if the type of `a` only contains `0`, and `!a : 0 | 1` otherwise.
@@ -310,10 +310,20 @@ For example, given a variable `a: 1..3`, and a variable `b: -5 | -7`, then the e
 For performance, multiplication and division produce only a contiguous range from the minimum possible result to the maximum.
 So, re-using the variables defined above, we find `a * b` has the type `-21..-5`, even if the expression can only produce $-21, -15, -14, -10, -7, " and " -5$.
 
+== Construction of Scalars from Comparison & Logical Operators
+
+Unconditionally, all comparison operators: `<`, `<=`, `>`, `>=`, `==`, and `!=` synthesize to the type `0 | 1`.
+Similarly, logical "and" (`&&`), and logical "or" (`||`) always synthesizes to the type `0 | 1`.
+
+Although a scheme similar to the logical not (`!`) operator could be implemented, where the constructed type depends on the operands, a simple implementation was chosen for development efficiency, and to see how it would effect programming in the language.
+Ultimately, the difference rarely matters, since if the outcome of a boolean operation is always true, or always false its likely either for debugging, or an error on the programmer's part, making the case relatively rare.
+
+
 == Future Work<sc-future-work>
 
 The largest missing piece are bit-wise operations.
-Due to the internal representation of integer sets (discussed in @sc-disjoint-integer-sets), it is difficult to compute bit-wise XOR, and AND operations.
+Due to the internal representation of integer sets (discussed in @sc-disjoint-integer-sets), it is difficult to compute bit-wise "XOR", "AND", and "OR" operations.
+
 
 = Disjoint Integer Sets<sc-disjoint-integer-sets>
 
