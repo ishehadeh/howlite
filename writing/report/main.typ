@@ -356,19 +356,13 @@ Formally, we define $"STEP"(A, B, S) := { n(S) + A : n in NN, n <= (B - A)\/S }$
   ${ #elems }$
 }
 
+In order to add two step ranges:  $alpha", and " beta$ we take the one with the fewest elements (say $alpha$, for this example). 
+For every element $a$ in $alpha$, create a new range $STEP("min"(beta) + a, "max"(beta) + a, "step"(beta))$. Multiplication and division falls to only operating on the set's minimum and maximum, in order to construct a new continuous set.
 
 This representation is the most general - it can express any arbitrary set of integers.
 But, the in-memory representation can be difficult to manage.
+Operations like union and set subtraction can cause the internal representation to become fragmented - several step ranges are used to express a collection of values that could be expressed with a single step range. Care is taken to avoid this fragmentation, or correct it when detected, however the algorithm is far from perfect. During development we found taking union of roughly $60$ continuous ranges had a large decrease in performance.
 
-Consider a stripe set: $A = STEP(5, 13, 2) union STEP(20, 26, 3) = #stripe((5, 13, 2), (20, 26, 3))$,
-and a stripe set $B = STEP(0, 100, 10) = #stripe((0, 100, 10))$.
-
-How do we add these, in such a way that the result has as few step ranges as possible?
-At present, we use one simple algorithm: For each combination action of step ranges $alpha, beta$, take the one with the fewest elements (say $alpha$, for this example). 
-For every element $a$ in $alpha$, create a new range $STEP("min"(beta) + a, "max"(beta) + a, "step"(beta))$. 
-
-Issues quickly arise after several operations, since the stripe set can become fragmented.
-So, generally we avoid this representation until it becomes necessary.
 
 == Small Sets<sc-sm-set>
 
