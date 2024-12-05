@@ -1,7 +1,7 @@
 use hashbrown::HashMap;
 use howlite_syntax::{ast::PrefixOp, tree::DefaultLinearTreeId, AstNodeData};
 use howlite_typecheck::AccessPath;
-use tracing::instrument;
+use tracing::{debug, instrument};
 
 use crate::{langctx::lexicalctx::LexicalContext, symtab::Symbol};
 
@@ -40,17 +40,19 @@ impl<'b, 'c> ConstraintTree<'b, 'c> {
             AstNodeData::Ident(_) | AstNodeData::ArrayAccess(_) | AstNodeData::FieldAccess(_) => {
                 let mut top = node_id;
                 let ty = self.lexical_context.child(top).synthesize_ty();
+                debug!(?ty, ?node_id, "found possible narrow-able variable");
                 ty.as_int()?;
 
                 let mut path = AccessPath::default();
                 loop {
+                    debug!(?path, "building path");
                     match &self.lexical_context.get_node(top).data {
                         AstNodeData::Ident(ident) => {
                             let symbol = self.lexical_context.sym_intern(&ident.symbol);
 
                             let var = self.model_builder.hlt_var_id();
                             self.modified_vars
-                                .push((var, symbol, AccessPath::default()));
+                                .push((var, symbol, path.clone()));
                             let hlt_var = self.lexical_context.var_get(symbol).unwrap();
                             let ty = if self.use_assumed_var_ty {
                                 hlt_var.assumed_ty.access_path(path.as_slice())

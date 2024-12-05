@@ -459,6 +459,10 @@ ExprPrefixOnly -> Result<AstRef>:
   '-' Trivia Term { 
       trivia!(left trivia_tree, $2, node!(tree, $span, ExprPrefix { op: PrefixOp::Minus, rhs: $3? }))
     }
+  |
+  '&' Trivia Term { 
+      trivia!(left trivia_tree, $2, node!(tree, $span, ExprPrefix { op: PrefixOp::Ref, rhs: $3? }))
+    }
   | '+' Trivia Term { 
       trivia!(left trivia_tree, $2, node!(tree, $span, ExprPrefix { op: PrefixOp::Plus, rhs: $3? }))
     }

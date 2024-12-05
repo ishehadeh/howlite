@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use howlite_syntax::ast::{ExprPrefix, PrefixOp};
-use howlite_typecheck::{shape::TypeShape, types::TyInt, Ty};
+use howlite_typecheck::{shape::TypeShape, types::TyInt, Ty, TyReference, TySlice};
 use preseli::IntegerSet;
 use sunstone::ops::{PartialBounded, SetOpIncludeExclude, SetOpIncludes};
 use tracing::trace_span;
@@ -15,10 +15,10 @@ impl SynthesizeTy for ExprPrefix {
         let term_ty = ctx.child(self.rhs).synthesize_ty();
         let expected_shape = if self.op == PrefixOp::Deref {
             TypeShape::REFERENCE
-        } else {
+        } else if self.op == PrefixOp::Ref { TypeShape::any()} else {
             TypeShape::INTEGER
-        };
-        if term_ty.shape() != expected_shape {
+        } ;
+        if !expected_shape.contains(term_ty.shape()) {
             ctx.error(CompilationErrorKind::PrefixOpNotApplicable {
                 prefix: self.op,
                 expected: expected_shape,
@@ -30,12 +30,14 @@ impl SynthesizeTy for ExprPrefix {
                 PrefixOp::Plus => TyInt::i64(),
                 PrefixOp::BitNot => TyInt::u64(),
                 PrefixOp::Deref => return Rc::new(Ty::Hole),
+                PrefixOp::Ref => unreachable!(),
             }));
         }
 
         let span = trace_span!("ExprPrefix", op = ?self.op, ty = ?term_ty);
         let _guard = span.enter();
         match self.op {
+            
             PrefixOp::LogicalNot => {
                 let mut output = IntegerSet::empty();
                 let term_values = &term_ty.as_int().unwrap().values;
@@ -60,6 +62,18 @@ impl SynthesizeTy for ExprPrefix {
             PrefixOp::Plus => term_ty,
             PrefixOp::BitNot => todo!(),
             PrefixOp::Deref => term_ty.as_reference().unwrap().referenced_ty.clone(),
+            PrefixOp::Ref => {
+                if let Some(slice) = term_ty.as_array() {
+                    Ty::Slice(TySlice {
+                        index_set: Rc::new(Ty::Int(TyInt::single(slice.length as i128))),
+                        element_ty: slice.element_ty.clone()
+                    }).into()
+                } else {
+                    Ty::Reference(TyReference {
+                        referenced_ty: term_ty
+                    }).into()
+                }
+            },
         }
     }
 }

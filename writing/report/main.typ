@@ -2,6 +2,7 @@
 #import "@preview/wrap-it:0.1.0": wrap-content
 #import "@preview/fletcher:0.5.1" as fletcher: diagram, node, edge
 #import "./util.typ": *
+#import "./templates/example.typ": code-sample
 
 
 #let affls = (
@@ -374,7 +375,7 @@ Ideally, the small size, but quick set operations would be a good trade-off for 
 However, it is still difficult to compute every possible result of a particular bit-wise operation between two small sets, making them unfit for this use case.
 Since enumerable types and bit-flags typically only have a relatively small set of defined values, it would likely be more efficient to use an array of integers.
 
-
+In the current iteration of the type checker, small sets are often used to store the type of string literals. String literals are short-hand syntax for an array of UTF-8 encoded characters. Usually, the element type for these arrays contains several arbitrary integers, all clustered between 0 and 255 (for example: the string "Hello World" has the type [32 | 72 | 85 | 100 | 101 | 108 | 117 | 120; 11])
 == Continuous Ranges<sc-contiguous-ranges>
 
 A continuous range is a set with a minimum element $A$, and a maximum element $B$, which includes every integer between the two.
@@ -394,48 +395,89 @@ In the current implementation, sets will never be _downgraded_, although it is t
 This can have odd effects on performance, since a simple set of integers may have an overly complex representation.
 For example, if we add `0..5` (a continuous range) to the set `0 | 5 | 10 | 15` (a stripe set), the result would be `0..20`, represented as a stripe set.
 
-= Constraints<sc-contraints>
-
-At the type level, a boolean expression is considered an integer constraint satisfiability problem.
-The broad implications are discussed in @sc-narrowing.
-
-Currently, we support binary constraints involving multiplication and addition.
-To find these constraints within the abstract syntax tree, we use a similar approach to type checking.
-Every node may or may not be represented as a _Constraint Term_.
-A constraint term may be a constant; variable; addition or multiplication between a variable and constant; addition or multiplication between two variables; a variable constrained to a set; or a constraint between two variables.
-
-The process for mapping nodes to atomic constraint terms follows: 
-
-- Identifier referencing a mutable variable $->$ _variable_
-- Field access to a mutable struct field $->$ _variable_
-- Expression with a scalar result $->$ _constant_
-- Identifier referencing an immutable variable $->$ _constant_
-- Field access to an immutable struct field $->$ _constant_
-
-From there, we build compound terms:
-
-- _variable_ $+,times$ _constant_ $-> $ _unary operation_
-- _constant_ $+,times$ _constant_ $-> $ _constant_
-- _variable_ $+,times$ _variable_ $-> $ _binary operation_
-- _variable_ $<,>,<=,>=,!=,=$ _variable_ $-> $ _binary constraint_
-- _variable_ $<,>,<=,>=,!=m=$ _constant_ $-> $ _unary constraint_
-- _variable_ $<,>,<=,>=,!=m=$ _unary operation_ $-> $ _binary constraint_
+= Type Narrowing
 
 
-A collection of unary and binary constraints, combined with the logical and operator (`&&`) form a constraint set. We reduce each of the variable's values to satisfy the constraint, or, warn the user that the consideration will never be satisfied if this fails. Because we only handle expressions involving two mutable variables, expressions that do not meet this criterion are ignored.
-= Narrowing<sc-narrowing>
+In addition to flow control, conditionals also allow the programmer to narrow types.
+If $x$ is some unsigned number, a statement like `if x < 5 { ... }` will give $x$ the type $0 .. 5$ within the body of the if statement. If the conditional has an attached `else` clause, then the inverse of the condition is used to narrow types within the body of the else clause.
+So, the statement `if x < 5 { ... } else { ... }` is semantically equivalent to `if x < 5 { ... }`, followed by `if x >= 5 { ... }`.
+
+In practice, the "narrowed type" of a variable is a third layer on top of the existing assumed and synthesized types. Each scope may define a single narrowed type for a variable, which overrides the synthesized type in that scope alone. Narrowed types are distinct from synthesized types because they are associated with a scope: they have no effect on the variable's type outside of that scope, and only the first narrowed type in the scope heirarchy matters. For example, consider a snippet which narrows the value of $x$ twice:
+
+#wrapped-figure(
+left: code-sample(
+```hlt
+if x < 10 {
+  // x has a narrowed type of 0..10
+  if x < 5 {
+    // x has a narrowed type of 0..5
+  }
+  // x has a narrowed type of 0..10
+}
+```),
+right: [
+  If we instead assigned $x$ to $5$ within the if-statement inner, this would effect its synthesized type, which would be kept past the end of the if-statmeents body.
+  In short: Assumed types are axioms, synthesized types observations based on assignment, and narrowed types are observations based on conditions.])
+
+== Loops
+
+Currently, only while loops are supported.
+For simplicity, since while loops can run an indefinite number of times they are treated as a black box. When a while loop is encountered, all variables are assigned their assumed type. Meaning, an previous range analysis is ignored.
+
+#include "examples/while-loop-narrowing.typ"
+
+Within the body of the while loop, types are narrowed using the while loop's condition. In @ex-while-loop-narrowing, line 2 we can safely increment $a$, since the condition ensures $a : 0..4$, but the assumed type of $a$ is $0..10$.
+
+
+
+== Producing Constraints<sc-contraints>
+
+
+Constraints are constructed from the condition of if-statements and while loops, by a _model builder_.
+Similar to type checking, the model builder reduces the syntax tree bottom-up.
+Each node is converted into a _term_.
+A term has three possible shapes:
+
+1. An _Atom_: a variable with an offset: for example "x + 3", "y - 10".
+2. A _Cond_: a list of clauses, which must all be true
+3. A _LinearSum_: some expression in the form $a x + b y + ... + c$, where $a$, $b$, $c$ are constant, and $x$, $y$ are variables.
+
+If an expression cannot be fit in one of the above forms, then the model builder ignores that expression. For example, if $x$, and $y$ are variables, then $x * y$ cannot be expressed in any of the above forms, so this expression would be ignored. Ignored expressions cascade: if the full expression was $(x * y) + 100$, then the model checker would throw away everything, since it cannot reason about $x * y$. However, every condition separated by the `&&` operator is considered separately.
+
+The builder stops at comparison operations and adds it to the list of possible clauses in the model, producing a _Cond_ term.
+
+The aries library [@bit-monnotPlaansAriesToolbox2024] is used for solving constraints. Because the library only supported 32-bit signed integers, and the Howlite type-checker relies on 128-bit signed integers, we maintain a fork of the library with support for 64-bit, and 128-bit integers. Ideally these changes can be added to upstream repository.
 
 == Solving Constraints
 
-We solve constraints with a naive constraint propagation algorithm, based on the algorithms described in _Foundations of Artificial Intelligence_, Chapter 3, @bessiereChapter3Constraint2006. A constraint set is a collection of variables and constraints on those variables. All variables begin with some unary constraint, by default this is that they must be a subset of their current synthesized type. From there, we iterate over every unsatisfied constraint, each constraint "propagates", returning that either it has been satisfied, it cannot be satisfied, or a mutation
-to some variable that is required for it to be satisfied (although it's not guaranteed that it will be satisfied immediately after the mutation is made).
-This scheme was originally inspired by Zhou's _Action Rules_ language (@zhouProgrammingFinitedomainConstraint2006).
-The search is depth-first, if a constraint is found to be unsatisfiable, we undo the last mutation and move up the tree.
-The first set of mutations that satisfy all constraints is used to produce the final collection of values.
+While adding constraints, the model builder maintains a list of variables, or data structure fields that may be narrowed. 
+Once the aries solver runs, the type checker repeatedly queres the domain of these variables. After each query, the returned range is added to the variable's new domain, then the solver's model is updated to eliminate that range.
 
-= Code Generation
+#figure(
+```py
+# begin with an empty assignment for each variable
+var_type = IntegerType.empty()
 
-Similar to type checking, code generation works by folding the abstract syntax tree.
-Each node writes to a buffer of assembly instructions, provided by the parent node.
-They return a collection of _Slots_ which contain the value of their computation.
-A Slot may be a register, a pointer (itself a slot) and an associated offset, or a 16-bit immediate. No optimizations are performed, and the generated code is generally inefficient, even compared to other compilers when they skip the optimization step.
+# search for a solution by repeated backtracking all invalid decisions
+# then propogating constraints. 
+while solver.backtrace_and_propogate():
+  for var in variables:
+    var_domain = solver.get_domain(var)
+    var_type.include_range(var_domain.lower_bound(), var_domain.upper_bound())
+```,
+caption: "Repeatedly Query the Solver to find all possible solutions",
+supplement: "Figure")
+
+
+Once we have a set of possible assignments for each variable, the solutions are integrated back into the type checker.
+This process is similar to assignment.
+If an entire variable is narrowed, e.g. $a < 30$, then that variable in assigned a new narrowed type equal to the solution found by the solver, within the relevant scope.
+
+If only a single field of a variable is narrowed, for example `err.kind == 1`, then we copy the variable's type, replace the field with the new type produced by the solver, then process any consequences of that. For example, if the variable's type is a union, and that assignment is illegal in some of the variants, then those variants are thrown away. A possible use-case for this can be seen in the following example of a function to print compiler errors.
+
+#include "examples/narrowing-unions.typ"
+
+Notice we can access both the `err.kind` and `err.filename` fields without narrowing, since those exist on each union variant.
+But, in order to get the line number for parse error the variable has to be narrowed by testing the value of `err.kind`.
+
+= Conculsion

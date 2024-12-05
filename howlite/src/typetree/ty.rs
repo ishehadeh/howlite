@@ -69,7 +69,7 @@ impl SynthesizeTy for TyNamed {
             .iter()
             .map(|p| ctx.child(*p).synthesize_ty())
             .collect::<Vec<_>>();
-        let special_ints = ["Max", "Min", "u32", "s32", "s16", "s8", "s16", "s8"];
+        let special_ints = ["Max", "Min", "u32", "s32", "s16", "s8", "s16", "s8", "u8"];
         if special_ints.contains(&self.name.as_str()) {
             debug!(inner = ?params[0], name = ?self.name, "instantiating special int type");
             let p0 = &params[0];

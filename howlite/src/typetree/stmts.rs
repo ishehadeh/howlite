@@ -57,6 +57,8 @@ fn narrow_cond(
     let mut constraints = ConstraintTree::new(ctx.clone(), assumed_ty);
     let cond_term = constraints.get_constraint_term(ctx.node());
 
+    debug!(vars = ?constraints.modified_vars, "narrowing based on condition");
+    
     if let Some(cond_term) = cond_term {
         let cond_lit = constraints.model_builder.reify_term(cond_term);
         let ctxs = std::iter::once((cond_lit, true_ctx))

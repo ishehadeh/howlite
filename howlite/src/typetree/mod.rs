@@ -43,7 +43,7 @@ use crate::{
 
 impl SynthesizeTy for AstNodeData {
     fn synthesize_ty(&self, ctx: &LexicalContext) -> Rc<Ty<Symbol>> {
-        trace!(?ctx, ?self, "synthesize node");
+        trace!(?self, "synthesize node");
         match self {
             AstNodeData::Program(p) => {
                 for &def in &p.definitions {

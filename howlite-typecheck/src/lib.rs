@@ -30,6 +30,7 @@ pub mod errors;
 pub mod types;
 mod util;
 use sunstone::ops::{SetOpIncludes, Subset, Union};
+use tracing::{debug, instrument, trace, Level};
 use types::{StructField, TyInt, TyLateBound, TyStruct, TyUnion};
 use util::try_collect::TryCollect;
 
@@ -316,7 +317,7 @@ impl<SymbolT: Symbol> Ty<SymbolT> {
         if union_tys.len() == 1 {
             Ok(union_tys[0].clone())
         } else {
-            Ok(Rc::new(Ty::Union(TyUnion { tys: union_tys })))
+            Ok(Ty::union(&union_tys))
         }
     }
 
@@ -380,6 +381,7 @@ impl<SymbolT: Symbol> Ty<SymbolT> {
         }
     }
 
+    #[instrument(level=Level::TRACE)]
     pub fn assign_field(
         &self,
         access_symbol: SymbolT,
@@ -413,6 +415,8 @@ impl<SymbolT: Symbol> Ty<SymbolT> {
         let req_offset = field_idx_with_offset[0].0;
         let mut union_tys: SmallVec<[Rc<Ty<SymbolT>>; 8]> = SmallVec::new();
         for (i, (offset, struc_field)) in field_idx_with_offset.iter().enumerate() {
+            debug!(field=?strucs[i].fields[*struc_field].ty, new=?val, name=?strucs[i].fields[*struc_field].name, ?offset, "trying to assign field");
+
             if *offset != req_offset {
                 return Err(AccessError::FieldMisaligned);
             } else if val
@@ -498,6 +502,14 @@ impl<SymbolT: Symbol> Ty<SymbolT> {
 
     pub fn is_assignable_to(&self, other: &Ty<SymbolT>) -> Result<(), IncompatibleError<SymbolT>> {
         match (self, other) {
+            (Ty::Hole, _) | (_, Ty::Hole) => Ok(()),
+            (Ty::Union(u), other) => {
+                for ty in &u.tys {
+                    // TODO: a little context about which element of the union failed would be handy
+                    ty.is_assignable_to(other)?
+                }
+                Ok(())
+            },
             (Ty::Int(subset), Ty::Int(superset)) => {
                 if subset.values.subset_of(&superset.values) {
                     Ok(())
@@ -549,30 +561,23 @@ impl<SymbolT: Symbol> Ty<SymbolT> {
                     .map_err(|error| IncompatibleError::IncompatibleElement {
                         error: Box::new(error),
                     })?;
-                let assignee_max_index = *assignee
+                let assignee_indicies = &assignee
                     .index_set
                     .as_int()
                     .unwrap()
-                    .values
-                    .partial_hi()
-                    .unwrap();
-                let assigned_to_max_index = *assigned_to
+                    .values;
+                let assigned_to_indicies =& assigned_to
                     .index_set
                     .as_int()
                     .unwrap()
-                    .values
-                    .partial_hi()
-                    .unwrap();
-                if assignee_max_index < assigned_to_max_index {
+                    .values;
+
+                // unlike arrays, we don't need the assignee to have an length >= the target,
+                // since the length is known at runtime.
+                if !assignee_indicies.subset_of(assigned_to_indicies) {
                     Err(IncompatibleError::IncompatibleIndices {
-                        subset_indicies: IntegerSet::new_from_tuples(&[(
-                            0,
-                            assignee_max_index as i128,
-                        )]),
-                        superset_indicies: IntegerSet::new_from_tuples(&[(
-                            0,
-                            assigned_to_max_index as i128,
-                        )]),
+                        subset_indicies: assignee_indicies.clone(),
+                        superset_indicies: assigned_to_indicies.clone(),
                     })
                 } else {
                     Ok(())

@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-tracing-subscriber = { version = "*", optional = true }
+tracing-subscriber = { version = "*", optional = true, features = ["env-filter"] }
 howlite-syntax = { path = "../howlite-syntax", features = ["proptest"] }
 howlite-typecheck = { path = "../howlite-typecheck" }
 preseli = { path = "../preseli" }
@@ -31,7 +31,7 @@ proptest = { version = "=1.5.0" }
 tracing-test = "=0.2.5"
 
 [features]
-cli = ["dep:clap", "dep:tracing-subscriber"]
+cli = ["dep:clap", "dep:tracing-subscriber", "tracing-subscriber/env-filter"]
 serde = ["dep:serde"]
 
 [[bin]]

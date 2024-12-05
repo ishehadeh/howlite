@@ -8,6 +8,7 @@ pub enum PrefixOp {
     Plus,
     BitNot,
     Deref,
+    Ref,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -27,6 +28,7 @@ impl PrefixOp {
             PrefixOp::Plus => "+",
             PrefixOp::BitNot => "~",
             PrefixOp::Deref => "*",
+            PrefixOp::Ref => "&",
         }
     }
 }
