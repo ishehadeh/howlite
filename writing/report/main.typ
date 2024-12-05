@@ -76,7 +76,7 @@ Howlite is an expiremental language for writing programs that necessitate little
 
 ])
 
-= The Programming Language
+= The Programming Language<sc-howlite-intro>
 
 Memory safety in systems programming languages has garnered a lot of attention in the last several years. 
 A compiler that enforces strict rules on an object's lifetime and mutability is helpful in large projects, especially when security is a top concern. Checking these properties at compile time allows the compiler to omit parts of its runtime, like a garbage collector, while providing similar guarantees.
@@ -149,7 +149,7 @@ Since it's impossible to find a character outside of those bounds, we know the r
 )
 
 
-= Syntax Design
+= Syntax Design<sc-syntax-design>
 
 #wrapped-figure(
   right: [#include "./examples/syntax-overview.typ"],
@@ -178,6 +178,29 @@ Being a low-level language, we want to emphasize precisely what the machine is d
 Howlite programs are written in an imperative style, we expect the programmer to use mutable state, but discourage it when unnecessary by making it opt-in via the `mut` keyword. We also omit short-hand syntax or functions for functional operations, like transforming the content of an array. While these operations are convenient, they can paper over important details like memory allocation. 
 
 For example, flow control constructs, like if statements may have a value. This allows the programmer to clearly show a variable's value is the result of some condition. In order to make tooling easier to write, we prioritize creating an unambiguous grammar, with no constructs that require unbounded look-ahead.g an unambigous grammar, with no constructs that require unbounded look-ahead.
+
+= Bare Metal Polymorphism<sc-polymorphism>
+
+As outlined in @sc-howlite-intro Howlite supports two kinds of polymorphism: subtype and parametric polymorphism.
+To maintain goal of staying close to the hardware, there are several limitations on both.
+
+First, parametric polymorhpism operates entirely at the type level.
+It has no bearing on the generated code.
+The in-memory representation of the type `type Vec2[T: Uint32] = { x: T, y: T }` is identical to that of `{ x: Uint32, y: Uint32 }`.
+This feature was inspired by the research language Cycle @cyclone_types.
+The key difference is that in Howlite, you can define a type parameter to be a subset of any type, not just pointer-sized types or smaller.
+This limited form of polymorphism is mostly useful for giving strong typing to pointer types and integer types. Ideally, it allows the programmer to avoid using untyped points (like C's `void*`) when implementing datastructures like dynamic arrays, or passing context for a callback function.
+
+Subtype polymorhpism is a consequence of structural typing.
+Types are not compared by name, but instead their contents: so, $50$ is assignable to the type `1..100`, because it is a member of that type. This extends to arrays: `[Char; 10]` is assignable to `[Char; 5]`, becuase it has at least 5 elements. Similarly, a data structure `{ a: int, b: int, c: int, d: int }` can be assigned to `{b: int, c: int}`.
+
+In practice, this is achieve in two ways: first, if the superset data structure is passed-by-reference, or a reference to a superset datastructure is assigned to a reference to a subset data structure, then the underlying pointer is adjusted to align the fields. In the above example the reference would be shifted up by `sizeof(int)` when assigned to `{b: int, c: int}`. This has little to no runtime cost - it usually means adding an immediate offset to future load instructions. If the assignment is not using a reference then only the relevant fields are copied. To make sure this system is sound, we impose the follow restrictions on both arrays and structures:
+1. The superset type must be at least as big as the subset type
+2. Every field in the subset type must have the same size as the same field in the superset
+3. Every field in the subset type must have the same offset as the same field in the superset.
+4. Every field in the superset type must be assignable to the equivalent field in the subset type.
+
+
 
 = Type Checking<sc-type-checking>
 
@@ -481,3 +504,19 @@ Notice we can access both the `err.kind` and `err.filename` fields without narro
 But, in order to get the line number for parse error the variable has to be narrowed by testing the value of `err.kind`.
 
 = Conculsion
+
+The goal of this project was to create a compiler.
+Currently, only the type checker is finished.
+The project also lacks documentation and testing.
+In it's current state, Howlite should be seen as a proof of concept - a test bed for a few particular language features and nothing more. Although we were unsuccessful in completing the compiler, the process of implementing the type checker has been informative.
+
+We found that there is little benefit to using disjoint sets over continous ranges.
+Even if it is possible to implement efficiently, the maintenance cost of keeping a system for handling disjoints is to high to make it a worth-while feature.
+Fine-grained control over integer types was a useful and interesting feature in two ways: first, it gives the programmer an effective tool to express intent, particularly when indexing arrays or if overflow is unexpected; second, it unifies enumerable types, unusually sized integers (e.g. 48-bit ints), and standard integers into the same mechanism, simplifying the overall language.
+
+Howlite is also an expirement in low-cost approaches to polymorphism (see @sc-polymorphism). Our two approaches were parametric polymorhpism without specialization and sub-type polymorphism via structural typing.
+The parametric polymorphism was a bit difficult to work with: becuase nearly all programming languages generate a different implementation based on the type parameters our entirely different semantics could lead to confusion.
+A simpler approach, like the one in Cyclone [@cyclone_types] would be more effective in a production language. Structural typing was much more effective.
+It worked well with unions and integer types, as seen in @ex-type-narrowing-and-unions, futher, it allowed functions to only the require the data they used, no matter what the caller might be working with.
+The trade-off is again, because we operate at a lower level, the types have to be perfectly aligned to be subtypes.
+So, some things that the programmer may not expect to matter intuitively effect subtype relationships, most notably field order.

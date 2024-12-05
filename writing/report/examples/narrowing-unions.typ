@@ -1,7 +1,7 @@
 
 #import "../templates/example.typ": *
 
-#code-example(caption: "Howlite",
+#code-example(caption: "Type Narrowing and Unions",
 ```
 type FsError = { kind: 0, filename: Str, errno: Int32 };
 type ParseError = { kind: 1, filename: Str, token: Str, line: UInt32 };
