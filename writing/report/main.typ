@@ -45,10 +45,10 @@ To satisfy both audiences, it must be clear in two ways: first, it needs to be u
     left: include "examples/hedy.typ",
     right: [
       Hedy [@hedy] is a programming language for teaching programming.
-      The language avoids symbols, instead using keywords, which are generally easier for students to remember. With so much of the language being textual, Hedy is fully translated to a large set of languages, 47 at the time of writing. The programs in both @ex-hedy-english and @ex-hedy-arabic print "Hello!" and ask the user their name, but their keywords are in different languages. Hedy also allows programmers to see and hear the results of their work: it has easily accessible functionality for playing music and drawing graphics. Those features are typically implemented as libraries for most programming languages since they have a relatively narrow application.
+      The language avoids symbols, instead using keywords, which are generally easier for students to remember. With so much of the language being textual, Hedy is fully translated to a large set of languages, 47 at the time of writing. The programs in @ex-hedy-english and @ex-hedy-arabic both print "Hello!" and ask the user their name, despite their keywords being in different languages. Hedy also allows programmers to see and hear the results of their work: it has easily accessible functionality for playing music and drawing graphics. Those features are typically implemented as libraries for most programming languages,
     ],
     under: [
-      In most programming languages, getting rich feedback from a program requires using complex graphics and audio libraries. To help new programmers see results quickly Hedy bundles graphics and audio output into the core language.
+      since they have a relatively narrow application. But, by putting these features in the core language Hedy allows fairly inexpierenced programmers access the machines more complex functionality, at the cost of performance and fine-grained control.
     ])
 
 == Go
