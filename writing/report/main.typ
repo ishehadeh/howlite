@@ -185,14 +185,14 @@ For example, flow control constructs like if statements may have a value. This a
 = Bare Metal Polymorphism<sc-polymorphism>
 
 As outlined in @sc-howlite-intro Howlite supports two kinds of polymorphism: subtype and parametric polymorphism.
-To maintain goal of staying close to the hardware, there are several limitations on both.
+To maintain the goal of staying close to the hardware, there are several limitations on both.
 
 First, parametric polymorhpism operates entirely at the type level.
 It has no bearing on the generated code.
 The in-memory representation of the type `type Vec2[T: Uint32] = { x: T, y: T }` is identical to that of `{ x: Uint32, y: Uint32 }`.
-This feature was inspired by the research language Cycle @cyclone_types.
+This feature was inspired by the research language Cyclone [@cyclone_types].
 The key difference is that in Howlite, you can define a type parameter to be a subset of any type, not just pointer-sized types or smaller.
-This limited form of polymorphism is mostly useful for giving strong typing to pointer types and integer types. Ideally, it allows the programmer to avoid using untyped points (like C's `void*`) when implementing datastructures like dynamic arrays, or passing context for a callback function.
+However, despite supporting larger types we found this limited form of polymorphism is mostly useful for giving strong typing to pointer types and integer types. It functions well when it allows the programmer to avoid using untyped pointers (like C's `void*`) when implementing datastructures like dynamic arrays, or passing context for a callback function. Beyond that, the lack of specialization could cause performance issues or unexpected behavior.
 
 Subtype polymorhpism is a consequence of structural typing.
 Types are not compared by name, but instead their contents: so, $50$ is assignable to the type `1..100`, because it is a member of that type. This extends to arrays: `[Char; 10]` is assignable to `[Char; 5]`, becuase it has at least 5 elements. Similarly, a data structure `{ a: int, b: int, c: int, d: int }` can be assigned to `{b: int, c: int}`.
