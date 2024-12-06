@@ -162,7 +162,7 @@ Since it's impossible to find a character outside of those bounds, we know the r
 
 == Familiarity
 
-Howlite code should be recognizable to C programmers. For this reason, we use curly braces ("{" and "}") to denote blocks of code. We use familiar imperative keywords: "if", "else", and "while", and mathmatical expressions follow typical infix notation. Howlite differs from C in that it requires a sigil character or keyword before beginning a new construct. Types do not lead in variable assignments for functions. Instead we use the "let" or "func" keywords, respectively. These keywords and symbols were decided by picking from popular languages during design. For example, "let", and `:` come from TypeScript, while "func" is a keyword in Go.
+Howlite code should be recognizable to C programmers. For this reason, we use curly braces ("{" and "}") to denote blocks of code. We use familiar imperative keywords: "if", "else", and "while", and mathmatical expressions follow typical infix notation. Howlite differs from C in that it requires a sigil character or keyword before beginning a new construct. Types do not lead in variable assignments for functions. Instead we use the "let" or "func" keywords. These keywords and symbols were decided by picking from popular languages during design. For example, "let", and `:` come from TypeScript, while "func" is a keyword in Go.
 
 == Ease of Parsing
 
