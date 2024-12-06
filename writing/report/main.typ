@@ -168,7 +168,7 @@ Howlite code should be recognizable to C programmers. For this reason, we use cu
 
 A small, easily parsed grammar is valuable because it makes implementing tooling easier. Anything from simple syntax highlighting in _Emacs_ to an auto-formatter or linter is dramatically easier to implement when parsing the language isn't a significant hurdle.
 
-Howlite's syntax is expressable in an LR grammar. Consequently, the grammar is unambiguous. While writing the grammar, we aimed to reduce look ahead as much as possible. For example, function's type parameters are written `index_of[:u32](...)`, which disambiguates the use of `[...]` from array access.
+Howlite's syntax is expressable in an LR grammar. Consequently, the grammar is unambiguous. While writing the grammar, we aimed to reduce look ahead as much as possible. For example, functions' type parameters are written `index_of[:u32](...)`, which disambiguates the use of `[...]` from array access.
 
 == Clarity
 
