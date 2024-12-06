@@ -197,10 +197,10 @@ However, despite supporting larger types we found this limited form of polymorph
 Subtype polymorhpism is a consequence of structural typing.
 Types are not compared by name, but instead their contents: so, $50$ is assignable to the type `1..100`, because it is a member of that type. This extends to arrays: `[Char; 10]` is assignable to `[Char; 5]`, becuase it has at least 5 elements. Similarly, a data structure `{ a: int, b: int, c: int, d: int }` can be assigned to `{b: int, c: int}`.
 
-In practice, this is achieve in two ways: first, if the superset data structure is passed-by-reference, or a reference to a superset datastructure is assigned to a reference to a subset data structure, then the underlying pointer is adjusted to align the fields. In the above example the reference would be shifted up by `sizeof(int)` when assigned to `{b: int, c: int}`. This has little to no runtime cost - it usually means adding an immediate offset to future load instructions. If the assignment is not using a reference then only the relevant fields are copied. To make sure this system is sound, we impose the follow restrictions on both arrays and structures:
+In practice, this is achieve in two ways: first, if the superset data structure is passed by reference, or a reference to a superset datastructure $T$, is assigned to a reference to a subset data structure $U$, then the underlying pointer is adjusted to align the common fields of $T$ with $U$ during assignment. In the above example the reference would be shifted up by `sizeof(int)` when assigned to `{b: int, c: int}`. This has little to no runtime cost - it usually means adding an immediate offset to future load instructions. If the assignment is not using a reference then only the relevant fields are copied. To make sure this system is sound, we impose the follow restrictions on both arrays and structures:
 1. The superset type must be at least as big as the subset type
-2. Every field in the subset type must have the same size as the same field in the superset
-3. Every field in the subset type must have the same offset as the same field in the superset.
+2. Every field in the subset type must have the same size as the equivalent field in the superset
+3. Every field in the subset type must have the same offset as the equivalent field in the superset.
 4. Every field in the superset type must be assignable to the equivalent field in the subset type.
 
 
