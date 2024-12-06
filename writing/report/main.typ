@@ -91,24 +91,27 @@ Howlite aims to address these problems. Howlite is not a language to write a web
   left: [
 == Overview
 
-The most notable feature of Howlite is the type system. The type system is structural and closely tracks the value of integers. For example, you can declare types that only allow the values `1`, `2`, or `5`. Types are compared based on their compatibility, not by name. For example, the data structure `{ x: int, y: int, z: int }` is compatible with
+The most notable feature of Howlite is the type system. The type system is structural and closely tracks the value of integers. For example, you can declare types that only allow the values `1`, `2`, or `5`, most programming languages only offer a few fixed-sized integer types. Types are compared based on their structural compatibility, not by name. 
 ],
   under: [
-    the type `{ x: int, y: int }`. To better understand the language, this section will walk through the process of defining a function to get the index of a character from an ASCII string.
+    So, if type $T$'s underlying binary representation is a superset of a type $U$'s underlying binary representation, then $T$ is assignable to $U$.  For example, the data structure `{ x: int, y: int, z: int }` is compatible with
+    the type `{ x: int, y: int }` (for more detail see @sc-polymorphism).  
   ]
 )
 
 
-// TODO: the transition here is a bit sudden, do we need a sentance prior to type defs?
-#v(1em)
+To better understand the language, this section will walk through the process of defining a function to get the index of a character from an ASCII string.
+
 #wrapped-figure(
   left: include "examples/index_of/typedefs.typ",
   right: [
     First, we define a character as any number between `0` and `127` (i.e. 7-bit ASCII characters).
     Next is the definition of a standard 32-bit integer, which is used to index the array.
-    Finally, we define a variant of `i32` that is only positive.
-    We'll use this type to represent the index, which can't be negative.
+    Finally, we define NatI32, an unsigned 31-bit integer.
   ],
+  under: [
+      We'll use this type to represent the index, which can't be negative, the sign bit is reserved to signal that the character wasn't found.
+  ]
 )
 
 
@@ -122,7 +125,7 @@ Whatever that type is, it is referred to as `LenT` within the context of this fu
 Moving on to the parameter list, notice the type of `str` is `&[char; LenT]`.
 This `&[...]` is a special type called a _slice_ (also known as a fat pointer).
 A slice is simply a pointer and length pair; practically it functions like an array.
-Slice types are common, they're primitives in Rust, Go, and Zig.
+Slice types are common: they're primitives in Rust, Go, and Zig.
 Although it's not a primitive type, the C++ STL's `std::span` is a similar data structure.
 What sets our slice type apart is that the type of the length can be set.
 For example, say we take a slice of some ASCII string, from index 3 to 10, the result would have the type `&[char; 7]`.
@@ -135,14 +138,14 @@ Since it's impossible to find a character outside of those bounds, we know the r
 #wrapped-figure(
   right: include "examples/index_of/body.typ",
   left: [
-   Finally, the body of this function likely looks familiar to C programmers, with some minor syntactic changes. Variables are declared with `let`, `mut` indicates that we can change the value after initialization. All expressions (including `if` statements and blocks) have values. The value of a block is equal to the value of the last line in the block, if it omits a semi-colon (`;`), or `unit` otherwise.
+   Finally, the body of this function likely looks familiar to C programmers, with some minor syntactic changes. The most noticeable changes are inherited from Rust [@rust]: Variables are declared with `let`, all expressions (including `if` statements and blocks) have values. The value of a block is equal to the value of the last line in the block if that line omits a semi-colon (`;`), or `unit` otherwise.
 
     Some care must be taken to make sure we satisfy the return type.
-    How can the compiler be certain `i` is always a subset of `0..Max[LenT]`, since `u32` certainly exceeds `LenT`.
-    The answer is that the condition, "`while i < str.len`", narrows `i`'s type from `u32` to `0..LenT-1`.
-    This means within the body of that loop, `i` can be used as if it had the type `0..Max[LenT]-1`.
+    The compiler must be certain `i` is always a subset of `0..Max[LenT]`, even though `i`'s declared type (`UInt32`) certainly exceeds `LenT`.
+    The type check does this by analyzing the condition, "`while i < str.len`", and narrows `i`'s type from `UInt32` to `0..Max[LenT]-1`.
   ],
   under: [
+    This means within the body of that loop, `i` can be used as if it had the type `0..Max[LenT]-1`.
     Arithmetic will modify this type: after running `i = i + 1`, `i`'s narrow type has changed to `1..Max[LenT]`.
     If we changed the code to check some other condition, for example, "`chr < str.len`", this wouldn't compile.
   ]

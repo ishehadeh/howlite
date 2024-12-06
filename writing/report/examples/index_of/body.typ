@@ -4,7 +4,7 @@
 #code-example(caption: "Expression",
 ```
 {
-  let i: Uint32 = 0;
+  let i: UInt32 = 0;
   while i < str.len {
     if str[i] == c {
         return i;
