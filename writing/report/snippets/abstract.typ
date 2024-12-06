@@ -1,2 +1,3 @@
-This paper covers the process of designing a programming language. We present _Howlite_ a language targeting RISC-V, intended for computation coupled to the underlying hardware.
-The language is a case study how structural typing and precise integer types can describe data structures at a low level. 
+We present _Howlite_, a programming language created to explore the use of constrained integer types at compile time. 
+Howlite uses a single scalar type, _integer_, which allows users to specify exactly the set of allowed values.
+Collection types are checked with a simple, structural bi-directional type checker.
