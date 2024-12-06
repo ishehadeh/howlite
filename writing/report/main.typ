@@ -505,12 +505,10 @@ If only a single field of a variable is narrowed, for example `err.kind == 1`, t
 Notice we can access both the `err.kind` and `err.filename` fields without narrowing, since those exist on each union variant.
 But, in order to get the line number for parse error the variable has to be narrowed by testing the value of `err.kind`.
 
-= Conculsion
+= Conclusion
 
-The goal of this project was to create a compiler.
-Currently, only the type checker is finished.
-The project also lacks documentation and testing.
-In its current state, Howlite should be seen as a proof of concept - a test bed for a few particular language features and nothing more. Although we were unsuccessful in completing the compiler, the process of implementing the type checker has been informative.
+In its current state, Howlite should be seen as a proof of concept - a test bed for a few particular language features and nothing more. Currently, only the type checker and parser are finished.
+Although we were unsuccessful in completing the compiler, the process of implementing the type checker has been informative.
 
 We found that there is little benefit to using disjoint sets over continuous ranges.
 Even if it is possible to implement efficiently, the maintenance cost of keeping a system for handling disjoints is to high to make it a worth-while feature.
@@ -522,3 +520,5 @@ A simpler approach, like the one in Cyclone [@cyclone_types] would be more effec
 It worked well with unions and integer types, as seen in @ex-type-narrowing-and-unions, further, it allowed functions to only require the data they used, no matter what the caller might be working with.
 The trade-off is again, because we operate at a lower level, the types have to be perfectly aligned to be subtypes.
 So, some things that the programmer may not expect to matter intuitively effect subtype relationships, most notably field order.
+
+Future work should focus on refining and simplifying polymorphism, and making a more efficient and bit-wise friendly implementation of the underlying architecture for integer range types.
