@@ -1,7 +1,7 @@
 #import "../templates/example.typ": code-sample
 
 #let code = ```
-func fib(n: u32): u32 {
+func fib(n: UInt32): UInt32 {
     if n == 0 { 0 }
     else if n == 1 { 1 }
     else {
