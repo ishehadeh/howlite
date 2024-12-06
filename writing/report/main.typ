@@ -79,7 +79,7 @@ Howlite is an expiremental language for writing programs that necessitate little
 = The Programming Language<sc-howlite-intro>
 
 Memory safety in systems programming languages has garnered a lot of attention in the last several years. 
-A compiler that enforces strict rules on an object's lifetime and mutability is helpful in large projects, especially when security is a top concern. Checking these properties at compile time allows the compiler to omit parts of its runtime, like a garbage collector, while providing similar guarantees.
+A compiler that enforces strict rules on an object's lifetime and mutability is helpful in large projects, especially when security is a top concern. Checking these properties at compile time allows the compiler to omit parts of its runtime, like garbage collection, while providing similar guarantees.
 
 These innovations in language design fail to directly address a class of problems where direct memory manipulation is essential. These problems force the programmer to fully disable the compiler's checks, or encourage awkward solutions that trade clarity for small guarantees. 
 
