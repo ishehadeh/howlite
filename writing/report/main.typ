@@ -72,7 +72,7 @@ To satisfy both audiences, it must be clear in two ways: first, it needs to be u
   left: include "examples/howlite-general.typ",
   right: [
 
-Howlite is an expiremental language for writing programs that necessitate little abstraction over they machines they control. The project's goal is to answer the question, _How can we create an expressive type system without limiting a programmer's control of the hardware?_
+Howlite is an expiremental language for writing programs that necessitate little abstraction over the machines they control. The project's goal is to answer the question, _How can we create an expressive type system without limiting a programmer's control of the hardware?_
 
 ])
 
