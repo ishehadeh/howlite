@@ -37,7 +37,7 @@
 _Programming Language_ is a broad term, generally a programming language is a text-based format for expressing computation.
 Although most programs are written by software engineers, and most programming languages are designed with software engineers in mind, this by no means makes them a homogenous group.
 Once a program is written it is read by both a machine (the compiler or interpreter) and humans.
-To satisfy both audiences, it must be clear in two ways: first, it needs to be unambiguous so the machine can produce consistent and accurate results; second, it must be expressive, meaning the author's intent should be apparent. To give context about what choices language designers might make, depending on their audience, we introduce _Hedy_, and _Go_.
+To satisfy both audiences, it must be clear in two ways: first, it needs to be unambiguous so the machine can produce consistent and accurate results; second, it must be expressive, meaning the author's intent should be apparent. To give context about what choices language designers make we introduce _Hedy_, and _Go_.
 
 == Hedy
 
