@@ -207,7 +207,7 @@ In practice, this is achieve in two ways: first, if the superset data structure 
 
 = Type Checking<sc-type-checking>
 
-Howlite implements a simple bi-directional type checker [@dunfieldBidirectionalTyping2020]. Every node in the AST is given a type. An AST node's type is typically derived from its children's types, through a process called _synthesis_, we call these types _synthesized types_. Many constructs in the language must be ascribed types by the programmer: variables declared with "`let`", function parameters, and return values. Types which are declared explicitly are called _assumed_ types.
+Howlite implements a simple bi-directional type checker [@dunfieldBidirectionalTyping2020]. Every node in the AST is given a type. An AST nodes' type is typically derived from its children's types, through a process called _synthesis_, we call these types _synthesized types_. Many constructs in the language must be ascribed types by the programmer: variables declared with "`let`", function parameters, and return values. Types which are declared explicitly are called _assumed_ types.
 
 #wrapped-figure(
   left: include "examples/let.typ",
@@ -247,7 +247,7 @@ Now, we move up the tree, to synthesize the right-hand side of #noderef-2(`+`), 
 #align(center)[
   #include "examples/typechecking/reduce-2.typ"
 ]
-In (1) we synthesize the node's type from the assumed type of `z`. In (2) we used this information, and the type of #noderef-3(`+`) to synthesize a type for #noderef-3(`+`).
+In (1) we synthesize the node's type from the assumed type of `z`. In (2) we used this information, and the type of #noderef-3(`+`) to synthesize a type for #noderef-2(`+`).
 
 Finally, we again move up the tree, now to #noderef-1(`/`).
 
