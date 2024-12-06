@@ -180,7 +180,7 @@ We optimize clarity by keeping tokens consistent, for example, colon (`:`) is al
 Being a low-level language, we want to emphasize precisely what the machine is doing.
 Howlite programs are written in an imperative style, we expect the programmer to use mutable state, but discourage it when unnecessary by making it opt-in via the `mut` keyword. We also omit short-hand syntax or functions for functional operations, like transforming the content of an array. While these operations are convenient, they can paper over important details like memory allocation. 
 
-For example, flow control constructs, like if statements may have a value. This allows the programmer to clearly show a variable's value is the result of some condition. In order to make tooling easier to write, we prioritize creating an unambiguous grammar, with no constructs that require unbounded look-ahead.g an unambigous grammar, with no constructs that require unbounded look-ahead.
+For example, flow control constructs like if statements may have a value. This allows the programmer to clearly show a variable's value is the result of some condition.
 
 = Bare Metal Polymorphism<sc-polymorphism>
 
