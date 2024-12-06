@@ -48,7 +48,7 @@ To satisfy both audiences, it must be clear in two ways: first, it needs to be u
       The language avoids symbols, instead using keywords, which are generally easier for students to remember. With so much of the language being textual, Hedy is fully translated to a large set of languages, 47 at the time of writing. The programs in @ex-hedy-english and @ex-hedy-arabic both print "Hello!" and ask the user their name, despite their keywords being in different languages. Hedy also allows programmers to see and hear the results of their work: it has easily accessible functionality for playing music and drawing graphics. Those features are typically implemented as libraries for most programming languages,
     ],
     under: [
-      since they have a relatively narrow application. But, by putting these features in the core language Hedy allows fairly inexpierenced programmers access the machines more complex functionality, at the cost of performance and fine-grained control.
+      since they have a relatively narrow application. But, by putting these features in the core language Hedy allows fairly inexperienced programmers access the machines more complex functionality, at the cost of performance and fine-grained control.
     ])
 
 == Go
@@ -132,13 +132,13 @@ For example, say we take a slice of some ASCII string, from index 3 to 10, the r
 
 By using a generic parameter, `LenT`, then giving `str` the type `&[char; LenT]`.
 We can be certain this function only works on a string of length less than or equal to 0x7fffffff.
-Since it's impossible to find a character outside of those bounds, we know the return type can't exceed the maximum value of `LenT`, if no character is found then we return `-1`.
+Since it's impossible to find a character outside those bounds, we know the return type can't exceed the maximum value of `LenT`, if no character is found then we return `-1`.
 
 
 #wrapped-figure(
   right: include "examples/index_of/body.typ",
   left: [
-   Finally, the body of this function likely looks familiar to C programmers, with some minor syntactic changes. The most noticeable changes are inherited from Rust [@rust]: Variables are declared with `let`, all expressions (including `if` statements and blocks) have values. The value of a block is equal to the value of the last line in the block if that line omits a semi-colon (`;`), or `unit` otherwise.
+   Finally, the body of this function likely looks familiar to C programmers, with some minor syntactic changes. The most noticeable changes are inherited from Rust [@rust]: Variables are declared with `let`, all expressions (including `if` statements and blocks) have values. The value of a block is equal to the value of the last line in the block if that line omits a semicolon (`;`), or `unit` otherwise.
 
     Some care must be taken to make sure we satisfy the return type.
     The compiler must be certain `i` is always a subset of `0..Max[LenT]`, even though `i`'s declared type (`UInt32`) certainly exceeds `LenT`.
@@ -168,7 +168,7 @@ Howlite code should be recognizable to C programmers. For this reason, we use cu
 
 A small, easily parsed grammar is valuable because it makes implementing tooling easier. Anything from simple syntax highlighting in _Emacs_ to an auto-formatter or linter is dramatically easier to implement when parsing the language isn't a significant hurdle.
 
-Howlite's syntax is expressable in an LR grammar. Consequently, the grammar is unambiguous. While writing the grammar, we aimed to reduce look ahead as much as possible. For example, functions' type parameters are written `index_of[:u32](...)`, which disambiguates the use of `[...]` from array access.
+Howlite's syntax can be expressed with an LR grammar. Consequently, the grammar is unambiguous. While writing the grammar, we aimed to reduce look ahead as much as possible. For example, functions' type parameters are written `index_of[:u32](...)`, which disambiguates the use of `[...]` from array access.
 
 == Clarity
 
@@ -178,7 +178,7 @@ If a program is clear, then the author's original intent should be easily unders
 We optimize clarity by keeping tokens consistent, for example, colon (`:`) is almost always a way to give _something_ a type, whether that thing is an expression, variable, or a field of a data structure. However, we don't sacrifice familiarity for consistency. Languages like C, C++, Java, Go, and more use curly braces for both structure declarations and statement blocks, so we follow suit.
 
 Being a low-level language, we want to emphasize precisely what the machine is doing.
-Howlite programs are written in an imperative style, we expect the programmer to use mutable state, but discourage it when unnecessary by making it opt-in via the `mut` keyword. We also omit short-hand syntax or functions for functional operations, like transforming the content of an array. While these operations are convenient, they can paper over important details like memory allocation. 
+Howlite programs are written in an imperative style, we expect the programmer to use mutable state, but discourage it when unnecessary by making it opt-in via the `mut` keyword. We also omit shorthand syntax or functions for functional operations, like transforming the content of an array. While these operations are convenient, they can paper over important details like memory allocation. 
 
 For example, flow control constructs like if statements may have a value. This allows the programmer to clearly show a variable's value is the result of some condition.
 
@@ -187,17 +187,17 @@ For example, flow control constructs like if statements may have a value. This a
 As outlined in @sc-howlite-intro Howlite supports two kinds of polymorphism: subtype and parametric polymorphism.
 To maintain the goal of staying close to the hardware, there are several limitations on both.
 
-First, parametric polymorhpism operates entirely at the type level.
+First, parametric polymorphism operates entirely at the type level.
 It has no bearing on the generated code.
 The in-memory representation of the type `type Vec2[T: Uint32] = { x: T, y: T }` is identical to that of `{ x: Uint32, y: Uint32 }`.
 This feature was inspired by the research language Cyclone [@cyclone_types].
 The key difference is that in Howlite, you can define a type parameter to be a subset of any type, not just pointer-sized types or smaller.
-However, despite supporting larger types we found this limited form of polymorphism is mostly useful for giving strong typing to pointer types and integer types. It functions well when it allows the programmer to avoid using untyped pointers (like C's `void*`) when implementing datastructures like dynamic arrays, or passing context for a callback function. Beyond that, the lack of specialization could cause performance issues or unexpected behavior.
+However, despite supporting larger types we found this limited form of polymorphism is mostly useful for giving strong typing to pointer types and integer types. It functions well when it allows the programmer to avoid using untyped pointers (like C's `void*`) when implementing data structures like dynamic arrays, or passing context for a callback function. Beyond that, the lack of specialization could cause performance issues or unexpected behavior.
 
 Subtype polymorhpism is a consequence of structural typing.
-Types are not compared by name, but instead their contents: so, $50$ is assignable to the type `1..100`, because it is a member of that type. This extends to arrays: `[Char; 10]` is assignable to `[Char; 5]`, becuase it has at least 5 elements. Similarly, a data structure `{ a: int, b: int, c: int, d: int }` can be assigned to `{b: int, c: int}`.
+Types are not compared by name, but instead their contents: so, $50$ is assignable to the type `1..100`, because it is a member of that type. This extends to arrays: `[Char; 10]` is assignable to `[Char; 5]`, because it has at least 5 elements. Similarly, a data structure `{ a: int, b: int, c: int, d: int }` can be assigned to `{b: int, c: int}`.
 
-In practice, this is achieve in two ways: first, if the superset data structure is passed by reference, or a reference to a superset datastructure $T$, is assigned to a reference to a subset data structure $U$, then the underlying pointer is adjusted to align the common fields of $T$ with $U$ during assignment. In the above example the reference would be shifted up by `sizeof(int)` when assigned to `{b: int, c: int}`. This has little to no runtime cost - it usually means adding an immediate offset to future load instructions. If the assignment is not using a reference then only the relevant fields are copied. To make sure this system is sound, we impose the follow restrictions on both arrays and structures:
+In practice, this is achieved in two ways: first, if the superset data structure is passed by reference, or a reference to a superset data structure $T$, is assigned to a reference to a subset data structure $U$, then the underlying pointer is adjusted to align the common fields of $T$ with $U$ during assignment. In the above example the reference would be shifted up by `sizeof(int)` when assigned to `{b: int, c: int}`. This has little to no runtime cost - it usually means adding an immediate offset to future load instructions. If the assignment is not using a reference then only the relevant fields are copied. To make sure this system is sound, we impose the follow restrictions on both arrays and structures:
 1. The superset type must be at least as big as the subset type
 2. Every field in the subset type must have the same size as the equivalent field in the superset
 3. Every field in the subset type must have the same offset as the equivalent field in the superset.
@@ -278,7 +278,7 @@ Scalar types belong to a _storage class_ that identifies how they are encoded in
 A storage class defines how many bits the scalar may use, and if one of them is a sign bit.
 
 All integers are assumed to be two's complement.
-Consequently all integer overflow and underflow is well defined to wrap.
+Consequently, all integer overflow and underflow is well-defined to wrap.
 For example, assuming all numbers in the following expression have a signed, 8-bit storage class, we find `-128 + -128 = 1`.
 
 This mechanism plays well with our concept of scalar types: overflow is allowed, so it doesn't need to be policed if the programmer expects it.
@@ -312,7 +312,7 @@ This fails to compile, since `sh_offset + sh_size` might overflow, and wrap to a
 }
 
 A scalar is constructed by arithmetic operations, character literals or integer literals.
-We will use Howlite's own type construction syntax going forward: the given an expression `e` and a type `T`, the expression `e : T` asserts `e` constructs the type `T`.
+We will use Howlite's own type construction syntax going forward: given an expression `e` and a type `T`, the expression `e : T` asserts `e` constructs the type `T`.
 
 A literal scalar can be constructed from a character literal, like `'A'`, `'\n'`, or `'🤯'`. 
 The type constructed is a single value, equal to their Unicode codepoint. So, #cons_c("A"), #cons_c("\\n", v: "\n"), #cons_c("🤯").
@@ -329,12 +329,12 @@ The `+` sign is a no-op, it's included in the language for cases where it might 
 == Construction of Scalars from Arithmetic Operators
 
 Addition and subtraction operators (`+` and `-`) produce a type representing every possible sum of the operands' types, and no more.
-For example, given a variable `a: 1..3`, and a variable `b: -5 | -7`, then the expression `a + b` has the type `-6..-2`.
+For example, given a variable `a: 1..3`, and a variable `b: -5 | -7`, the expression `a + b` has the type `-6..-2`.
 #align(center)[
   #include "examples/scalar-addition.typ"
 ]
 
-For performance, multiplication and division produce only a contiguous range from the minimum possible result to the maximum.
+For performance, multiplication and division produce only a continuous range from the minimum possible result to the maximum.
 So, re-using the variables defined above, we find `a * b` has the type `-21..-5`, even if the expression can only produce $-21, -15, -14, -10, -7, " and " -5$.
 
 == Construction of Scalars from Comparison & Logical Operators
@@ -342,8 +342,8 @@ So, re-using the variables defined above, we find `a * b` has the type `-21..-5`
 Unconditionally, all comparison operators: `<`, `<=`, `>`, `>=`, `==`, and `!=` synthesize to the type `0 | 1`.
 Similarly, logical "and" (`&&`), and logical "or" (`||`) always synthesizes to the type `0 | 1`.
 
-Although a scheme similar to the logical not (`!`) operator could be implemented, where the constructed type depends on the operands, a simple implementation was chosen for development efficiency, and to see how it would effect programming in the language.
-Ultimately, the difference rarely matters, since if the outcome of a boolean operation is always true, or always false its likely either for debugging, or an error on the programmer's part, making the case relatively rare.
+Although a scheme similar to the logical not (`!`) operator could be implemented, where the constructed type depends on the operands, a simple implementation was chosen for development efficiency, and to see how it would affect programming in the language.
+Ultimately, the difference rarely matters, since if the outcome of a boolean operation is always true, or always false it's likely either for debugging, or an error on the programmer's part, making the case relatively rare.
 
 
 == Future Work<sc-future-work>
@@ -355,23 +355,22 @@ Due to the internal representation of integer sets (discussed in @sc-disjoint-in
 = Disjoint Integer Sets<sc-disjoint-integer-sets>
 
 Integer sets are used throughout the type checker. 
-As described in @sc-scalars, these sets must be able to every possible result of addition, subtraction, and _at least_ determine the upper and lower bounds of other operations.
+As described in @sc-scalars, these sets must be able to compute every possible result of addition, subtraction, and _at least_ determine the upper and lower bounds of other operations.
 Further, the type checker will often test subset relations between sets, and union a series of sets.
 
-There are many solutions for storing large disjoint sets of integers: in particular we investigated Roaring Bitmaps (@chambiBetterBitmapPerformance2016), and Range Set Blaze (@kadieCarlKCarlKRangesetblaze2024).
+There are many solutions for storing large disjoint sets of integers: in particular we investigated Roaring Bitmaps [@chambiBetterBitmapPerformance2016], and Range Set Blaze [@kadieCarlKCarlKRangesetblaze2024].
 The set representation was developed with the intention of tracking the exact results of multiplication, and division not just addition and subtraction.
 To this end, we chose using a list of stepped ranges, instead of continuous ranges like Range Set Blaze. 
-However, this representation made simple operations, like subset difficult, so, to optimize cases where we have sets of arbitrary values, we also give the option of using a large uncompressed bit map.
+However, this representation made simple operations (for example subset) difficult, so to optimize cases where we have sets of arbitrary values, we also give the option of using a large uncompressed bit map.
 Finally, to optimize the typical case, where the programmer is performing arithmetic on a large continuous range, sets may be represented just using the two endpoints.
 
-// Internally, we use 3 set representations, _Stripe Sets_, _Small Sets_ and _Continguous Sets_
 
 The following sections give a more detailed overview of the three representations.
 
 == Stripe Sets<sc-stripe-sets>
 
 A _Stripe Set_ is a collection of _step ranges_. 
-A step range is some set which includes a minimum element $A$, a maximum element $B$, and every $N^"th"$ element between the two.
+A step range is some set which includes a minimum element $A$, a maximum element $B$, and every $N^"th"$ integer between the two.
 For example, we could have a range with a step of $5$, from $0$ to $15$, which includes $0$, $5$, $10$, $15$
 
 Formally, we define $"STEP"(A, B, S) := { n(S) + A : n in NN, n <= (B - A)\/S }$, where $A, B in ZZ, A <= B$ and $S in ZZ, S >= 1, (B - A mod S) equiv 0$.
@@ -383,12 +382,12 @@ Formally, we define $"STEP"(A, B, S) := { n(S) + A : n in NN, n <= (B - A)\/S }$
   ${ #elems }$
 }
 
-In order to add two step ranges:  $alpha", and " beta$ we take the one with the fewest elements (say $alpha$, for this example). 
-For every element $a$ in $alpha$, create a new range $STEP("min"(beta) + a, "max"(beta) + a, "step"(beta))$. Multiplication and division falls to only operating on the set's minimum and maximum, in order to construct a new continuous set.
+In order to add 2 step ranges:  $alpha", and " beta$ we take the one with the fewest elements (say $alpha$, for this example);
+then, for every element $a$ in $alpha$, create a new range $STEP("min"(beta) + a, "max"(beta) + a, "step"(beta))$. Multiplication and division falls to only operating on the set's minimum and maximum, in order to construct a new continuous set.
 
 This representation is the most general - it can express any arbitrary set of integers.
 But, the in-memory representation can be difficult to manage.
-Operations like union and set subtraction can cause the internal representation to become fragmented - several step ranges are used to express a collection of values that could be expressed with a single step range. Care is taken to avoid this fragmentation, or correct it when detected, however the algorithm is far from perfect. During development we found taking union of roughly $60$ continuous ranges had a large decrease in performance.
+Operations like union and set subtraction can cause the list of step ranges to become fragmented - several step ranges are used to express a collection of values that could be expressed with a single step range. Care is taken to avoid this fragmentation, or correct it when detected, however the algorithm is far from perfect. During development, after taking the union of roughly $60$ continuous ranges there was a noticeable decrease in performance.
 
 
 == Small Sets<sc-sm-set>
@@ -401,7 +400,7 @@ Ideally, the small size, but quick set operations would be a good trade-off for 
 However, it is still difficult to compute every possible result of a particular bit-wise operation between two small sets, making them unfit for this use case.
 Since enumerable types and bit-flags typically only have a relatively small set of defined values, it would likely be more efficient to use an array of integers.
 
-In the current iteration of the type checker, small sets are often used to store the type of string literals. String literals are short-hand syntax for an array of UTF-8 encoded characters. Usually, the element type for these arrays contains several arbitrary integers, all clustered between 0 and 255 (for example: the string "Hello World" has the type [32 | 72 | 85 | 100 | 101 | 108 | 117 | 120; 11])
+In the current iteration of the type checker, small sets are often used to store the type of string literals. String literals are short-hand syntax for an array of UTF-8 encoded characters. Usually, the element type for these arrays contain several arbitrary integers, all clustered between 0 and 255 (for example: the string "Hello World" has the type [32 | 72 | 85 | 100 | 101 | 108 | 117 | 120; 11])
 == Continuous Ranges<sc-contiguous-ranges>
 
 A continuous range is a set with a minimum element $A$, and a maximum element $B$, which includes every integer between the two.
@@ -413,7 +412,7 @@ To precisely compute the possible results of multiplication between two arbitrar
 The possible values of any scalar are kept as one of the above types, with a discriminator, this structure is called `DynSet`.
 The type checker can construct a new `DynSet` in 2 ways:
 
-1. Using a single value, $a$, (e.g. synthesizing a literal). This creates a contiguous range from $a$ to $a$.
+1. Using a single value, $a$, (e.g. synthesizing a literal). This creates a continuous range from $a$ to $a$.
 2. Using a type range expression, `a..b`, this creates a contiguous range from `a` to `b`.
 
 From the start of its life as a contiguous range, these dynamic sets can be _upgraded_ to a more suitable representation. For example, after taking the union of two dynamic sets with no overlap, they'll be represented as a stripe set.
@@ -442,26 +441,26 @@ if x < 10 {
 }
 ```),
 right: [
-  If we instead assigned $x$ to $5$ within the if-statement inner, this would effect its synthesized type, which would be kept past the end of the if-statmeents body.
-  In short: Assumed types are axioms, synthesized types observations based on assignment, and narrowed types are observations based on conditions.])
+  If we instead assigned $x$ to $5$ within the inner if-statement, this would affect its synthesized type, which would be kept past the end of the if-statement's body.
+  In short: Assumed types are axioms, synthesized types are observations based on assignment, and narrowed types are observations based on conditions.])
 
 == Loops
 
 Currently, only while loops are supported.
-For simplicity, since while loops can run an indefinite number of times they are treated as a black box. When a while loop is encountered, all variables are assigned their assumed type. Meaning, an previous range analysis is ignored.
+For simplicity, since while loops can run an indefinite number of times they are treated as a black box. When a while loop is encountered, all variables are assigned their assumed type. Meaning, any previous range analysis is ignored.
 
 #include "examples/while-loop-narrowing.typ"
 
-Within the body of the while loop, types are narrowed using the while loop's condition. In @ex-while-loop-narrowing, line 2 we can safely increment $a$, since the condition ensures $a : 0..4$, but the assumed type of $a$ is $0..10$.
+Within the body of the while loop, types are narrowed using the while loop's condition. In @ex-while-loop-narrowing, line 2 we can safely increment $a$, since the condition ensures $a : 0..4$, even though the assumed type of $a$ is $0..10$.
 
 
 
 == Producing Constraints<sc-contraints>
 
 
-Constraints are constructed from the condition of if-statements and while loops, by a _model builder_.
-Similar to type checking, the model builder reduces the syntax tree bottom-up.
-Each node is converted into a _term_.
+Constraints are constructed from the condition of if-statements and while loops by a _model builder_.
+Similar to type checking, the model builder reduces the syntax tree bottom-up,
+each node is converted into a _term_.
 A term has three possible shapes:
 
 1. An _Atom_: a variable with an offset: for example "x + 3", "y - 10".
@@ -477,7 +476,7 @@ The aries library [@bit-monnotPlaansAriesToolbox2024] is used for solving constr
 == Solving Constraints
 
 While adding constraints, the model builder maintains a list of variables, or data structure fields that may be narrowed. 
-Once the aries solver runs, the type checker repeatedly queres the domain of these variables. After each query, the returned range is added to the variable's new domain, then the solver's model is updated to eliminate that range.
+Once the aries solver runs, the type checker repeatedly queries the domain of these variables. After each query, the returned range is added to the variable's new domain, then the solver's model is updated to eliminate that range.
 
 #figure(
 ```py
@@ -485,8 +484,8 @@ Once the aries solver runs, the type checker repeatedly queres the domain of the
 var_type = IntegerType.empty()
 
 # search for a solution by repeated backtracking all invalid decisions
-# then propogating constraints. 
-while solver.backtrace_and_propogate():
+# then propagating constraints. 
+while solver.backtrack_and_propagating():
   for var in variables:
     var_domain = solver.get_domain(var)
     var_type.include_range(var_domain.lower_bound(), var_domain.upper_bound())
@@ -499,7 +498,7 @@ Once we have a set of possible assignments for each variable, the solutions are 
 This process is similar to assignment.
 If an entire variable is narrowed, e.g. $a < 30$, then that variable in assigned a new narrowed type equal to the solution found by the solver, within the relevant scope.
 
-If only a single field of a variable is narrowed, for example `err.kind == 1`, then we copy the variable's type, replace the field with the new type produced by the solver, then process any consequences of that. For example, if the variable's type is a union, and that assignment is illegal in some of the variants, then those variants are thrown away. A possible use-case for this can be seen in the following example of a function to print compiler errors.
+If only a single field of a variable is narrowed, for example `err.kind == 1`, then we copy the variable's type, replace the field with the new type produced by the solver, then process any consequences of that. For example, if the variable's type is a union, and that assignment is illegal in certain variants, then those variants are thrown away. A possible use-case for this can be seen in the following example of a function to print compiler errors.
 
 #include "examples/narrowing-unions.typ"
 
@@ -511,15 +510,15 @@ But, in order to get the line number for parse error the variable has to be narr
 The goal of this project was to create a compiler.
 Currently, only the type checker is finished.
 The project also lacks documentation and testing.
-In it's current state, Howlite should be seen as a proof of concept - a test bed for a few particular language features and nothing more. Although we were unsuccessful in completing the compiler, the process of implementing the type checker has been informative.
+In its current state, Howlite should be seen as a proof of concept - a test bed for a few particular language features and nothing more. Although we were unsuccessful in completing the compiler, the process of implementing the type checker has been informative.
 
-We found that there is little benefit to using disjoint sets over continous ranges.
+We found that there is little benefit to using disjoint sets over continuous ranges.
 Even if it is possible to implement efficiently, the maintenance cost of keeping a system for handling disjoints is to high to make it a worth-while feature.
-Fine-grained control over integer types was a useful and interesting feature in two ways: first, it gives the programmer an effective tool to express intent, particularly when indexing arrays or if overflow is unexpected; second, it unifies enumerable types, unusually sized integers (e.g. 48-bit ints), and standard integers into the same mechanism, simplifying the overall language.
+Fine-grained control over integer types was a useful and interesting feature in two ways: first, it gives the programmer an effective tool to express intent, particularly when indexing arrays or if overflow is unexpected; second, it unifies enumerable types, unusually sized integers (e.g. 48-bit integers), and standard integers into the same mechanism, simplifying the overall language.
 
-Howlite is also an expirement in low-cost approaches to polymorphism (see @sc-polymorphism). Our two approaches were parametric polymorhpism without specialization and sub-type polymorphism via structural typing.
-The parametric polymorphism was a bit difficult to work with: becuase nearly all programming languages generate a different implementation based on the type parameters our entirely different semantics could lead to confusion.
+Howlite is also an experiment in low-cost approaches to polymorphism (see @sc-polymorphism). Our two approaches were parametric polymorphism without specialization and subtype polymorphism via structural typing.
+The parametric polymorphism was a bit difficult to work with: because nearly all programming languages generate a different implementation based on the type parameters our entirely different semantics could lead to confusion.
 A simpler approach, like the one in Cyclone [@cyclone_types] would be more effective in a production language. Structural typing was much more effective.
-It worked well with unions and integer types, as seen in @ex-type-narrowing-and-unions, futher, it allowed functions to only the require the data they used, no matter what the caller might be working with.
+It worked well with unions and integer types, as seen in @ex-type-narrowing-and-unions, further, it allowed functions to only require the data they used, no matter what the caller might be working with.
 The trade-off is again, because we operate at a lower level, the types have to be perfectly aligned to be subtypes.
 So, some things that the programmer may not expect to matter intuitively effect subtype relationships, most notably field order.
