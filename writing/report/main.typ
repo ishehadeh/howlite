@@ -286,10 +286,10 @@ For example, consider a function which averages some set of numbers
 
 #include "examples/average-arbitrary.typ"
 
-It's trivial to overflow cause overflow when adding `acc + nums[i]` (for example, if `nums = [0xffffffff, 0xffffffff]`).
+It's trivial to cause overflow when adding `acc + nums[i]` (for example, if `nums = #[0xffffffff, 0xffffffff]`).
 But if the author is concerned more with rapid development, or performance, they may not want to handle this case.
 
-However, if overflow is known to be harmful then it can be explicitly forbidden. For example. Suppose we're reading a 64-bit ELF file, a common executable file format on Unix-like systems, we can read the address and size of a particular section from the $4^"th"$ and $5^"th"$ words of its _Section Heder_ entry @SystemApplicationBinary2013a:
+However, if overflow is known to be harmful then it can be explicitly forbidden. For example: suppose we're reading a 64-bit ELF file, a common executable file format on Unix-like systems, we can read the address and size of a particular section from the $4^"th"$ and $5^"th"$ words of its _Section Heder_ entry [@scoSystemApplicationBinary2013]:
 
 ```
 let sh_offset: Uint64 = sh_entry[3];
