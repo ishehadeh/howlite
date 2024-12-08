@@ -338,14 +338,18 @@ impl<SymbolT: Symbol> Ty<SymbolT> {
         }
     }
 
+    // #[instrument]
     pub fn assign_path(
         &self,
         path: &[AccessPathElem<SymbolT>],
         val: Rc<Ty<SymbolT>>,
     ) -> Result<Rc<Ty<SymbolT>>, AccessError> {
         if path.is_empty() {
+            if self.is_hole() {
+                return Ok(Rc::new(Ty::Hole));
+            }
+
             let new_ty = if let Some(i) = val.as_int() {
-                dbg!(&i,&self); 
                 Rc::new(Ty::Int(TyInt {
                     values: i.values.clone(),
                     storage: self.as_int().unwrap().storage.clone(),

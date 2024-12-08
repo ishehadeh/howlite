@@ -1,0 +1,32 @@
+type UInt32 = 0..0xffffffff;
+type char = 0..0x7f;
+
+type True = 1;
+type False = 0;
+type Boolean = True | False;
+
+let true: True = (1 : True);
+let false: False = (0 : False);
+
+func sort(arr: &[UInt32; UInt32]): unit {
+    let swapped: UInt32 = true;
+    while swapped {
+        swapped = false;
+        let i: UInt32 = 1;
+        while i < arr.len {
+            if arr[i - 1] > arr[i] {
+                let tmp: UInt32 = arr[i - 1];
+                arr[i - 1] = arr[i];
+                arr[i] = tmp;
+                swapped = true;
+            }
+        }
+    };
+}
+
+
+type IntArray = { 
+    data: &[UInt32; UInt32];
+    cap: UInt32
+};
+extern func realloc(ptr: UInt32, size: UInt32)
