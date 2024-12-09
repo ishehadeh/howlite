@@ -1,5 +1,7 @@
 mod string_codec;
 
+mod tokens;
+
 /* #region Re-exports  */
 pub mod ast;
 pub mod span;
