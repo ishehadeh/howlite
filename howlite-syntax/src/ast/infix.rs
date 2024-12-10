@@ -2,6 +2,7 @@ use crate::{gen_node_impls, tree::DefaultLinearTreeId};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[repr(u8)]
 pub enum InfixOp {
     Add,
     Sub,

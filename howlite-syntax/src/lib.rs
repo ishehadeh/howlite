@@ -1,5 +1,8 @@
 mod string_codec;
 
+mod parse;
+#[cfg(test)]
+mod test;
 mod tokens;
 
 /* #region Re-exports  */

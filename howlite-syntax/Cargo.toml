@@ -9,9 +9,13 @@ lrlex = "=0.13.7"
 lrpar = "=0.13.7"
 allocator-api2 = "*"
 logos = "*"
+rowan = "*"
 smol_str = { version = "=0.3.2" }
-aries = { git = "https://github.com/ishehadeh/aries", branch="feat/int-type-features", features = ["i128"] }
-
+aries = { git = "https://github.com/ishehadeh/aries", branch = "feat/int-type-features", features = [
+    "i128",
+] }
+thiserror = "*"
+tracing = "*"
 # Testing dependecies
 proptest = { version = "=1.5.0", optional = true }
 proptest-derive = { version = "*", optional = true }
@@ -33,6 +37,7 @@ lrpar = "=0.13.7"
 [dev-dependencies]
 proptest = { version = "=1.5.0" }
 pretty_assertions = "*"
+tracing-test = "*"
 
 [features]
 cli = ["dep:clap"]

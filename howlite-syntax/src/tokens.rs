@@ -1,8 +1,10 @@
 use logos::Logos;
 
-#[derive(Logos, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+use crate::ast::InfixOp;
 
-pub enum EscapedStrToken {
+#[derive(Logos, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(u16)]
+pub enum SyntaxKind {
     // keywords
     #[token("unit")]
     KwUnit,
@@ -132,6 +134,62 @@ pub enum EscapedStrToken {
     #[regex(r#"//[\pL\pM\pN\pS\pP\p{Zs}]*"#)]
     CommentLine,
 
-    #[regex(r#"/\*[\pL\pM\pN\pS\pP\p{Zs}\p{Zl}]*\*/"#)]
+    #[regex(r#"/\*+((\*+[^\*/])|[^\*])*\*+/"#)]
     CommentMultiLine,
+    //
+    // composite nodes
+    ExprPrefix,
+    ExprInfix,
+
+    // marks some error in the tree
+    Error,
+
+    // top level node
+    // IMPORTANT: this node must have the highest value
+    Root,
+}
+
+impl Into<rowan::SyntaxKind> for SyntaxKind {
+    fn into(self) -> rowan::SyntaxKind {
+        rowan::SyntaxKind(self as u16)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+enum Lang {}
+impl rowan::Language for Lang {
+    type Kind = SyntaxKind;
+    fn kind_from_raw(raw: rowan::SyntaxKind) -> Self::Kind {
+        assert!(raw.0 <= SyntaxKind::Root as u16);
+        unsafe { std::mem::transmute::<u16, SyntaxKind>(raw.0) }
+    }
+    fn kind_to_raw(kind: Self::Kind) -> rowan::SyntaxKind {
+        kind.into()
+    }
+}
+
+impl SyntaxKind {
+    pub fn as_infix_op(&self) -> Option<InfixOp> {
+        Some(match self {
+            SyntaxKind::Plus => InfixOp::Div,
+            SyntaxKind::Minus => InfixOp::Sub,
+            SyntaxKind::Multiply => InfixOp::Mul,
+            SyntaxKind::Divide => InfixOp::Div,
+            SyntaxKind::ShiftLeft => InfixOp::BitLShift,
+            SyntaxKind::ShiftRight => InfixOp::BitRShift,
+            SyntaxKind::Ampersand => InfixOp::BitAnd,
+            SyntaxKind::BitOr => InfixOp::BitOr,
+            SyntaxKind::LogicalAnd => InfixOp::LogicalAnd,
+            SyntaxKind::LogicalOr => InfixOp::LogicalOr,
+            SyntaxKind::Less => InfixOp::CmpLt,
+            SyntaxKind::Greater => InfixOp::CmpGt,
+            SyntaxKind::LessEq => InfixOp::CmpLtEq,
+            SyntaxKind::GreaterEq => InfixOp::CmpGtEq,
+            SyntaxKind::Equal => InfixOp::CmpEq,
+            SyntaxKind::NotEqual => InfixOp::CmpNe,
+            SyntaxKind::Assign => InfixOp::Assign,
+            SyntaxKind::Dot => todo!(),
+            _ => return None,
+        })
+    }
 }
