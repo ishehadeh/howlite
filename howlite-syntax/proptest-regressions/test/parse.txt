@@ -6,3 +6,5 @@
 # everyone who runs the test benefits from these saved cases.
 cc 7bdef8af72840fe54d3b2a6893b01969c3e69056fe705d08cb3c633fde7cde5b # shrinks to t = ">/*AﬀA*/>/*𛲐\u{1da9b}\u{897}*/>/*AAA*/</*ໆ0꒐*/"
 cc f943dbe51dfad0d4a26ff5d24beee32fa591bcdbe560a6ae67c25f1c283c8850 # shrinks to t = ">/*00 */-/*¡Aa*/-/*\u{113c5}a**/>/* 𒑰0*/"
+cc f0fa959e34671ef7881166ea6ce80c6f4a653914f0e8a3c8913efa05f6697a69 # shrinks to t = "+/* 0‐*/>/*ΣਾA*/>/**/Σ*/+/*A¡a*/"
+cc 60e1446a0a50b63dcc1d5642a940c54f094fde45c20cd7147421a271a27c24f6 # shrinks to t = "</**A*A*¡*/-/** * * */-/**/*\0*0*/-/**\0*a*\0*/"

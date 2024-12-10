@@ -7,7 +7,7 @@ use tracing_test::traced_test;
 #[traced_test]
 pub fn lexer_pos() {
     // check we get accurate spans back in the presence of odd unicode characters
-    proptest!(|(t in r#"([+\-<>]/\*[\pL\pM\pN\pS\pP\p{Zs}\p{Zl}]{3,10}\*/){4,4}"#)| {
+    proptest!(|(t in r#"([+\-<>]/\*((\*+[^/])|[^\*]){3,10}\*/){4,4}"#)| {
         let mut parser = Parser::new(&t);
         for i in 0..8 {
             let token = parser.token();

@@ -8,16 +8,12 @@ use crate::tokens::SyntaxKind;
 #[traced_test]
 
 pub fn comment_multi_line() {
-    proptest!(|(t in r#"/\*[\pL\pM\pN\pS\pP\p{Zs}\p{Zl}]{0,21}\*/"#)| {
-        prop_assume!(t.matches("*/").count() == 1);
-        
+    proptest!(|(t in r#"/\*((\*+[^/])|[^\*]){0,21}\*/"#)| {
         let tokens: Vec<_> = SyntaxKind::lexer(&t).collect();
         prop_assert_eq!(tokens, vec![Ok(SyntaxKind::CommentMultiLine)])
     });
 
-    proptest!(|(t in r#"(/\*[\pL\pM\pN\pS\pP\p{Zs}\p{Zl}]{0,21}\*/){2,2}"#)| {
-        prop_assume!(t.matches("*/").count() == 2);
-
+    proptest!(|(t in r#"(/\*((\*+[^/])|[^\*]){0,21}\*/){2,2}"#)| {
         let tokens: Vec<_> = SyntaxKind::lexer(&t).collect();
         prop_assert_eq!(tokens, vec![Ok(SyntaxKind::CommentMultiLine), Ok(SyntaxKind::CommentMultiLine)])
     });
