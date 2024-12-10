@@ -470,6 +470,7 @@ dependencies = [
  "logos",
  "lrlex",
  "lrpar",
+ "memchr",
  "pretty_assertions",
  "proptest",
  "proptest-derive",

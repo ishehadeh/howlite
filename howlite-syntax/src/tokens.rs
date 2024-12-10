@@ -1,6 +1,7 @@
 use logos::Logos;
 
 use crate::ast::InfixOp;
+use memchr::memmem;
 
 #[derive(Logos, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(u16)]
@@ -134,7 +135,12 @@ pub enum SyntaxKind {
     #[regex(r#"//[\pL\pM\pN\pS\pP\p{Zs}]*"#)]
     CommentLine,
 
-    #[regex(r#"/\*+((\*+[^\*/])|[^\*])*\*+/"#)]
+    #[token("/*", |lex| {
+        let end_idx = memmem::find(lex.remainder().as_bytes(), b"*/")?;
+        lex.bump(end_idx + 2); 
+
+        Some(())
+    })]
     CommentMultiLine,
     //
     // composite nodes

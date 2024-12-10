@@ -21,6 +21,7 @@ proptest = { version = "=1.5.0", optional = true }
 proptest-derive = { version = "*", optional = true }
 unicode-properties = { version = "*", optional = true }
 rand = { version = "*", optional = true }
+memchr = "*"
 
 # Serialization
 serde = { version = "=1.0.215", features = ["derive"], optional = true }

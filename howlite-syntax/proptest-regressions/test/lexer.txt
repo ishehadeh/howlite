@@ -5,3 +5,5 @@
 # It is recommended to check this file in to source control so that
 # everyone who runs the test benefits from these saved cases.
 cc 050ee8c8573b158dd3e49ee849a6e7584e371498086bd068397ecdfcbc99c38d # shrinks to t = "/*𑶦*/"
+cc 6257feb002743c91349d5dd2b6b816cc656666fd8d1a4e1a4a7558619d252d66 # shrinks to t = "/***/"
+cc 1ef9eed4321931f06245003a72da69e87541416b4fddb40db8be2ce054ac9c98 # shrinks to t = "/**/*/"
